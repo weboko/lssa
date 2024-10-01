@@ -27,7 +27,7 @@ serde_json = "1.0.81"
 env_logger = "0.10"
 log = "0.4"
 
-rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "jemalloc"] }
+rocksdb = { version = "0.21.0", default-features = false, features = ["snappy"] }
 
 #ToDo: Add necessary risc0 submodules for zkvm module
 
