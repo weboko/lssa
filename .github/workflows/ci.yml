@@ -1,0 +1,61 @@
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "**.md"
+      - "!.github/workflows/*.yml"
+
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "!.github/workflows/*.yml"
+
+name: General
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        platform: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+
+    name: build - ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build
+
+  lint:
+    strategy:
+      matrix:
+        platform: [ ubuntu-latest ]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+
+    name: lint - ${{ matrix.crate }} - ${{ matrix.platform }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt
+        if: success() || failure()
+        run: cargo fmt -- --check
+      - name: cargo clippy
+        if: success() || failure()
+        run: |
+          cargo clippy --release -- -D warnings
