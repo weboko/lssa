@@ -28,6 +28,7 @@ impl serde::Serialize for Version {
 impl<'de> serde::Deserialize<'de> for Version {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct VersionVisitor;
+        #[allow(clippy::needless_lifetimes)]
         impl<'de> Visitor<'de> for VersionVisitor {
             type Value = Version;
 
