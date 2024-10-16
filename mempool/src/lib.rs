@@ -116,6 +116,14 @@ mod tests {
         assert_eq!(pool.len(), 1);
     }
 
+    #[test]
+    fn test_peek_last() {
+        let mut pool = MemPool::new();
+        pool.push_item(test_item_with_id(1));
+        pool.push_item(test_item_with_id(2));
+        let item = pool.peek_last();
+        assert_eq!(item, Some(&test_item_with_id(1)));
+    }
 
     #[test]
     fn test_push_pop() {
