@@ -120,4 +120,15 @@ mod tests {
         buffer[..len].copy_from_slice(&bytes[..len]);
         buffer
     }
+
+    #[test]
+    fn test_new_merkle_tree() {
+        let tx1 = MockTransaction { hash: get_first_32_bytes("tx1") };
+        let tx2 = MockTransaction { hash: get_first_32_bytes("tx2") };
+
+        let tree = HashStorageMerkleTree::new(vec![tx1.clone(), tx2.clone()]);
+
+        assert_eq!(tree.leaves.len(), 2);
+        assert!(tree.get_root().is_some());
+    }
 }
