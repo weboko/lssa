@@ -131,4 +131,15 @@ mod tests {
         assert_eq!(tree.leaves.len(), 2);
         assert!(tree.get_root().is_some());
     }
+
+    #[test]
+    fn test_get_tx() {
+        let tx1 = MockTransaction { hash: get_first_32_bytes("tx1") };
+        let tx2 = MockTransaction { hash: get_first_32_bytes("tx2") };
+
+        let tree = HashStorageMerkleTree::new(vec![tx1.clone(), tx2.clone()]);
+
+        assert_eq!(tree.get_tx(tx1.hash()), Some(&tx1));
+        assert_eq!(tree.get_tx(tx2.hash()), Some(&tx2));
+    }
 }
