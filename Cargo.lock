@@ -2030,8 +2030,11 @@ dependencies = [
  "anyhow",
  "env_logger",
  "log",
+ "monotree",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
+ "storage",
 ]
 
 [[package]]
