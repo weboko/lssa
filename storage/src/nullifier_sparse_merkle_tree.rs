@@ -224,4 +224,14 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_insert_and_get_proof_of_existing_item() {
+        let mut tree = NullifierSparseMerkleTree::new();
+        let nullifier = create_nullifier([1u8; 32]);
+
+        tree.insert_item(nullifier.clone()).unwrap();
+
+        let proof_result = tree.get_non_membership_proof([1u8; 32]);
+        assert!(proof_result.is_err());
+    }
 }
