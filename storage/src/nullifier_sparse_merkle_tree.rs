@@ -162,4 +162,21 @@ mod tests {
         assert!(result.is_ok());
         assert!(tree.curr_root.is_some());
     }
+
+    #[test]
+    fn test_search_item_inclusion() {
+        let mut tree = NullifierSparseMerkleTree::new();
+        let nullifier = create_nullifier([1u8; 32]);
+
+        tree.insert_item(nullifier.clone()).unwrap();
+
+        let result = tree.search_item_inclusion([1u8; 32]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), true);
+
+        let non_existing = tree.search_item_inclusion([99u8; 32]);
+        assert!(non_existing.is_ok());
+        assert_eq!(non_existing.unwrap(), false);
+    }
+
 }
