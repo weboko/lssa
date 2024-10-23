@@ -197,4 +197,16 @@ mod tests {
         let expected_results = vec![true, true, false];
         assert_eq!(result.unwrap(), expected_results);
     }
+
+    #[test]
+    fn test_non_membership_proof() {
+        let mut tree = NullifierSparseMerkleTree::new();
+        let non_member_hash = [5u8; 32];
+
+        let result = tree.get_non_membership_proof(non_member_hash);
+        assert!(result.is_ok());
+
+        let (proof, root) = result.unwrap();
+        assert!(root.is_none());
+    }
 }
