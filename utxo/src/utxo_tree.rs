@@ -161,4 +161,19 @@ mod tests {
         assert!(result.is_none());
     }
 
+    #[test]
+    fn test_get_membership_proof() {
+        let mut smt = UTXOSparseMerkleTree::new();
+        let utxo = sample_utxo();
+
+        smt.insert_item(utxo.clone()).unwrap();
+
+        // Fetch membership proof for the inserted UTXO
+        let proof = smt.get_membership_proof(utxo.hash).unwrap();
+
+        // Test proof is generated successfully
+        assert!(proof.is_some());
+    }
+
+
 }
