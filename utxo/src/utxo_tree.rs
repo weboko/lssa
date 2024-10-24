@@ -175,5 +175,15 @@ mod tests {
         assert!(proof.is_some());
     }
 
+    #[test]
+    fn test_get_membership_proof_not_exists() {
+        let mut smt = UTXOSparseMerkleTree::new();
 
+        // Try fetching proof for a non-existent UTXO hash
+        let non_existent_hash = TreeHashType::default();
+        let proof = smt.get_membership_proof(non_existent_hash).unwrap();
+
+        // Test no proof is generated for a non-existent UTXO
+        assert!(proof.is_none());
+    }
 }
