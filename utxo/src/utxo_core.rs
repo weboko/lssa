@@ -6,7 +6,7 @@ use storage::{merkle_tree_public::TreeHashType, nullifier::UTXONullifier, Accoun
 ///Raw asset data
 pub type Asset = Vec<u8>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 ///Container for raw utxo payload
 pub struct UTXO {
     pub hash: TreeHashType,
@@ -52,4 +52,37 @@ impl UTXO {
     pub fn interpret_asset<'de, ToInterpret: Deserialize<'de>>(&'de self) -> Result<ToInterpret> {
         Ok(serde_json::from_slice(&self.asset)?)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use storage::{merkle_tree_public::TreeHashType, nullifier::UTXONullifier, AccountId};
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestAsset {
+        id: u32,
+        name: String,
+    }
+
+    fn sample_account() -> AccountId {
+        AccountId::default()
+    }
+
+    fn sample_nullifier() -> UTXONullifier {
+        UTXONullifier::default()
+    }
+
+    fn sample_tree_hash() -> TreeHashType {
+        TreeHashType::default()
+    }
+
+    fn sample_payload() -> UTXOPayload {
+        UTXOPayload {
+            owner: sample_account(),
+            asset: serde_json::to_vec(&TestAsset { id: 1, name: "Test".to_string() }).unwrap(),
+        }
+    }
+
+
 }
