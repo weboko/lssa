@@ -213,8 +213,14 @@ mod tests {
         println!("======Prerequisites======");
         println!();
 
-        println!("Group generator {:?}", hex::encode(AffinePoint::GENERATOR.to_bytes()));
-        println!("Nullifier constant {:?}", hex::encode(NULLIFIER_SECRET_CONST));
+        println!(
+            "Group generator {:?}",
+            hex::encode(AffinePoint::GENERATOR.to_bytes())
+        );
+        println!(
+            "Nullifier constant {:?}",
+            hex::encode(NULLIFIER_SECRET_CONST)
+        );
         println!("Viewing constatnt {:?}", hex::encode(VIEVING_SECRET_CONST));
         println!();
 
@@ -229,7 +235,13 @@ mod tests {
         println!("======Public data======");
         println!();
         println!("Address{:?}", hex::encode(address));
-        println!("Nulifier public key {:?}", hex::encode(nullifer_public_key.to_bytes()));
-        println!("Viewing public key {:?}", hex::encode(viewing_public_key.to_bytes()));
+        println!(
+            "Nulifier public key {:?}",
+            hex::encode(nullifer_public_key.to_bytes())
+        );
+        println!(
+            "Viewing public key {:?}",
+            hex::encode(viewing_public_key.to_bytes())
+        );
     }
 }
