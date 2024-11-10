@@ -33,7 +33,11 @@ jobs:
       - name: install risc0
         if: success() || failure()
         run: |
-          curl -L https://risczero.com/install | bash && source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
+          curl -L https://risczero.com/install | bash
+      - name: install risc0 step 2
+        if: success() || failure()
+        run: |
+          source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
       - uses: Swatinem/rust-cache@v2
       - run: cargo build
 
@@ -66,7 +70,11 @@ jobs:
       - name: install risc0
         if: success() || failure()
         run: |
-          curl -L https://risczero.com/install | bash && source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
+          curl -L https://risczero.com/install | bash
+      - name: install risc0 step 2
+        if: success() || failure()
+        run: |
+          source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
       - name: install taplo
         if: success() || failure()
         run: |
@@ -96,7 +104,11 @@ jobs:
       - name: install risc0
         if: success() || failure()
         run: |
-          curl -L https://risczero.com/install | bash && source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
+          curl -L https://risczero.com/install | bash
+      - name: install risc0 step 2
+        if: success() || failure()
+        run: |
+          source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
       - name: test mempool
         if: success() || failure()
         run: cargo test -p mempool
