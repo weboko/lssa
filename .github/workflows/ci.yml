@@ -32,7 +32,7 @@ jobs:
           override: true
       - name: build ubuntu test
         if: success() || failure()
-        run: ./ci_scripts/build-ubuntu.sh
+        run: chmod 777 ./ci_scripts/build-ubuntu.sh && ./ci_scripts/build-ubuntu.sh
 
   lint:
     strategy:
