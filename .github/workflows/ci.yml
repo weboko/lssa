@@ -14,14 +14,11 @@ on:
 name: General
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        platform: [ ubuntu-latest, macos-latest ]
-    runs-on: ${{ matrix.platform }}
+  build-ubuntu-latest:
+    runs-on: ubuntu-latest
     timeout-minutes: 60
 
-    name: build - ${{ matrix.platform }}
+    name: build - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Install stable toolchain
@@ -30,16 +27,10 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
-      - name: install risc0
+      - name: build - ubuntu-latest
         if: success() || failure()
-        run: |
-          curl -L https://risczero.com/install | bash
-      - name: install risc0 step 2
-        if: success() || failure()
-        run: |
-          source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build
+        run: chmod 777 ./ci_scripts/build-ubuntu.sh && ./ci_scripts/build-ubuntu.sh
+
 
   lint:
     strategy:
@@ -59,30 +50,11 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: cargo fmt
+      - name: lint - ubuntu-latest
         if: success() || failure()
-        run: cargo fmt -- --check
-      - name: cargo clippy
-        if: success() || failure()
-        run: |
-          cargo clippy --release -- -D warnings
-      - name: install risc0
-        if: success() || failure()
-        run: |
-          curl -L https://risczero.com/install | bash
-      - name: install risc0 step 2
-        if: success() || failure()
-        run: |
-          source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
-      - name: install taplo
-        if: success() || failure()
-        run: |
-          cargo install taplo-cli --locked
-      - name: taplo fmt
-        if: success() || failure()
-        run: |
-          taplo fmt --check
+        run: chmod 777 ./ci_scripts/lint-ubuntu.sh && ./ci_scripts/lint-ubuntu.sh
+
+
   test:
     strategy:
       matrix:
@@ -100,21 +72,6 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
-      - uses: Swatinem/rust-cache@v2
-      - name: install risc0
+      - name: test ubuntu-latest
         if: success() || failure()
-        run: |
-          curl -L https://risczero.com/install | bash
-      - name: install risc0 step 2
-        if: success() || failure()
-        run: |
-          source /home/runner/.bashrc && rzup install && source /home/runner/.bashrc
-      - name: test mempool
-        if: success() || failure()
-        run: cargo test -p mempool
-      - name: test storage
-        if: success() || failure()
-        run: cargo test -p storage
-      - name: test zkvm
-        if: success() || failure()
-        run: cargo test -p zkvm
+        run: chmod 777 ./ci_scripts/test-ubuntu.sh && ./ci_scripts/test-ubuntu.sh
