@@ -83,10 +83,12 @@ impl Account {
         self.balance = new_balance;
     }
 
-    pub fn add_asset<Asset: Serialize>(&mut self, asset: Asset) -> Result<()> {
+    pub fn add_asset<Asset: Serialize>(&mut self, asset: Asset, amount: u128, privacy_flag: bool) -> Result<()> {
         let payload_with_asset = UTXOPayload {
             owner: self.address,
             asset: serde_json::to_vec(&asset)?,
+            amount,
+            privacy_flag,
         };
 
         let asset_utxo = UTXO::create_utxo_from_payload(payload_with_asset);

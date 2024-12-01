@@ -83,6 +83,8 @@ mod tests {
         UTXOPayload {
             owner: AccountId::default(),
             asset: vec![1, 2, 3],
+            amount: 10,
+            privacy_flag: false,
         }
     }
 

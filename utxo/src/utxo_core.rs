@@ -6,19 +6,25 @@ use storage::{merkle_tree_public::TreeHashType, nullifier::UTXONullifier, Accoun
 ///Raw asset data
 pub type Asset = Vec<u8>;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 ///Container for raw utxo payload
 pub struct UTXO {
     pub hash: TreeHashType,
     pub owner: AccountId,
     pub nullifier: Option<UTXONullifier>,
     pub asset: Asset,
+    // TODO: change to u256
+    pub amount: u128,
+    pub privacy_flag: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UTXOPayload {
     pub owner: AccountId,
     pub asset: Asset,
+    // TODO: change to u256
+    pub amount: u128,
+    pub privacy_flag: bool,
 }
 
 impl UTXO {
@@ -36,6 +42,8 @@ impl UTXO {
             owner: payload_with_asset.owner,
             nullifier: None,
             asset: payload_with_asset.asset,
+            amount: payload_with_asset.amount,
+            privacy_flag: payload_with_asset.privacy_flag,
         }
     }
 
@@ -85,6 +93,8 @@ mod tests {
                 name: "Test".to_string(),
             })
             .unwrap(),
+            amount: 10,
+            privacy_flag: false,
         }
     }
 
