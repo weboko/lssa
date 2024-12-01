@@ -121,3 +121,64 @@ impl Default for CommitmentsSparseMerkleTree {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nullifier::UTXONullifier;
+    use monotree::database::MemoryDB;
+    use monotree::hasher::Blake3;
+    use monotree::Monotree;
+
+    fn create_nullifier(hash: CommitmentHashType) -> Commitment {
+        Commitment { commitment_hash: hash }
+    }
+
+    #[test]
+    fn test_new_tree_initialization() {
+        let tree = CommitmentsSparseMerkleTree::new();
+        assert!(tree.curr_root.is_none());
+    }
+
+    #[test]
+    fn test_insert_single_item() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let nullifier = create_nullifier([1u8; 32].to_vec()); // Sample 32-byte hash
+
+        let result = tree.insert_item(nullifier);
+        assert!(result.is_ok());
+        assert!(tree.curr_root.is_some());
+    }
+
+    #[test]
+    fn test_insert_multiple_items() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let nullifiers = vec![
+            create_nullifier([1u8; 32].to_vec()),
+            create_nullifier([2u8; 32].to_vec()),
+            create_nullifier([3u8; 32].to_vec()),
+        ];
+
+        let result = tree.insert_items(nullifiers);
+        assert!(result.is_ok());
+        assert!(tree.curr_root.is_some());
+    }
+
+    #[test]
+    fn test_search_item_inclusion() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let nullifier = create_nullifier([1u8; 32].to_vec());
+
+        tree.insert_item(nullifier.clone()).unwrap();
+
+        let result = tree.search_item_inclusion([1u8; 32].to_vec());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), true);
+
+        let non_existing = tree.search_item_inclusion([99u8; 32].to_vec());
+        assert!(non_existing.is_ok());
+        assert_eq!(non_existing.unwrap(), false);
+    }
+
+
+}
