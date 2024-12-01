@@ -180,5 +180,70 @@ mod tests {
         assert_eq!(non_existing.unwrap(), false);
     }
 
+    #[test]
+    fn test_search_multiple_item_inclusions() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let nullifiers = vec![
+            create_nullifier([1u8; 32].to_vec()),
+            create_nullifier([2u8; 32].to_vec()),
+            create_nullifier([3u8; 32].to_vec()),
+        ];
 
+        tree.insert_items(nullifiers).unwrap();
+
+        let search_hashes = vec![[1u8; 32].to_vec(), [2u8; 32].to_vec(), [99u8; 32].to_vec()];
+        let result = tree.search_item_inclusions(&search_hashes);
+        assert!(result.is_ok());
+
+        let expected_results = vec![true, true, false];
+        assert_eq!(result.unwrap(), expected_results);
+    }
+
+    #[test]
+    fn test_non_membership_proof() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let non_member_hash = [5u8; 32].to_vec();
+
+        let result = tree.get_non_membership_proof(non_member_hash);
+        assert!(result.is_ok());
+
+        let (proof, root) = result.unwrap();
+        assert!(root.is_none());
+    }
+
+    #[test]
+    fn test_non_membership_proofs_multiple() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let non_member_hashes = vec![[5u8; 32].to_vec(), [6u8; 32].to_vec(), [7u8; 32].to_vec()];
+
+        let result = tree.get_non_membership_proofs(&non_member_hashes);
+        assert!(result.is_ok());
+
+        let proofs = result.unwrap();
+        for (proof, root) in proofs {
+            assert!(root.is_none());
+        }
+    }
+
+    #[test]
+    fn test_insert_and_get_proof_of_existing_item() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let nullifier = create_nullifier([1u8; 32].to_vec());
+
+        tree.insert_item(nullifier.clone()).unwrap();
+
+        let proof_result = tree.get_non_membership_proof([1u8; 32].to_vec());
+        assert!(proof_result.is_err());
+    }
+
+    #[test]
+    fn test_insert_and_get_proofs_of_existing_items() {
+        let mut tree = CommitmentsSparseMerkleTree::new();
+        let nullifiers = vec![create_nullifier([1u8; 32].to_vec()), create_nullifier([2u8; 32].to_vec())];
+
+        tree.insert_items(nullifiers).unwrap();
+
+        let proof_result = tree.get_non_membership_proofs(&[[1u8; 32].to_vec(), [2u8; 32].to_vec()]);
+        assert!(proof_result.is_err());
+    }
 }
