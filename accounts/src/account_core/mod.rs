@@ -122,3 +122,46 @@ impl Default for Account {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn generate_dummy_utxo_nullifier() -> UTXONullifier {
+        UTXONullifier::default()
+    }
+
+    fn generate_dummy_utxo(address: TreeHashType, amount: u128) -> UTXO {
+        let payload = UTXOPayload {
+            owner: address,
+            asset: vec![],
+            amount,
+            privacy_flag: false,
+        };
+        UTXO::create_utxo_from_payload(payload)
+    }
+
+    #[test]
+    fn test_new_account() {
+        let account = Account::new();
+
+        assert_eq!(account.balance, 0);
+        assert!(account.key_holder.address != [0u8; 32]); // Check if the address is not empty
+    }
+
+    #[test]
+    fn test_mark_spent_utxo() {
+        let mut account = Account::new();
+        let utxo = generate_dummy_utxo(account.address, 100);
+        account.add_new_utxo_outputs(vec![utxo]).unwrap();
+
+        let mut utxo_nullifier_map = HashMap::new();
+        utxo_nullifier_map.insert(account.address, generate_dummy_utxo_nullifier());
+
+        let result = account.mark_spent_utxo(utxo_nullifier_map);
+
+        assert!(result.is_ok());
+        assert!(account.utxo_tree.store.get(&account.address).is_none());
+    }
+
+}
