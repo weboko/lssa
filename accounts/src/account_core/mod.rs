@@ -40,6 +40,19 @@ impl Account {
         }
     }
 
+    pub fn new_with_balance(balance: u64) -> Self {
+        let key_holder = AddressKeyHolder::new_os_random();
+        let address = key_holder.address;
+        let utxo_tree = UTXOSparseMerkleTree::new();
+
+        Self {
+            key_holder,
+            address,
+            balance,
+            utxo_tree,
+        }
+    }
+
     pub fn produce_ephemeral_key_holder(&self) -> EphemeralKeyHolder {
         self.key_holder.produce_ephemeral_key_holder()
     }
