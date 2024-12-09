@@ -78,4 +78,35 @@ mod tests {
         assert!(store.accounts.is_empty());
     }
 
+    #[test]
+    fn test_unregister_nonexistent_account() {
+        let mut store = NodeAccountsStore::new();
+
+        let account_addr: [u8; 32] = pad_to_32("nonexistent".to_string().as_bytes());
+        store.unregister_account(account_addr);
+
+        assert!(store.accounts.is_empty());
+    }
+
+    #[test]
+    fn test_register_multiple_accounts() {
+        let mut store = NodeAccountsStore::new();
+
+        let account1 = create_sample_account(100);
+        let account2 = create_sample_account(200);
+
+        let address_1 = account1.address.clone();
+        let address_2 = account2.address.clone();
+
+        store.register_account(account1);
+        store.register_account(account2);
+
+        assert_eq!(store.accounts.len(), 2);
+
+        let stored_account1 = store.accounts.get(&address_1).unwrap();
+        let stored_account2 = store.accounts.get(&address_2).unwrap();
+
+        assert_eq!(stored_account1.balance, 100);
+        assert_eq!(stored_account2.balance, 200);
+    }
 }
