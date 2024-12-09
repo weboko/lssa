@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_open_db_with_genesis() {
-        let temp_dir: tempfile::TempDir = tempdir().unwrap();
+        let temp_dir = tempdir().unwrap();
         let path = temp_dir.path();
 
         let genesis_block = create_genesis_block();
@@ -81,6 +81,22 @@ mod tests {
         let stored_block = node_store.get_block_at_id(0).unwrap();
         assert_eq!(stored_block.block_id, genesis_block.block_id);
         assert_eq!(stored_block.hash, genesis_block.hash);
+    }
+
+    #[test]
+    fn test_open_db_restart() {
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        let genesis_block = create_genesis_block();
+        let _ = NodeBlockStore::open_db_with_genesis(path, Some(genesis_block)).unwrap();
+
+        // Restart the database
+        let node_store = NodeBlockStore::open_db_restart(path).unwrap();
+
+        // The block should no longer be available since no genesis block is set on restart
+        let result = node_store.get_block_at_id(0);
+        assert!(result.is_err());
     }
 
 }
