@@ -99,4 +99,21 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn test_put_and_get_block() {
+        let temp_dir = tempdir().unwrap();
+        let path = temp_dir.path();
+
+        let genesis_block = create_genesis_block();
+        let node_store = NodeBlockStore::open_db_with_genesis(path, Some(genesis_block)).unwrap();
+
+        let block = create_sample_block(1, 0);
+        node_store.put_block_at_id(block.clone()).unwrap();
+
+        let retrieved_block = node_store.get_block_at_id(1).unwrap();
+        assert_eq!(retrieved_block.block_id, block.block_id);
+        assert_eq!(retrieved_block.hash, block.hash);
+    }
+
+
 }
