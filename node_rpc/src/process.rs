@@ -11,7 +11,10 @@ use crate::{
     rpc_error_responce_inverter,
     types::{
         err_rpc::cast_seq_client_error_into_rpc_error,
-        rpc_structs::{RegisterAccountRequest, RegisterAccountResponse, SendTxRequest},
+        rpc_structs::{
+            ExecuteSubscenarioRequest, ExecuteSubscenarioResponse, RegisterAccountRequest,
+            RegisterAccountResponse, SendTxRequest,
+        },
     },
 };
 
@@ -32,6 +35,29 @@ impl JsonHandler {
                 "JSON RPC Request format was expected".to_owned(),
             )))
         }
+    }
+
+    async fn process_request_execute_subscenario(&self, request: Request) -> Result<Value, RpcErr> {
+        let req = ExecuteSubscenarioRequest::parse(Some(request.params))?;
+
+        {
+            let mut store = self.node_chain_store.lock().await;
+
+            match req.scenario_id {
+                1 => store.subscenario_1().await,
+                2 => store.subscenario_2().await,
+                3 => store.subscenario_3().await,
+                4 => store.subscenario_4().await,
+                5 => store.subscenario_5().await,
+                _ => return Err(RpcErr(RpcError::invalid_params("Scenario id not found"))),
+            }
+        }
+
+        let helperstruct = ExecuteSubscenarioResponse {
+            scenario_result: "success".to_string(),
+        };
+
+        respond(helperstruct)
     }
 
     async fn process_register_account(&self, request: Request) -> Result<Value, RpcErr> {
@@ -74,6 +100,7 @@ impl JsonHandler {
         match request.method.as_ref() {
             //Todo : Add handling of more JSON RPC methods
             "register_account" => self.process_register_account(request).await,
+            "execute_subscenario" => self.process_request_execute_subscenario(request).await,
             "send_tx" => self.process_send_tx(request).await,
             _ => Err(RpcErr(RpcError::method_not_found(request.method))),
         }

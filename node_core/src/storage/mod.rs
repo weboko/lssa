@@ -70,8 +70,9 @@ impl NodeChainStore {
                     .collect(),
             )?;
 
-            let slice_try: Result<[u8; 33],_> = tx.ephemeral_pub_key.clone().try_into(); 
-            let eph_key_compressed = slice_try.and_then(|inner| Ok(<AffinePoint as GroupEncoding>::Repr::from(inner)));
+            let slice_try: Result<[u8; 33], _> = tx.ephemeral_pub_key.clone().try_into();
+            let eph_key_compressed =
+                slice_try.and_then(|inner| Ok(<AffinePoint as GroupEncoding>::Repr::from(inner)));
 
             if let Ok(eph_key_compressed) = eph_key_compressed {
                 let ephemeral_public_key_sender = AffinePoint::from_bytes(&eph_key_compressed);
@@ -80,22 +81,28 @@ impl NodeChainStore {
                     let ephemeral_public_key_sender = ephemeral_public_key_sender.unwrap();
 
                     for (ciphertext, nonce) in tx.encoded_data.clone() {
+                        let slice = nonce.as_slice();
+                        let nonce =
+                            accounts::key_management::constants_types::Nonce::clone_from_slice(
+                                slice,
+                            );
 
-                        let slice = nonce.as_slice(); 
-                        let nonce = accounts::key_management::constants_types::Nonce::clone_from_slice(slice);
+                        for (acc_id, acc) in self.acc_map.iter_mut() {
+                            let decoded_data_curr_acc = acc.decrypt_data(
+                                ephemeral_public_key_sender,
+                                ciphertext.clone(),
+                                nonce,
+                            );
 
-                            for (acc_id, acc) in self.acc_map.iter_mut() {
-                                let decoded_data_curr_acc =
-                                    acc.decrypt_data(ephemeral_public_key_sender, ciphertext.clone(), nonce);
-    
-                                let decoded_utxo_try = serde_json::from_slice::<UTXO>(&decoded_data_curr_acc);
+                            let decoded_utxo_try =
+                                serde_json::from_slice::<UTXO>(&decoded_data_curr_acc);
 
-                                if let Ok(utxo) = decoded_utxo_try {
-                                    if &utxo.owner == acc_id {
-                                        acc.utxo_tree.insert_item(utxo)?;
-                                    }
+                            if let Ok(utxo) = decoded_utxo_try {
+                                if &utxo.owner == acc_id {
+                                    acc.utxo_tree.insert_item(utxo)?;
                                 }
                             }
+                        }
                     }
                 }
             }
