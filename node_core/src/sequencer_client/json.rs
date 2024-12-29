@@ -67,3 +67,11 @@ impl SequencerRpcRequest {
         }
     }
 }
+
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SequencerRpcResponse {
+    pub jsonrpc: String,
+    pub result: serde_json::Value,
+    pub id: u64,
+}

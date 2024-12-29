@@ -72,6 +72,8 @@ impl NodeCore {
         let client = Arc::new(SequencerClient::new(config.clone())?);
 
         let genesis_id = client.get_genesis_id().await?;
+        info!("Gesesis id is {genesis_id:?}");
+
         let genesis_block = client.get_block(genesis_id.genesis_id).await?.block;
 
         let mut storage = NodeChainStore::new_with_genesis(&config.home, genesis_block);
@@ -84,6 +86,7 @@ impl NodeCore {
 
             if let Ok(block) = client.get_block(next_block).await {
                 storage.dissect_insert_block(block.block)?;
+                info!("Preprocessed block with id {next_block:?}");
             } else {
                 break;
             }
@@ -107,6 +110,7 @@ impl NodeCore {
                         let mut storage_guard = wrapped_storage_thread.write().await;
 
                         storage_guard.dissect_insert_block(block.block)?;
+                        info!("Processed block with id {next_block:?}");
                     }
 
                     wrapped_chain_height_thread.store(next_block, Ordering::Relaxed);
