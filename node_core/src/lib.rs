@@ -362,7 +362,7 @@ impl NodeCore {
 
         (
             TransactionPayload {
-                tx_kind: TxKind::Private,
+                tx_kind: TxKind::Shielded,
                 execution_input: serde_json::to_vec(&ActionData::SendMoneyShieldedTx(
                     SendMoneyShieldedTx {
                         acc_sender: acc,
@@ -389,18 +389,12 @@ impl NodeCore {
     pub async fn transfer_utxo_deshielded(
         &self,
         utxo: UTXO,
+        comm_gen_hash: [u8; 32],
         receivers: Vec<(u128, AccountAddress)>,
     ) -> Transaction {
-        let commitment_in = {
-            info!("Attempting to get write guard for commitments");
-            let guard = self.storage.write().await;
-            info!("Guard got");
-
-            guard.utxo_commitments_store.get_tx(utxo.hash).unwrap().hash
-        };
-        info!("Commitnment got");
-
         let acc_map_read_guard = self.storage.read().await;
+
+        let commitment_in = acc_map_read_guard.utxo_commitments_store.get_tx(comm_gen_hash).unwrap().hash;
 
         let accout = acc_map_read_guard.acc_map.get(&utxo.owner).unwrap();
 
@@ -414,11 +408,10 @@ impl NodeCore {
                 .to_vec(),
         );
 
-        info!("Starting send proof");
         let (resulting_balances, receipt) = prove_send_utxo_deshielded(utxo, receivers);
 
         TransactionPayload {
-            tx_kind: TxKind::Private,
+            tx_kind: TxKind::Deshielded,
             execution_input: vec![],
             execution_output: serde_json::to_vec(&ActionData::SendMoneyDeshieldedTx(
                 SendMoneyDeshieldedTx {
@@ -440,15 +433,17 @@ impl NodeCore {
         &self,
         acc: AccountAddress,
         amount: u128,
-    ) -> Result<(SendTxResponse, [u8; 32])> {
+    ) -> Result<(SendTxResponse, [u8; 32], [u8; 32])> {
         let point_before_prove = std::time::Instant::now();
         let (tx, utxo_hash) = self.mint_utxo_private(acc, amount).await;
         let point_after_prove = std::time::Instant::now();
 
+        let commitment_generated_hash = tx.utxo_commitments_created_hashes[0];
+
         let timedelta = (point_after_prove - point_before_prove).as_millis();
         info!("Mint utxo proof spent {timedelta:?} milliseconds");
 
-        Ok((self.sequencer_client.send_tx(tx).await?, utxo_hash))
+        Ok((self.sequencer_client.send_tx(tx).await?, utxo_hash, commitment_generated_hash))
     }
 
     pub async fn send_public_deposit(
@@ -496,11 +491,11 @@ impl NodeCore {
     pub async fn send_deshielded_send_tx(
         &self,
         utxo: UTXO,
+        comm_gen_hash: [u8; 32],
         receivers: Vec<(u128, AccountAddress)>,
     ) -> Result<SendTxResponse> {
         let point_before_prove = std::time::Instant::now();
-        info!("Starting deshielded transfer");
-        let tx = self.transfer_utxo_deshielded(utxo, receivers).await;
+        let tx = self.transfer_utxo_deshielded(utxo, comm_gen_hash, receivers).await;
         let point_after_prove = std::time::Instant::now();
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
@@ -514,7 +509,7 @@ impl NodeCore {
         let acc_addr = self.create_new_account().await;
         info!("Account created {acc_addr:?}");
 
-        let (resp, new_utxo_hash) = self.send_private_mint_tx(acc_addr, 100).await.unwrap();
+        let (resp, new_utxo_hash, comm_gen_hash) = self.send_private_mint_tx(acc_addr, 100).await.unwrap();
         info!("Response for mint private is {resp:?}");
 
         info!("Awaiting new blocks");
@@ -533,7 +528,7 @@ impl NodeCore {
         };
         
         let resp = self
-            .send_deshielded_send_tx(new_utxo, vec![(100, acc_addr)])
+            .send_deshielded_send_tx(new_utxo, comm_gen_hash, vec![(100, acc_addr)])
             .await
             .unwrap();
         info!("Response for send deshielded is {resp:?}");
@@ -597,7 +592,7 @@ impl NodeCore {
         let acc_addr = self.create_new_account().await;
         let acc_addr_rec = self.create_new_account().await;
 
-        let (resp, new_utxo_hash) = self.send_private_mint_tx(acc_addr, 100).await.unwrap();
+        let (resp, _, new_utxo_hash) = self.send_private_mint_tx(acc_addr, 100).await.unwrap();
         info!("Response for mint private is {resp:?}");
 
         info!("Awaiting new blocks");
@@ -688,7 +683,7 @@ impl NodeCore {
         let acc_addr = self.create_new_account().await;
         let acc_addr_rec = self.create_new_account().await;
 
-        let (resp, new_utxo_hash) = self.send_private_mint_tx(acc_addr, 100).await.unwrap();
+        let (resp, comm_gen_hash, new_utxo_hash) = self.send_private_mint_tx(acc_addr, 100).await.unwrap();
         info!("Response for mint private is {resp:?}");
 
         info!("Awaiting new blocks");
@@ -707,7 +702,7 @@ impl NodeCore {
         };
 
         let resp = self
-            .send_deshielded_send_tx(new_utxo, vec![(100, acc_addr_rec)])
+            .send_deshielded_send_tx(new_utxo, comm_gen_hash, vec![(100, acc_addr_rec)])
             .await
             .unwrap();
         info!("Response for send deshielded is {resp:?}");
