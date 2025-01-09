@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use k256::AffinePoint;
 use log::info;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use storage::{merkle_tree_public::TreeHashType, nullifier::UTXONullifier};
 use utxo::{
     utxo_core::{UTXOPayload, UTXO},
@@ -118,7 +118,7 @@ impl Account {
     }
 
     pub fn log(&self) {
-        self.key_holder.log();
+        info!("Keys generated");
         info!("Account address is {:?}", hex::encode(self.address));
         info!("Account balance is {:?}", self.balance);
     }
