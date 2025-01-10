@@ -91,45 +91,144 @@ impl From<TransactionPayload> for Transaction {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MintMoneyPublicTx {
+    pub acc: [u8; 32],
+    pub amount: u128,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SendMoneyShieldedTx {
+    pub acc_sender: [u8; 32],
+    pub amount: u128,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SendMoneyDeshieldedTx {
+    pub receiver_data: Vec<(u128, [u8; 32])>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OwnedUTXO {
+    pub hash: [u8; 32],
+    pub owner: [u8; 32],
+    pub amount: u128,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OwnedUTXOForPublication {
+    pub hash: String,
+    pub owner: String,
+    pub amount: u128,
+}
+
+impl From<OwnedUTXO> for OwnedUTXOForPublication {
+    fn from(value: OwnedUTXO) -> Self {
+        Self {
+            hash: hex::encode(value.hash),
+            owner: hex::encode(value.owner),
+            amount: value.amount,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UTXOPublication {
+    pub utxos: Vec<OwnedUTXO>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ActionData {
+    MintMoneyPublicTx(MintMoneyPublicTx),
+    SendMoneyShieldedTx(SendMoneyShieldedTx),
+    SendMoneyDeshieldedTx(SendMoneyDeshieldedTx),
+    UTXOPublication(UTXOPublication),
+}
+
+impl ActionData {
+    pub fn into_hexed_print(self) -> String {
+        match self {
+            ActionData::MintMoneyPublicTx(action) => {
+                format!(
+                    "Account {:?} minted {:?} balance",
+                    hex::encode(action.acc),
+                    action.amount
+                )
+            }
+            ActionData::SendMoneyDeshieldedTx(action) => {
+                format!(
+                    "Receivers receipt {:?}",
+                    action
+                        .receiver_data
+                        .into_iter()
+                        .map(|(amount, rec)| (amount, hex::encode(rec)))
+                        .collect::<Vec<_>>()
+                )
+            }
+            ActionData::SendMoneyShieldedTx(action) => {
+                format!(
+                    "Shielded send from {:?} for {:?} balance",
+                    hex::encode(action.acc_sender),
+                    action.amount
+                )
+            }
+            ActionData::UTXOPublication(action) => {
+                let pub_own_utxo: Vec<OwnedUTXOForPublication> = action
+                    .utxos
+                    .into_iter()
+                    .map(|owned_utxo| owned_utxo.into())
+                    .collect();
+                format!("Published utxos {:?}", pub_own_utxo)
+            }
+        }
+    }
+}
+
 impl Transaction {
     pub fn log(&self) {
         info!("Transaction hash is {:?}", hex::encode(self.hash));
         info!("Transaction tx_kind is {:?}", self.tx_kind);
-        info!(
-            "Transaction execution_input is {:?}",
-            hex::encode(self.execution_input.clone())
-        );
-        info!(
-            "Transaction execution_output is {:?}",
-            hex::encode(self.execution_output.clone())
-        );
+        info!("Transaction execution_input is {:?}", {
+            if let Ok(action) = serde_json::from_slice::<ActionData>(&self.execution_input) {
+                action.into_hexed_print()
+            } else {
+                "".to_string()
+            }
+        });
+        info!("Transaction execution_output is {:?}", {
+            if let Ok(action) = serde_json::from_slice::<ActionData>(&self.execution_output) {
+                action.into_hexed_print()
+            } else {
+                "".to_string()
+            }
+        });
         info!(
             "Transaction utxo_commitments_spent_hashes is {:?}",
             self.utxo_commitments_spent_hashes
                 .iter()
                 .map(|val| hex::encode(val.clone()))
+                .collect::<Vec<_>>()
         );
         info!(
             "Transaction utxo_commitments_created_hashes is {:?}",
             self.utxo_commitments_created_hashes
                 .iter()
                 .map(|val| hex::encode(val.clone()))
+                .collect::<Vec<_>>()
         );
         info!(
             "Transaction nullifier_created_hashes is {:?}",
             self.nullifier_created_hashes
                 .iter()
                 .map(|val| hex::encode(val.clone()))
-        );
-        info!(
-            "Transaction execution_proof_private is {:?}",
-            self.execution_proof_private
+                .collect::<Vec<_>>()
         );
         info!(
             "Transaction encoded_data is {:?}",
             self.encoded_data
                 .iter()
                 .map(|val| (hex::encode(val.0.clone()), hex::encode(val.1.clone())))
+                .collect::<Vec<_>>()
         );
         info!(
             "Transaction ephemeral_pub_key is {:?}",
