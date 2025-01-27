@@ -282,7 +282,7 @@ mod tests {
     }
 
     fn create_dummy_transaction(
-        hash: TreeHashType, 
+        hash: TreeHashType,
         nullifier_created_hashes: Vec<[u8; 32]>,
         utxo_commitments_spent_hashes: Vec<[u8; 32]>,
         utxo_commitments_created_hashes: Vec<[u8; 32]>,
@@ -302,12 +302,7 @@ mod tests {
     }
 
     fn common_setup(mut sequencer: &mut SequencerCore) {
-        let tx = create_dummy_transaction(
-            [12; 32], 
-            vec![[9; 32]],
-            vec![[7; 32]],
-            vec![[8; 32]],
-        );
+        let tx = create_dummy_transaction([12; 32], vec![[9; 32]], vec![[7; 32]], vec![[8; 32]]);
         let tx_mempool = TransactionMempool { tx };
         sequencer.mempool.push_item(tx_mempool);
 
@@ -342,12 +337,7 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let tx = create_dummy_transaction(
-            [1; 32], 
-            vec![[91; 32]],
-            vec![[71; 32]],
-            vec![[81; 32]],
-        );
+        let tx = create_dummy_transaction([1; 32], vec![[91; 32]], vec![[71; 32]], vec![[81; 32]]);
         let tx_roots = sequencer.get_tree_roots();
         let result = sequencer.transaction_pre_check(&tx, tx_roots);
 
@@ -364,12 +354,7 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let tx = create_dummy_transaction(
-            [2; 32], 
-            vec![[92; 32]],
-            vec![[72; 32]],
-            vec![[82; 32]]
-        );
+        let tx = create_dummy_transaction([2; 32], vec![[92; 32]], vec![[72; 32]], vec![[82; 32]]);
         let tx_roots = sequencer.get_tree_roots();
 
         // Fill the mempool
@@ -391,12 +376,7 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let tx = create_dummy_transaction(
-            [3; 32],
-            vec![[93; 32]],
-            vec![[73; 32]],
-            vec![[83; 32]]
-        );
+        let tx = create_dummy_transaction([3; 32], vec![[93; 32]], vec![[73; 32]], vec![[83; 32]]);
         let tx_roots = sequencer.get_tree_roots();
         let tx_mempool = TransactionMempool { tx };
 
@@ -410,12 +390,7 @@ mod tests {
         let config = setup_sequencer_config();
         let mut sequencer = SequencerCore::start_from_config(config);
 
-        let tx = create_dummy_transaction(
-            [4; 32], 
-            vec![[94; 32]],
-            vec![[7; 32]],
-            vec![[8; 32]],
-        );
+        let tx = create_dummy_transaction([4; 32], vec![[94; 32]], vec![[7; 32]], vec![[8; 32]]);
         let tx_mempool = TransactionMempool { tx };
         sequencer.mempool.push_item(tx_mempool);
 
