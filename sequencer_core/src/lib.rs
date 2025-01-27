@@ -354,5 +354,35 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    #[test]
+    fn test_transaction_pre_check_fail_mempool_full() {
+        let config = SequencerConfig {
+            max_num_tx_in_block: 1,
+            ..setup_sequencer_config()
+        };
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        common_setup(&mut sequencer);
+
+        let tx = create_dummy_transaction(
+            [2; 32], 
+            vec![[92; 32]],
+            vec![[72; 32]],
+            vec![[82; 32]]
+        );
+        let tx_roots = sequencer.get_tree_roots();
+
+        // Fill the mempool
+        let dummy_tx = TransactionMempool { tx: tx.clone() };
+        sequencer.mempool.push_item(dummy_tx);
+
+        let result = sequencer.transaction_pre_check(&tx, tx_roots);
+
+        assert!(matches!(
+            result,
+            Err(TransactionMalformationErrorKind::MempoolFullForRound { .. })
+        ));
+    }
+
 
 }
