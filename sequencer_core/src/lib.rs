@@ -324,5 +324,16 @@ mod tests {
         assert_eq!(sequencer.sequencer_config.port, 8080);
     }
 
+    #[test]
+    fn test_get_tree_roots() {
+        let config = setup_sequencer_config();
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        common_setup(&mut sequencer);
+
+        let roots = sequencer.get_tree_roots();
+        assert_eq!(roots.len(), 3); // Should return three roots
+    }
+
 
 }
