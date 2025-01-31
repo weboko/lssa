@@ -1,23 +1,17 @@
 use bincode;
 use k256::Scalar;
 use monotree::hasher::Blake3;
-use monotree::{Hasher, Monotree, Proof};
+use monotree::{Hasher, Monotree};
 use rand::thread_rng;
-use secp256k1_zkp::{
-    compute_adaptive_blinding_factor, verify_commitments_sum_to_equal, CommitmentSecrets,
-    Generator, PedersenCommitment, Tag, Tweak, SECP256K1,
-};
-use serde::{Deserialize, Serialize};
+use secp256k1_zkp::{CommitmentSecrets, Generator, PedersenCommitment, Tag, Tweak, SECP256K1};
 use sha2::{Digest, Sha256};
 use storage::{
     commitment::Commitment, commitments_sparse_merkle_tree::CommitmentsSparseMerkleTree,
     nullifier::UTXONullifier, nullifier_sparse_merkle_tree::NullifierSparseMerkleTree,
 };
-use utxo::{
-    utxo_core::{UTXOPayload, UTXO},
-    utxo_tree::UTXOSparseMerkleTree,
-};
+use utxo::utxo_core::UTXO;
 
+#[allow(unused)]
 fn commitment_secrets_random(value: u64) -> CommitmentSecrets {
     CommitmentSecrets {
         value,
@@ -162,6 +156,7 @@ pub fn verify_commitment(
     commitment == *pedersen_commitment
 }
 
+#[allow(unused)]
 fn se_kernel(
     root_commitment: &[u8],
     root_nullifier: [u8; 32],
