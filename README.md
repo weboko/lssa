@@ -1,7 +1,7 @@
 # nescience-testnet
 This repo serves for Nescience Node testnet
 
-For more details you can read (blogpost)[https://vac.dev/rlog/Nescience-state-separation-architecture/]
+For more details you can read [blogpost](https://vac.dev/rlog/Nescience-state-separation-architecture/)
 
 # How to run
 Node and sequecer require Rust installation to build. Preferable latest stable version.
