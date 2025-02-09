@@ -11,11 +11,12 @@ use rpc_primitives::{
 };
 use storage::transaction::ActionData;
 
+use rpc_primitives::requests::{GetLastBlockRequest, GetLastBlockResponse, RegisterAccountRequest, RegisterAccountResponse, GetBlockDataRequest, GetBlockDataResponse};
+
 use crate::types::rpc_structs::{
     ExecuteScenarioMultipleSendRequest, ExecuteScenarioMultipleSendResponse,
     ExecuteScenarioSplitRequest, ExecuteScenarioSplitResponse, ExecuteSubscenarioRequest,
-    ExecuteSubscenarioResponse, GetBlockDataRequest, GetBlockDataResponse, GetLastBlockRequest,
-    GetLastBlockResponse, RegisterAccountRequest, RegisterAccountResponse,
+    ExecuteSubscenarioResponse,
     ShowAccountPublicBalanceRequest, ShowAccountPublicBalanceResponse, ShowAccountUTXORequest,
     ShowAccountUTXOResponse, ShowTransactionRequest, ShowTransactionResponse,
     UTXOShortEssentialStruct, WriteDepositPublicBalanceRequest, WriteDepositPublicBalanceResponse,

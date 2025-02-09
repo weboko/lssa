@@ -1,8 +1,11 @@
 use accounts::account_core::Account;
 use anyhow::Result;
-use json::{
+use rpc_primitives::requests::{
     GetBlockDataRequest, GetBlockDataResponse, GetGenesisIdRequest, GetGenesisIdResponse,
-    RegisterAccountRequest, RegisterAccountResponse, SendTxRequest, SendTxResponse,
+    RegisterAccountRequest, RegisterAccountResponse,
+};
+use json::{
+    SendTxResponse, SendTxRequest,
     SequencerRpcError, SequencerRpcRequest, SequencerRpcResponse,
 };
 use k256::elliptic_curve::group::GroupEncoding;
