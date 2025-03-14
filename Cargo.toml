@@ -17,6 +17,7 @@ members = [
   "sequencer_core",
   "rpc_primitives",
   "common",
+  "sc_core",
 ]
 
 [workspace.dependencies]
