@@ -139,5 +139,18 @@ mod tests {
         let _ = produce_blob_from_fit_vec(data);
     }
 
+    #[derive(Serialize)]
+    struct TestState {
+        a: u32,
+        b: u32,
+    }
+
+    #[test]
+    fn test_produce_blob_list_from_sc_public_state() {
+        let state = TestState { a: 42, b: 99 };
+        let result = produce_blob_list_from_sc_public_state(&state).unwrap();
+        assert!(!result.is_empty());
+    }
+
 
 }
