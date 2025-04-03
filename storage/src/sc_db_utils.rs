@@ -116,3 +116,21 @@ pub fn compare_blob_lists(
 
     changed_ids
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::Serialize;
+
+    const TEST_BLOB_SIZE: usize = 256; // Define a test blob size for simplicity
+    static SC_DATA_BLOB_SIZE: usize = TEST_BLOB_SIZE;
+
+    #[test]
+    fn test_produce_blob_from_fit_vec() {
+        let data = (0..0 + 255).collect();
+        let blob = produce_blob_from_fit_vec(data);
+        assert_eq!(blob[..4], [0, 1, 2, 3]);
+    }
+
+
+}
