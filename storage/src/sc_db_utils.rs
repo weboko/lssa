@@ -132,5 +132,12 @@ mod tests {
         assert_eq!(blob[..4], [0, 1, 2, 3]);
     }
 
+    #[test]
+    #[should_panic]
+    fn test_produce_blob_from_fit_vec_panic() {
+        let data = vec![0; SC_DATA_BLOB_SIZE + 1];
+        let _ = produce_blob_from_fit_vec(data);
+    }
+
 
 }
