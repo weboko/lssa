@@ -6,7 +6,6 @@ use std::{
 use accounts::account_core::{Account, AccountAddress};
 use anyhow::Result;
 use block_store::NodeBlockStore;
-use elliptic_curve::group::GroupEncoding;
 use k256::AffinePoint;
 use public_context::PublicSCContext;
 use storage::{
