@@ -262,6 +262,7 @@ mod tests {
     use super::*;
     use std::{fmt::format, path::PathBuf};
 
+    use secp256k1_zkp::Tweak;
     use rand::Rng;
     use storage::transaction::{Transaction, TxKind};
     use transaction_mempool::TransactionMempool;
@@ -289,6 +290,8 @@ mod tests {
         utxo_commitments_spent_hashes: Vec<[u8; 32]>,
         utxo_commitments_created_hashes: Vec<[u8; 32]>,
     ) -> Transaction {
+        let mut rng = rand::thread_rng();
+
         Transaction {
             hash,
             tx_kind: TxKind::Private,
