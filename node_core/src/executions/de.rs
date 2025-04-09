@@ -155,10 +155,7 @@ pub fn verify_commitment(
 }
 
 // new_commitment
-pub fn new_commitment(
-    public_info: u64,
-    secret_r: &[u8],
-) -> (Tweak, &[u8], PedersenCommitment) {
+pub fn new_commitment(public_info: u64, secret_r: &[u8]) -> (Tweak, &[u8], PedersenCommitment) {
     let generator_blinding_factor = Tweak::new(&mut thread_rng());
     let commitment_secrets = CommitmentSecrets {
         value: public_info,
@@ -180,15 +177,18 @@ pub fn new_commitment_vec(
     let generator_blinding_factor = Tweak::new(&mut thread_rng());
     let tag = tag_random();
 
-    let vec_commitments = public_info_vec.into_iter().map(|public_info|   {
-        let commitment_secrets = CommitmentSecrets {
-            value: public_info,
-            value_blinding_factor: Tweak::from_slice(secret_r).unwrap(),
-            generator_blinding_factor,
-        };
+    let vec_commitments = public_info_vec
+        .into_iter()
+        .map(|public_info| {
+            let commitment_secrets = CommitmentSecrets {
+                value: public_info,
+                value_blinding_factor: Tweak::from_slice(secret_r).unwrap(),
+                generator_blinding_factor,
+            };
 
-        commit(&commitment_secrets, tag)
-    }).collect();
+            commit(&commitment_secrets, tag)
+        })
+        .collect();
 
     (generator_blinding_factor, secret_r, vec_commitments)
 }

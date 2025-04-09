@@ -1,7 +1,7 @@
 use log::info;
+use secp256k1_zkp::{rand, PedersenCommitment, Tweak};
 use serde::{Deserialize, Serialize};
 use sha2::{digest::FixedOutput, Digest};
-use secp256k1_zkp::{rand, PedersenCommitment, Tweak};
 
 use crate::merkle_tree_public::TreeHashType;
 

@@ -13,7 +13,7 @@ pub fn create_public_transaction_payload(execution_input: Vec<u8>) -> Transactio
     let unblinded_gen = Generator::new_unblinded(SECP256K1, tag);
 
     let mut rng = rand::thread_rng();
-    
+
     TransactionPayload {
         tx_kind: TxKind::Public,
         execution_input,
@@ -24,7 +24,11 @@ pub fn create_public_transaction_payload(execution_input: Vec<u8>) -> Transactio
         execution_proof_private: "".to_string(),
         encoded_data: vec![],
         ephemeral_pub_key: vec![],
-        commitment: vec![PedersenCommitment::new_unblinded(SECP256K1, 0, unblinded_gen)],
+        commitment: vec![PedersenCommitment::new_unblinded(
+            SECP256K1,
+            0,
+            unblinded_gen,
+        )],
         tweak: Tweak::new(&mut rng),
         secret_r: [0; 32],
     }

@@ -5,13 +5,16 @@ use std::sync::{
 
 use common::ExecutionFailureKind;
 
-use rand::Rng;
 use ::storage::transaction::{Transaction, TransactionPayload, TxKind};
 use accounts::account_core::{Account, AccountAddress};
 use anyhow::Result;
 use config::NodeConfig;
-use executions::{de::new_commitment_vec, private_exec::{generate_commitments, generate_nullifiers}};
+use executions::{
+    de::new_commitment_vec,
+    private_exec::{generate_commitments, generate_nullifiers},
+};
 use log::info;
+use rand::Rng;
 use sequencer_client::{json::SendTxResponse, SequencerClient};
 use serde::{Deserialize, Serialize};
 use storage::NodeChainStore;
@@ -216,9 +219,15 @@ impl NodeCore {
         let mut rng = rand::thread_rng();
         let secret_r: [u8; 32] = rng.gen();
 
-        let sc_state = acc_map_read_guard.block_store.get_sc_sc_state(sc_addr).map_err(ExecutionFailureKind::db_error)?;
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
 
-        let mut vec_values_u64: Vec<Vec<u64>> =  sc_state.into_iter().map(|slice| vec_u8_to_vec_u64(slice.to_vec())).collect();
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
 
         let context = acc_map_read_guard.produce_context(account.address);
 
@@ -258,9 +267,6 @@ impl NodeCore {
         ))
     }
 
-
-
-    
     pub async fn mint_utxo_multiple_assets_private(
         &self,
         acc: AccountAddress,
@@ -302,9 +308,15 @@ impl NodeCore {
         let mut rng = rand::thread_rng();
         let secret_r: [u8; 32] = rng.gen();
 
-        let sc_state = acc_map_read_guard.block_store.get_sc_sc_state(sc_addr).map_err(ExecutionFailureKind::db_error)?;
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
 
-        let mut vec_values_u64: Vec<Vec<u64>> =  sc_state.into_iter().map(|slice| vec_u8_to_vec_u64(slice.to_vec())).collect();
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
 
         let context = acc_map_read_guard.produce_context(account.address);
 
@@ -399,15 +411,21 @@ impl NodeCore {
             .collect();
 
         let commitments = generate_commitments(&utxos);
-        
+
         // TODO: fix address when correspoding method will be added
         let sc_addr = "";
         let mut rng = rand::thread_rng();
         let secret_r: [u8; 32] = rng.gen();
 
-        let sc_state = acc_map_read_guard.block_store.get_sc_sc_state(sc_addr).map_err(ExecutionFailureKind::db_error)?;
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
 
-        let mut vec_values_u64: Vec<Vec<u64>> =  sc_state.into_iter().map(|slice| vec_u8_to_vec_u64(slice.to_vec())).collect();
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
 
         let context = acc_map_read_guard.produce_context(account.address);
 
@@ -536,9 +554,15 @@ impl NodeCore {
         let mut rng = rand::thread_rng();
         let secret_r: [u8; 32] = rng.gen();
 
-        let sc_state = acc_map_read_guard.block_store.get_sc_sc_state(sc_addr).map_err(ExecutionFailureKind::db_error)?;
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
 
-        let mut vec_values_u64: Vec<Vec<u64>> =  sc_state.into_iter().map(|slice| vec_u8_to_vec_u64(slice.to_vec())).collect();
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
 
         let context = acc_map_read_guard.produce_context(account.address);
 
@@ -647,11 +671,19 @@ impl NodeCore {
         let mut rng = rand::thread_rng();
         let secret_r: [u8; 32] = rng.gen();
 
-        let sc_state = acc_map_read_guard.block_store.get_sc_sc_state(sc_addr).map_err(ExecutionFailureKind::db_error)?;
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
 
-        let mut vec_values_u64: Vec<Vec<u64>> =  sc_state.into_iter().map(|slice| vec_u8_to_vec_u64(slice.to_vec())).collect();
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
 
-        let serialized_context_u64 = vec_u8_to_vec_u64(serde_json::to_vec(&acc_map_read_guard.produce_context(account.address)).unwrap());
+        let serialized_context_u64 = vec_u8_to_vec_u64(
+            serde_json::to_vec(&acc_map_read_guard.produce_context(account.address)).unwrap(),
+        );
 
         vec_values_u64.push(serialized_context_u64);
 
@@ -724,9 +756,15 @@ impl NodeCore {
         let mut rng = rand::thread_rng();
         let secret_r: [u8; 32] = rng.gen();
 
-        let sc_state = acc_map_read_guard.block_store.get_sc_sc_state(sc_addr).map_err(ExecutionFailureKind::db_error)?;
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
 
-        let mut vec_values_u64: Vec<Vec<u64>> =  sc_state.into_iter().map(|slice| vec_u8_to_vec_u64(slice.to_vec())).collect();
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
 
         let context = acc_map_read_guard.produce_context(account.address);
 
@@ -1332,9 +1370,15 @@ impl NodeCore {
         let mut rng = rand::thread_rng();
         let secret_r: [u8; 32] = rng.gen();
 
-        let sc_state = acc_map_read_guard.block_store.get_sc_sc_state(sc_addr).map_err(ExecutionFailureKind::db_error)?;
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
 
-        let mut vec_values_u64: Vec<Vec<u64>> =  sc_state.into_iter().map(|slice| vec_u8_to_vec_u64(slice.to_vec())).collect();
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
 
         let context = acc_map_read_guard.produce_context(account.address);
 

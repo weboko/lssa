@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
-use storage::{block::Block, RocksDBIO};
 use storage::sc_db_utils::DataBlob;
+use storage::{block::Block, RocksDBIO};
 
 pub struct NodeBlockStore {
     dbio: RocksDBIO,
