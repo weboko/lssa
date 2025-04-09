@@ -172,7 +172,26 @@ pub fn new_commitment(
     (generator_blinding_factor, secret_r, commitment)
 }
 
+// new_commitment for a Vec of values
+pub fn new_commitment_vec(
+    public_info_vec: Vec<u64>,
+    secret_r: &[u8],
+) -> (Tweak, &[u8], Vec<PedersenCommitment>) {
+    let generator_blinding_factor = Tweak::new(&mut thread_rng());
+    let tag = tag_random();
 
+    let vec_commitments = public_info_vec.into_iter().map(|public_info|   {
+        let commitment_secrets = CommitmentSecrets {
+            value: public_info,
+            value_blinding_factor: Tweak::from_slice(secret_r).unwrap(),
+            generator_blinding_factor,
+        };
+
+        commit(&commitment_secrets, tag)
+    }).collect();
+
+    (generator_blinding_factor, secret_r, vec_commitments)
+}
 
 #[allow(unused)]
 fn de_kernel(
