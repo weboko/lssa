@@ -2,7 +2,7 @@ use accounts::account_core::Account;
 use anyhow::Result;
 use rand::thread_rng;
 use risc0_zkvm::Receipt;
-use secp256k1_zkp::{CommitmentSecrets, Generator, PedersenCommitment, Tag, Tweak, SECP256K1};
+use secp256k1_zkp::{CommitmentSecrets, Generator, PedersenCommitment, Tweak, SECP256K1};
 use storage::transaction::{TransactionPayload, TxKind};
 use utxo::utxo_core::UTXO;
 
