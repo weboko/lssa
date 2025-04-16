@@ -18,3 +18,7 @@ rocksdb.workspace = true
 rs_merkle.workspace = true
 sha2.workspace = true
 monotree.workspace = true
+
+[dependencies.secp256k1-zkp]
+workspace = true
+features = ["std", "rand-std", "rand", "serde", "global-context"]

@@ -11,6 +11,7 @@ use anyhow::Result;
 use config::NodeConfig;
 use executions::private_exec::{generate_commitments, generate_nullifiers};
 use log::info;
+use sc_core::proofs_circuits::pedersen_commitment_vec;
 use sequencer_client::{json::SendTxResponse, SequencerClient};
 use serde::{Deserialize, Serialize};
 use storage::NodeChainStore;
@@ -28,6 +29,23 @@ pub mod config;
 pub mod executions;
 pub mod sequencer_client;
 pub mod storage;
+
+fn vec_u8_to_vec_u64(bytes: Vec<u8>) -> Vec<u64> {
+    // Pad with zeros to make sure it's a multiple of 8
+    let mut padded = bytes.clone();
+    while padded.len() % 8 != 0 {
+        padded.push(0);
+    }
+
+    padded
+        .chunks(8)
+        .map(|chunk| {
+            let mut array = [0u8; 8];
+            array.copy_from_slice(chunk);
+            u64::from_le_bytes(array)
+        })
+        .collect()
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MintMoneyPublicTx {
@@ -175,9 +193,9 @@ impl NodeCore {
 
         let acc_map_read_guard = self.storage.read().await;
 
-        let accout = acc_map_read_guard.acc_map.get(&acc).unwrap();
+        let account = acc_map_read_guard.acc_map.get(&acc).unwrap();
 
-        let ephm_key_holder = &accout.produce_ephemeral_key_holder();
+        let ephm_key_holder = &account.produce_ephemeral_key_holder();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -185,13 +203,36 @@ impl NodeCore {
 
         let encoded_data = Account::encrypt_data(
             &ephm_key_holder,
-            accout.key_holder.viewing_public_key,
+            account.key_holder.viewing_public_key,
             &serde_json::to_vec(&utxo).unwrap(),
         );
 
-        let tag = accout.make_tag();
+        let tag = account.make_tag();
 
         let comm = generate_commitments(&vec![utxo]);
+
+        // TODO: fix address when correspoding method will be added
+        let sc_addr = "";
+
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
+
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
+
+        let context = acc_map_read_guard.produce_context(account.address);
+
+        //Will not panic, as PublicScContext is serializable
+        let context_public_info: Vec<u64> = context.produce_u64_list_from_context().unwrap();
+        vec_values_u64.push(context_public_info);
+
+        let vec_public_info: Vec<u64> = vec_values_u64.into_iter().flatten().collect();
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
             TransactionPayload {
@@ -210,6 +251,9 @@ impl NodeCore {
                 .unwrap(),
                 encoded_data: vec![(encoded_data.0, encoded_data.1.to_vec(), tag)],
                 ephemeral_pub_key: eph_pub_key.to_vec(),
+                commitment,
+                tweak,
+                secret_r,
             }
             .into(),
             result_hash,
@@ -227,9 +271,9 @@ impl NodeCore {
 
         let acc_map_read_guard = self.storage.read().await;
 
-        let accout = acc_map_read_guard.acc_map.get(&acc).unwrap();
+        let account = acc_map_read_guard.acc_map.get(&acc).unwrap();
 
-        let ephm_key_holder = &accout.produce_ephemeral_key_holder();
+        let ephm_key_holder = &account.produce_ephemeral_key_holder();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -241,16 +285,39 @@ impl NodeCore {
                 (
                     Account::encrypt_data(
                         &ephm_key_holder,
-                        accout.key_holder.viewing_public_key,
+                        account.key_holder.viewing_public_key,
                         &serde_json::to_vec(&utxo).unwrap(),
                     ),
-                    accout.make_tag(),
+                    account.make_tag(),
                 )
             })
             .map(|((ciphertext, nonce), tag)| (ciphertext, nonce.to_vec(), tag))
             .collect();
 
         let comm = generate_commitments(&utxos);
+
+        // TODO: fix address when correspoding method will be added
+        let sc_addr = "";
+
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
+
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
+
+        let context = acc_map_read_guard.produce_context(account.address);
+
+        //Will not panic, as PublicScContext is serializable
+        let context_public_info: Vec<u64> = context.produce_u64_list_from_context().unwrap();
+        vec_values_u64.push(context_public_info);
+
+        let vec_public_info: Vec<u64> = vec_values_u64.into_iter().flatten().collect();
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
             TransactionPayload {
@@ -269,6 +336,9 @@ impl NodeCore {
                 .unwrap(),
                 encoded_data,
                 ephemeral_pub_key: eph_pub_key.to_vec(),
+                commitment,
+                tweak,
+                secret_r,
             }
             .into(),
             result_hashes,
@@ -283,11 +353,11 @@ impl NodeCore {
     ) -> Result<(Transaction, Vec<(AccountAddress, [u8; 32])>), ExecutionFailureKind> {
         let acc_map_read_guard = self.storage.read().await;
 
-        let accout = acc_map_read_guard.acc_map.get(&utxo.owner).unwrap();
+        let account = acc_map_read_guard.acc_map.get(&utxo.owner).unwrap();
 
         let nullifier = generate_nullifiers(
             &utxo,
-            &accout
+            &account
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
@@ -306,7 +376,7 @@ impl NodeCore {
             .map(|(utxo, _)| utxo.clone())
             .collect();
 
-        let ephm_key_holder = &accout.produce_ephemeral_key_holder();
+        let ephm_key_holder = &account.produce_ephemeral_key_holder();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -331,6 +401,29 @@ impl NodeCore {
 
         let commitments = generate_commitments(&utxos);
 
+        // TODO: fix address when correspoding method will be added
+        let sc_addr = "";
+
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
+
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
+
+        let context = acc_map_read_guard.produce_context(account.address);
+
+        //Will not panic, as PublicScContext is serializable
+        let context_public_info: Vec<u64> = context.produce_u64_list_from_context().unwrap();
+        vec_values_u64.push(context_public_info);
+
+        let vec_public_info: Vec<u64> = vec_values_u64.into_iter().flatten().collect();
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
+
         Ok((
             TransactionPayload {
                 tx_kind: TxKind::Private,
@@ -348,6 +441,9 @@ impl NodeCore {
                 .unwrap(),
                 encoded_data,
                 ephemeral_pub_key: eph_pub_key.to_vec(),
+                commitment,
+                tweak,
+                secret_r,
             }
             .into(),
             utxo_hashes,
@@ -363,9 +459,9 @@ impl NodeCore {
     ) -> Result<(Transaction, Vec<[u8; 32]>, Vec<[u8; 32]>), ExecutionFailureKind> {
         let acc_map_read_guard = self.storage.read().await;
 
-        let accout = acc_map_read_guard.acc_map.get(&utxos[0].owner).unwrap();
+        let account = acc_map_read_guard.acc_map.get(&utxos[0].owner).unwrap();
 
-        let nsk = accout
+        let nsk = account
             .key_holder
             .utxo_secret_key_holder
             .nullifier_secret_key
@@ -391,7 +487,7 @@ impl NodeCore {
             .map(|utxo| utxo.hash)
             .collect();
 
-        let ephm_key_holder = &accout.produce_ephemeral_key_holder();
+        let ephm_key_holder = &account.produce_ephemeral_key_holder();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -438,6 +534,29 @@ impl NodeCore {
 
         commitments.extend(commitments_1);
 
+        // TODO: fix address when correspoding method will be added
+        let sc_addr = "";
+
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
+
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
+
+        let context = acc_map_read_guard.produce_context(account.address);
+
+        //Will not panic, as PublicScContext is serializable
+        let context_public_info: Vec<u64> = context.produce_u64_list_from_context().unwrap();
+        vec_values_u64.push(context_public_info);
+
+        let vec_public_info: Vec<u64> = vec_values_u64.into_iter().flatten().collect();
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
+
         Ok((
             TransactionPayload {
                 tx_kind: TxKind::Private,
@@ -455,6 +574,9 @@ impl NodeCore {
                 .unwrap(),
                 encoded_data,
                 ephemeral_pub_key: eph_pub_key.to_vec(),
+                commitment,
+                tweak,
+                secret_r,
             }
             .into(),
             utxo_hashes_receiver,
@@ -472,6 +594,7 @@ impl NodeCore {
 
         let account = acc_map_read_guard.acc_map.get(&acc).unwrap();
 
+        // TODO: add to transaction structure and do the check. Research has to update the scheme as well.
         let commitment = sc_core::transaction_payloads_tools::generate_secret_random_commitment(
             balance, account,
         )
@@ -523,6 +646,29 @@ impl NodeCore {
 
         let commitments = generate_commitments(&utxos);
 
+        // TODO: fix address when correspoding method will be added
+        let sc_addr = "";
+
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
+
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
+
+        let context = acc_map_read_guard.produce_context(account.address);
+
+        //Will not panic, as PublicScContext is serializable
+        let context_public_info: Vec<u64> = context.produce_u64_list_from_context().unwrap();
+        vec_values_u64.push(context_public_info);
+
+        let vec_public_info: Vec<u64> = vec_values_u64.into_iter().flatten().collect();
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
+
         Ok((
             TransactionPayload {
                 tx_kind: TxKind::Shielded,
@@ -546,6 +692,9 @@ impl NodeCore {
                 .unwrap(),
                 encoded_data,
                 ephemeral_pub_key: eph_pub_key.to_vec(),
+                commitment,
+                tweak,
+                secret_r,
             }
             .into(),
             utxo_hashes,
@@ -566,11 +715,11 @@ impl NodeCore {
             .unwrap()
             .hash;
 
-        let accout = acc_map_read_guard.acc_map.get(&utxo.owner).unwrap();
+        let account = acc_map_read_guard.acc_map.get(&utxo.owner).unwrap();
 
         let nullifier = generate_nullifiers(
             &utxo,
-            &accout
+            &account
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
@@ -579,6 +728,29 @@ impl NodeCore {
         );
 
         let (resulting_balances, receipt) = prove_send_utxo_deshielded(utxo, receivers)?;
+
+        // TODO: fix address when correspoding method will be added
+        let sc_addr = "";
+
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
+
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
+
+        let context = acc_map_read_guard.produce_context(account.address);
+
+        //Will not panic, as PublicScContext is serializable
+        let context_public_info: Vec<u64> = context.produce_u64_list_from_context().unwrap();
+        vec_values_u64.push(context_public_info);
+
+        let vec_public_info: Vec<u64> = vec_values_u64.into_iter().flatten().collect();
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok(TransactionPayload {
             tx_kind: TxKind::Deshielded,
@@ -596,6 +768,9 @@ impl NodeCore {
                 .unwrap(),
             encoded_data: vec![],
             ephemeral_pub_key: vec![],
+            commitment,
+            tweak,
+            secret_r,
         }
         .into())
     }
@@ -661,6 +836,17 @@ impl NodeCore {
         //Considering proof time, needs to be done before proof
         let tx_roots = self.get_roots().await;
 
+        let public_context = {
+            let read_guard = self.storage.read().await;
+
+            read_guard.produce_context(acc)
+        };
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(
+            //Will not panic, as public context is serializable
+            public_context.produce_u64_list_from_context().unwrap(),
+        );
+
         let tx: Transaction =
             sc_core::transaction_payloads_tools::create_public_transaction_payload(
                 serde_json::to_vec(&ActionData::MintMoneyPublicTx(MintMoneyPublicTx {
@@ -668,6 +854,9 @@ impl NodeCore {
                     amount,
                 }))
                 .unwrap(),
+                commitment,
+                tweak,
+                secret_r,
             )
             .into();
         tx.log();
@@ -1102,11 +1291,11 @@ impl NodeCore {
     ) -> Result<(Transaction, Vec<(AccountAddress, [u8; 32])>), ExecutionFailureKind> {
         let acc_map_read_guard = self.storage.read().await;
 
-        let accout = acc_map_read_guard.acc_map.get(&utxo.owner).unwrap();
+        let account = acc_map_read_guard.acc_map.get(&utxo.owner).unwrap();
 
         let nullifier = generate_nullifiers(
             &utxo,
-            &accout
+            &account
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
@@ -1125,7 +1314,7 @@ impl NodeCore {
             .map(|(utxo, _)| utxo.clone())
             .collect();
 
-        let ephm_key_holder = &accout.produce_ephemeral_key_holder();
+        let ephm_key_holder = &account.produce_ephemeral_key_holder();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -1164,6 +1353,29 @@ impl NodeCore {
                 .collect(),
         });
 
+        // TODO: fix address when correspoding method will be added
+        let sc_addr = "";
+
+        let sc_state = acc_map_read_guard
+            .block_store
+            .get_sc_sc_state(sc_addr)
+            .map_err(ExecutionFailureKind::db_error)?;
+
+        let mut vec_values_u64: Vec<Vec<u64>> = sc_state
+            .into_iter()
+            .map(|slice| vec_u8_to_vec_u64(slice.to_vec()))
+            .collect();
+
+        let context = acc_map_read_guard.produce_context(account.address);
+
+        //Will not panic, as PublicScContext is serializable
+        let context_public_info: Vec<u64> = context.produce_u64_list_from_context().unwrap();
+        vec_values_u64.push(context_public_info);
+
+        let vec_public_info: Vec<u64> = vec_values_u64.into_iter().flatten().collect();
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
+
         Ok((
             TransactionPayload {
                 tx_kind: TxKind::Shielded,
@@ -1182,6 +1394,9 @@ impl NodeCore {
                 .unwrap(),
                 encoded_data,
                 ephemeral_pub_key: eph_pub_key.to_vec(),
+                commitment,
+                tweak,
+                secret_r,
             }
             .into(),
             utxo_hashes,

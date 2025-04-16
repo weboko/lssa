@@ -1,4 +1,5 @@
 use log::info;
+use secp256k1_zkp::{PedersenCommitment, Tweak};
 use serde::{Deserialize, Serialize};
 use sha2::{digest::FixedOutput, Digest};
 
@@ -43,6 +44,12 @@ pub struct Transaction {
     pub encoded_data: Vec<(CipherText, Vec<u8>, Tag)>,
     ///Transaction senders ephemeral pub key
     pub ephemeral_pub_key: Vec<u8>,
+    ///Public (Pedersen) commitment
+    pub commitment: Vec<PedersenCommitment>,
+    ///tweak
+    pub tweak: Tweak,
+    ///secret_r
+    pub secret_r: [u8; 32],
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -65,6 +72,12 @@ pub struct TransactionPayload {
     pub encoded_data: Vec<(CipherText, Vec<u8>, Tag)>,
     ///Transaction senders ephemeral pub key
     pub ephemeral_pub_key: Vec<u8>,
+    ///Public (Pedersen) commitment
+    pub commitment: Vec<PedersenCommitment>,
+    ///tweak
+    pub tweak: Tweak,
+    ///secret_r
+    pub secret_r: [u8; 32],
 }
 
 impl From<TransactionPayload> for Transaction {
@@ -88,6 +101,9 @@ impl From<TransactionPayload> for Transaction {
             execution_proof_private: value.execution_proof_private,
             encoded_data: value.encoded_data,
             ephemeral_pub_key: value.ephemeral_pub_key,
+            commitment: value.commitment,
+            tweak: value.tweak,
+            secret_r: value.secret_r,
         }
     }
 }

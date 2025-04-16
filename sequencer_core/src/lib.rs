@@ -263,6 +263,7 @@ mod tests {
     use std::{fmt::format, path::PathBuf};
 
     use rand::Rng;
+    use secp256k1_zkp::Tweak;
     use storage::transaction::{Transaction, TxKind};
     use transaction_mempool::TransactionMempool;
 
@@ -289,6 +290,8 @@ mod tests {
         utxo_commitments_spent_hashes: Vec<[u8; 32]>,
         utxo_commitments_created_hashes: Vec<[u8; 32]>,
     ) -> Transaction {
+        let mut rng = rand::thread_rng();
+
         Transaction {
             hash,
             tx_kind: TxKind::Private,
@@ -300,6 +303,9 @@ mod tests {
             execution_proof_private: "dummy_proof".to_string(),
             encoded_data: vec![],
             ephemeral_pub_key: vec![10, 11, 12],
+            commitment: vec![],
+            tweak: Tweak::new(&mut rng),
+            secret_r: [0; 32],
         }
     }
 

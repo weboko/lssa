@@ -66,6 +66,7 @@ pub fn cast_common_execution_error_into_rpc_error(comm_exec_err: ExecutionFailur
     match comm_exec_err {
         ExecutionFailureKind::BuilderError(_) => RpcError::new_internal_error(None, &error_string),
         ExecutionFailureKind::WriteError(_) => RpcError::new_internal_error(None, &error_string),
+        ExecutionFailureKind::DBError(_) => RpcError::new_internal_error(None, &error_string),
         ExecutionFailureKind::DecodeError(_) => RpcError::new_internal_error(None, &error_string),
         ExecutionFailureKind::ProveError(_) => RpcError::new_internal_error(None, &error_string),
         ExecutionFailureKind::AmountMismatchError => {

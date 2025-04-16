@@ -8,7 +8,12 @@ use utxo::utxo_core::UTXO;
 
 use crate::proofs_circuits::{commit, generate_nullifiers, tag_random};
 
-pub fn create_public_transaction_payload(execution_input: Vec<u8>) -> TransactionPayload {
+pub fn create_public_transaction_payload(
+    execution_input: Vec<u8>,
+    commitment: Vec<PedersenCommitment>,
+    tweak: Tweak,
+    secret_r: [u8; 32],
+) -> TransactionPayload {
     TransactionPayload {
         tx_kind: TxKind::Public,
         execution_input,
@@ -19,6 +24,9 @@ pub fn create_public_transaction_payload(execution_input: Vec<u8>) -> Transactio
         execution_proof_private: "".to_string(),
         encoded_data: vec![],
         ephemeral_pub_key: vec![],
+        commitment,
+        tweak,
+        secret_r,
     }
 }
 

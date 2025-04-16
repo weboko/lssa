@@ -2,7 +2,7 @@ use bincode;
 use k256::Scalar;
 use monotree::hasher::Blake3;
 use monotree::{Hasher, Monotree};
-use rand::thread_rng;
+use rand::{thread_rng, RngCore};
 use secp256k1_zkp::{CommitmentSecrets, Generator, PedersenCommitment, Tag, Tweak, SECP256K1};
 use sha2::{Digest, Sha256};
 use storage::{
@@ -166,6 +166,32 @@ pub fn commit(comm: &CommitmentSecrets, tag: Tag) -> PedersenCommitment {
 pub fn check_balances(public_info: u128, output_utxos: &[UTXO]) -> bool {
     let total_output: u128 = output_utxos.iter().map(|utxo| utxo.amount).sum();
     public_info == total_output
+}
+
+// new_commitment for a Vec of values
+pub fn pedersen_commitment_vec(
+    public_info_vec: Vec<u64>,
+) -> (Tweak, [u8; 32], Vec<PedersenCommitment>) {
+    let mut random_val: [u8; 32] = [0; 32];
+    thread_rng().fill_bytes(&mut random_val);
+
+    let generator_blinding_factor = Tweak::new(&mut thread_rng());
+    let tag = tag_random();
+
+    let vec_commitments = public_info_vec
+        .into_iter()
+        .map(|public_info| {
+            let commitment_secrets = CommitmentSecrets {
+                value: public_info,
+                value_blinding_factor: Tweak::from_slice(&random_val).unwrap(),
+                generator_blinding_factor,
+            };
+
+            commit(&commitment_secrets, tag)
+        })
+        .collect();
+
+    (generator_blinding_factor, random_val, vec_commitments)
 }
 
 // Verify Pedersen commitment

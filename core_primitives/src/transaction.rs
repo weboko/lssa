@@ -6,6 +6,7 @@ use elliptic_curve::{
     consts::{B0, B1},
     generic_array::GenericArray,
 };
+use secp256k1_zkp::PedersenCommitment;
 use sha2::digest::typenum::{UInt, UTerm};
 
 pub type CipherText = Vec<u8>;
@@ -40,6 +41,8 @@ pub struct Transaction {
     pub encoded_data: Vec<(CipherText, Vec<u8>)>,
     ///Transaction senders ephemeral pub key
     pub ephemeral_pub_key: Vec<u8>,
+    ///Public (Pedersen) commitment
+    pub commitment: PedersenCommitment,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -62,4 +65,6 @@ pub struct TransactionPayload {
     pub encoded_data: Vec<(CipherText, Vec<u8>)>,
     ///Transaction senders ephemeral pub key
     pub ephemeral_pub_key: Vec<u8>,
+    ///Public (Pedersen) commitment
+    pub commitment: PedersenCommitment,
 }
