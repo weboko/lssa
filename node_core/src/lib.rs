@@ -1062,7 +1062,7 @@ impl NodeCore {
 
             let acc = write_guard.acc_map.get_mut(&acc_addr).unwrap();
 
-            acc.utxo_tree.get_item(new_utxo_hash)?.unwrap().clone()
+            acc.utxos.get_item(new_utxo_hash)?.unwrap().clone()
         };
 
         new_utxo.log();
@@ -1102,7 +1102,7 @@ impl NodeCore {
                     let acc = write_guard.acc_map.get_mut(&acc_addr).unwrap();
 
                     let new_utxo = acc
-                        .utxo_tree
+                        .utxos
                         .get_item(new_utxo_hash)
                         .unwrap()
                         .unwrap()
@@ -1238,7 +1238,7 @@ impl NodeCore {
             let acc = write_guard.acc_map.get_mut(&acc_addr_rec).unwrap();
             acc.log();
 
-            acc.utxo_tree.get_item(new_utxo_hash)?.unwrap().clone()
+            acc.utxos.get_item(new_utxo_hash)?.unwrap().clone()
         };
         new_utxo.log();
         info!(
@@ -1278,7 +1278,7 @@ impl NodeCore {
             let acc = write_guard.acc_map.get_mut(&acc_addr_rec).unwrap();
             acc.log();
 
-            acc.utxo_tree.get_item(new_utxo_hash)?.unwrap().clone()
+            acc.utxos.get_item(new_utxo_hash)?.unwrap().clone()
         };
         new_utxo.log();
         info!(
@@ -1323,7 +1323,7 @@ impl NodeCore {
                 let acc = write_guard.acc_map.get_mut(&acc_addr_rec).unwrap();
                 acc.log();
 
-                let new_utxo = acc.utxo_tree.get_item(new_utxo_hash)?.unwrap().clone();
+                let new_utxo = acc.utxos.get_item(new_utxo_hash)?.unwrap().clone();
 
                 new_utxo.log();
                 info!(
@@ -1343,7 +1343,7 @@ impl NodeCore {
                 let acc = write_guard.acc_map.get_mut(&acc_addr).unwrap();
                 acc.log();
 
-                let new_utxo = acc.utxo_tree.get_item(new_utxo_hash)?.unwrap().clone();
+                let new_utxo = acc.utxos.get_item(new_utxo_hash)?.unwrap().clone();
 
                 new_utxo.log();
                 info!(
@@ -1557,7 +1557,7 @@ impl NodeCore {
                     let acc = write_guard.acc_map.get_mut(&acc_addr_rec).unwrap();
 
                     let new_utxo = acc
-                        .utxo_tree
+                        .utxos
                         .get_item(new_utxo_hash)
                         .unwrap()
                         .unwrap()

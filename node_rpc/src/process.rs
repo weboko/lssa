@@ -268,7 +268,7 @@ impl JsonHandler {
                     .ok_or(RpcError::new_internal_error(None, ACCOUNT_NOT_FOUND))?;
 
                 let utxo = acc
-                    .utxo_tree
+                    .utxos
                     .get_item(utxo_hash)
                     .map_err(|err| {
                         RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
@@ -512,7 +512,7 @@ impl JsonHandler {
                     .get_mut(&acc_addr_sender)
                     .ok_or(RpcError::new_internal_error(None, ACCOUNT_NOT_FOUND))?;
 
-                acc.utxo_tree
+                acc.utxos
                     .get_item(utxo_hash)
                     .map_err(|err| {
                         RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
@@ -647,7 +647,7 @@ impl JsonHandler {
                     .get_mut(&acc_addr_sender)
                     .ok_or(RpcError::new_internal_error(None, ACCOUNT_NOT_FOUND))?;
 
-                acc.utxo_tree
+                acc.utxos
                     .get_item(utxo_hash)
                     .map_err(|err| {
                         RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
@@ -735,7 +735,7 @@ impl JsonHandler {
                     .get_mut(&acc_addr_sender)
                     .ok_or(RpcError::new_internal_error(None, ACCOUNT_NOT_FOUND))?;
 
-                acc.utxo_tree
+                acc.utxos
                     .get_item(utxo_hash)
                     .map_err(|err| {
                         RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
