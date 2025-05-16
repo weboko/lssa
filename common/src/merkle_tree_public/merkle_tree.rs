@@ -28,6 +28,18 @@ impl<Leav: TreeLeavItem + Clone + Serialize> Serialize for HashStorageMerkleTree
     }
 }
 
+struct HashStorageMerkleTreeDeserializer<Leav: TreeLeavItem + Clone> {
+    marker: PhantomData<fn() -> HashStorageMerkleTree<Leav>>
+}
+
+impl<Leaf: TreeLeavItem + Clone> HashStorageMerkleTreeDeserializer<Leaf> {
+    fn new() -> Self {
+        HashStorageMerkleTreeDeserializer {
+            marker: PhantomData
+        }
+    }
+}
+
 
 
 pub type PublicTransactionMerkleTree = HashStorageMerkleTree<Transaction>;
