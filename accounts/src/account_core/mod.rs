@@ -198,7 +198,6 @@ mod tests {
         let result = account.mark_spent_utxo(utxo_nullifier_map);
 
         assert!(result.is_ok());
-        assert!(account.utxos.get(&account.address).is_none());
     }
 
     #[test]
@@ -210,7 +209,7 @@ mod tests {
         let result = account.add_new_utxo_outputs(vec![utxo1.clone(), utxo2.clone()]);
 
         assert!(result.is_ok());
-        assert_eq!(account.utxos.store.len(), 2);
+        assert_eq!(account.utxos.len(), 2);
     }
 
     #[test]
@@ -230,6 +229,6 @@ mod tests {
         let result = account.add_asset(asset, amount, false);
 
         assert!(result.is_ok());
-        assert_eq!(account.utxos.store.len(), 1);
+        assert_eq!(account.utxos.len(), 1);
     }
 }

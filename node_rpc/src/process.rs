@@ -269,10 +269,7 @@ impl JsonHandler {
 
                 let utxo = acc
                     .utxos
-                    .get_item(utxo_hash)
-                    .map_err(|err| {
-                        RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
-                    })?
+                    .get(&utxo_hash)
                     .ok_or(RpcError::new_internal_error(
                         None,
                         "UTXO does not exist in the tree",
@@ -513,10 +510,7 @@ impl JsonHandler {
                     .ok_or(RpcError::new_internal_error(None, ACCOUNT_NOT_FOUND))?;
 
                 acc.utxos
-                    .get_item(utxo_hash)
-                    .map_err(|err| {
-                        RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
-                    })?
+                    .get(&utxo_hash)
                     .ok_or(RpcError::new_internal_error(
                         None,
                         "UTXO does not exist in tree",
@@ -648,10 +642,7 @@ impl JsonHandler {
                     .ok_or(RpcError::new_internal_error(None, ACCOUNT_NOT_FOUND))?;
 
                 acc.utxos
-                    .get_item(utxo_hash)
-                    .map_err(|err| {
-                        RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
-                    })?
+                    .get(&utxo_hash)
                     .ok_or(RpcError::new_internal_error(
                         None,
                         "UTXO does not exist in tree",
@@ -736,10 +727,7 @@ impl JsonHandler {
                     .ok_or(RpcError::new_internal_error(None, ACCOUNT_NOT_FOUND))?;
 
                 acc.utxos
-                    .get_item(utxo_hash)
-                    .map_err(|err| {
-                        RpcError::new_internal_error(None, &format!("DB fetch failure {err:?}"))
-                    })?
+                    .get(&utxo_hash)
                     .ok_or(RpcError::new_internal_error(
                         None,
                         "UTXO does not exist in tree",
