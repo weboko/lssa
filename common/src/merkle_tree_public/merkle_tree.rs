@@ -1,7 +1,11 @@
 use std::{collections::HashMap, fmt, marker::PhantomData};
 
 use rs_merkle::{MerkleProof, MerkleTree};
-use serde::{de::{self, SeqAccess, Visitor}, ser::SerializeSeq, Deserialize, Deserializer, Serialize};
+use serde::{
+    de::{self, SeqAccess, Visitor},
+    ser::SerializeSeq,
+    Deserialize, Deserializer, Serialize,
+};
 
 use crate::{transaction::Transaction, utxo_commitment::UTXOCommitment};
 
@@ -30,19 +34,21 @@ impl<Leav: TreeLeavItem + Clone + Serialize> Serialize for HashStorageMerkleTree
 }
 
 struct HashStorageMerkleTreeDeserializer<Leav: TreeLeavItem + Clone> {
-    marker: PhantomData<fn() -> HashStorageMerkleTree<Leav>>
+    marker: PhantomData<fn() -> HashStorageMerkleTree<Leav>>,
 }
 
 impl<Leaf: TreeLeavItem + Clone> HashStorageMerkleTreeDeserializer<Leaf> {
     fn new() -> Self {
         HashStorageMerkleTreeDeserializer {
-            marker: PhantomData
+            marker: PhantomData,
         }
     }
 }
 
-impl<'de, Leav: TreeLeavItem + Clone + Deserialize<'de>> Visitor<'de> for HashStorageMerkleTreeDeserializer<Leav> {
-    type Value= HashStorageMerkleTree<Leav>;
+impl<'de, Leav: TreeLeavItem + Clone + Deserialize<'de>> Visitor<'de>
+    for HashStorageMerkleTreeDeserializer<Leav>
+{
+    type Value = HashStorageMerkleTree<Leav>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("HashStorageMerkleTree key value sequence.")
@@ -67,7 +73,9 @@ impl<'de, Leav: TreeLeavItem + Clone + Deserialize<'de>> Visitor<'de> for HashSt
     }
 }
 
-impl<'de, Leav: TreeLeavItem + Clone + Deserialize<'de>> serde::Deserialize<'de> for HashStorageMerkleTree<Leav>  {
+impl<'de, Leav: TreeLeavItem + Clone + Deserialize<'de>> serde::Deserialize<'de>
+    for HashStorageMerkleTree<Leav>
+{
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_seq(HashStorageMerkleTreeDeserializer::new())
     }
