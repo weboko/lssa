@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use rs_merkle::{MerkleProof, MerkleTree};
+use serde::{de::{self, SeqAccess, Visitor}, ser::SerializeSeq, Deserialize, Deserializer, Serialize};
 
 use crate::{transaction::Transaction, utxo_commitment::UTXOCommitment};
 
@@ -66,7 +67,11 @@ impl<'de, Leav: TreeLeavItem + Clone + Deserialize<'de>> Visitor<'de> for HashSt
     }
 }
 
-
+impl<'de, Leav: TreeLeavItem + Clone + Deserialize<'de>> serde::Deserialize<'de> for HashStorageMerkleTree<Leav>  {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_seq(HashStorageMerkleTreeDeserializer::new())
+    }
+}
 
 pub type PublicTransactionMerkleTree = HashStorageMerkleTree<Transaction>;
 
