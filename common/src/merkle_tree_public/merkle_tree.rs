@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt, marker::PhantomData};
 
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{de::{self, SeqAccess, Visitor}, ser::SerializeSeq, Deserialize, Deserializer, Serialize};
@@ -162,7 +162,7 @@ mod tests {
     use super::*;
 
     // Mock implementation of TreeLeavItem trait for testing
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     struct MockTransaction {
         pub hash: TreeHashType,
     }
@@ -195,6 +195,24 @@ mod tests {
 
         assert_eq!(tree.leaves.len(), 2);
         assert!(tree.get_root().is_some());
+    }
+
+    #[test]
+    fn test_new_merkle_tree_serialize() {
+        let tx1 = MockTransaction {
+            hash: get_first_32_bytes("tx1"),
+        };
+        let tx2 = MockTransaction {
+            hash: get_first_32_bytes("tx2"),
+        };
+
+        let tree = HashStorageMerkleTree::new(vec![tx1.clone(), tx2.clone()]);
+
+        let binding = serde_json::to_vec(&tree).unwrap();
+
+        let obj: HashStorageMerkleTree<MockTransaction> = serde_json::from_slice(&binding).unwrap();
+
+        assert_eq!(tree.leaves, obj.leaves);
     }
 
     #[test]
