@@ -5,7 +5,7 @@ use common::{merkle_tree_public::TreeHashType, transaction::Tag};
 use k256::AffinePoint;
 use log::info;
 use serde::Serialize;
-use utxo::utxo_core::{UTXOPayload, UTXO};
+use utxo::utxo_core::UTXO;
 
 use crate::key_management::{
     constants_types::{CipherText, Nonce},
@@ -148,14 +148,7 @@ mod tests {
     use super::*;
 
     fn generate_dummy_utxo(address: TreeHashType, amount: u128) -> UTXO {
-        let payload = UTXOPayload {
-            owner: address,
-            asset: vec![],
-            amount,
-            privacy_flag: false,
-            randomness: [0u8; 32],
-        };
-        UTXO::create_utxo_from_payload(payload)
+        UTXO::new(address, vec![], amount, false)
     }
 
     #[test]
