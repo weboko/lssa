@@ -91,7 +91,7 @@ impl Account {
             }
             self.utxos.insert(utxo.hash, utxo);
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn update_public_balance(&mut self, new_balance: u64) {
