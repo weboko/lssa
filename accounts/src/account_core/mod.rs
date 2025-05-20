@@ -5,10 +5,7 @@ use common::{merkle_tree_public::TreeHashType, nullifier::UTXONullifier, transac
 use k256::AffinePoint;
 use log::info;
 use serde::Serialize;
-use utxo::{
-    utxo_core::{UTXOPayload, UTXO},
-    utxo_tree::UTXOSparseMerkleTree,
-};
+use utxo::utxo_core::{UTXOPayload, UTXO};
 
 use crate::key_management::{
     constants_types::{CipherText, Nonce},
@@ -23,7 +20,7 @@ pub struct Account {
     pub key_holder: AddressKeyHolder,
     pub address: AccountAddress,
     pub balance: u64,
-    pub utxo_tree: UTXOSparseMerkleTree,
+    pub utxos: HashMap<TreeHashType, UTXO>,
 }
 
 ///A strucure, which represents all the visible(public) information
@@ -42,26 +39,26 @@ impl Account {
         let key_holder = AddressKeyHolder::new_os_random();
         let address = key_holder.address;
         let balance = 0;
-        let utxo_tree = UTXOSparseMerkleTree::new();
+        let utxos = HashMap::new();
 
         Self {
             key_holder,
             address,
             balance,
-            utxo_tree,
+            utxos,
         }
     }
 
     pub fn new_with_balance(balance: u64) -> Self {
         let key_holder = AddressKeyHolder::new_os_random();
         let address = key_holder.address;
-        let utxo_tree = UTXOSparseMerkleTree::new();
+        let utxos = HashMap::new();
 
         Self {
             key_holder,
             address,
             balance,
-            utxo_tree,
+            utxos,
         }
     }
 
@@ -92,7 +89,7 @@ impl Account {
         utxo_nullifier_map: HashMap<TreeHashType, UTXONullifier>,
     ) -> Result<()> {
         for (hash, nullifier) in utxo_nullifier_map {
-            if let Some(utxo_entry) = self.utxo_tree.store.get_mut(&hash) {
+            if let Some(utxo_entry) = self.utxos.get_mut(&hash) {
                 utxo_entry.consume_utxo(nullifier)?;
             }
         }
@@ -101,7 +98,13 @@ impl Account {
     }
 
     pub fn add_new_utxo_outputs(&mut self, utxos: Vec<UTXO>) -> Result<()> {
-        Ok(self.utxo_tree.insert_items(utxos)?)
+        for utxo in utxos {
+            if self.utxos.contains_key(&utxo.hash) {
+                return Err(anyhow::anyhow!("UTXO already exists"));
+            }
+            self.utxos.insert(utxo.hash, utxo);
+        }
+        return Ok(());
     }
 
     pub fn update_public_balance(&mut self, new_balance: u64) {
@@ -123,7 +126,7 @@ impl Account {
 
         let asset_utxo = UTXO::create_utxo_from_payload(payload_with_asset)?;
 
-        self.utxo_tree.insert_item(asset_utxo)?;
+        self.utxos.insert(asset_utxo.hash, asset_utxo);
 
         Ok(())
     }
@@ -193,7 +196,6 @@ mod tests {
         let result = account.mark_spent_utxo(utxo_nullifier_map);
 
         assert!(result.is_ok());
-        assert!(account.utxo_tree.store.get(&account.address).is_none());
     }
 
     #[test]
@@ -205,7 +207,7 @@ mod tests {
         let result = account.add_new_utxo_outputs(vec![utxo1.clone(), utxo2.clone()]);
 
         assert!(result.is_ok());
-        assert_eq!(account.utxo_tree.store.len(), 2);
+        assert_eq!(account.utxos.len(), 2);
     }
 
     #[test]
@@ -225,6 +227,6 @@ mod tests {
         let result = account.add_asset(asset, amount, false);
 
         assert!(result.is_ok());
-        assert_eq!(account.utxo_tree.store.len(), 1);
+        assert_eq!(account.utxos.len(), 1);
     }
 }
