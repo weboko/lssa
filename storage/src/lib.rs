@@ -136,6 +136,10 @@ impl RocksDBIO {
         self.db.cf_handle(CF_SC_NAME).unwrap()
     }
 
+    pub fn snapshot_column(&self) -> Arc<BoundColumnFamily> {
+        self.db.cf_handle(CF_SNAPSHOT_NAME).unwrap()
+    }
+
     pub fn get_meta_first_block_in_db(&self) -> DbResult<u64> {
         let cf_meta = self.meta_column();
         let res = self
