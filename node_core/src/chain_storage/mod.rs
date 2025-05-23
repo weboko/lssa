@@ -97,7 +97,9 @@ impl NodeChainStore {
             );
 
             for nullifier in tx.nullifier_created_hashes.iter() {
-                self.nullifier_store.insert(UTXONullifier { utxo_hash: *nullifier });
+                self.nullifier_store.insert(UTXONullifier {
+                    utxo_hash: *nullifier,
+                });
             }
 
             if !tx.encoded_data.is_empty() {

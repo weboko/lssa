@@ -4,7 +4,8 @@ use accounts_store::SequencerAccountsStore;
 use block_store::SequecerBlockStore;
 use common::{
     block::{Block, HashableBlockData},
-    merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree}, nullifier::UTXONullifier,
+    merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree},
+    nullifier::UTXONullifier,
 };
 use rand::{rngs::OsRng, RngCore};
 

@@ -134,9 +134,9 @@ impl SequencerCore {
         let nullifier_tree_check = nullifier_created_hashes
             .iter()
             .map(|nullifier_hash| {
-                self.store
-                    .nullifier_store
-                    .contains(&UTXONullifier { utxo_hash: *nullifier_hash })
+                self.store.nullifier_store.contains(&UTXONullifier {
+                    utxo_hash: *nullifier_hash,
+                })
             })
             .any(|check| check);
         let utxo_commitments_check = utxo_commitments_created_hashes
@@ -185,7 +185,7 @@ impl SequencerCore {
         tx: TransactionMempool,
     ) -> Result<(), TransactionMalformationErrorKind> {
         let Transaction {
-            // ToDo: remove hashing of transactions on node side [Issue #66] 
+            // ToDo: remove hashing of transactions on node side [Issue #66]
             hash: _,
             ref utxo_commitments_created_hashes,
             ref nullifier_created_hashes,
@@ -199,9 +199,9 @@ impl SequencerCore {
         }
 
         for nullifier in nullifier_created_hashes.iter() {
-            self.store
-                .nullifier_store
-                .insert(UTXONullifier{ utxo_hash: *nullifier});
+            self.store.nullifier_store.insert(UTXONullifier {
+                utxo_hash: *nullifier,
+            });
         }
 
         self.store.pub_tx_store.add_tx(tx.tx);

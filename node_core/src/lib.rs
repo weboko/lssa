@@ -11,7 +11,9 @@ use chain_storage::NodeChainStore;
 use common::transaction::{Transaction, TransactionPayload, TxKind};
 use config::NodeConfig;
 use log::info;
-use sc_core::proofs_circuits::{generate_commitments, generate_nullifiers, generate_nullifiers_se, pedersen_commitment_vec};
+use sc_core::proofs_circuits::{
+    generate_commitments, generate_nullifiers, generate_nullifiers_se, pedersen_commitment_vec,
+};
 use sequencer_client::{json::SendTxResponse, SequencerClient};
 use serde::{Deserialize, Serialize};
 use storage::sc_db_utils::DataBlobChangeVariant;
