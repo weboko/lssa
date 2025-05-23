@@ -436,7 +436,37 @@ impl RocksDBIO {
         }
     }
 
+    pub fn get_snapshot_transaction(&self) -> DbResult<Vec<u8>> {
+        let cf_snapshot = self.snapshot_column();
+        let res = self
+            .db
+            .get_cf(&cf_snapshot, DB_SNAPSHOT_TRANSACTION_KEY)
+            .map_err(|rerr| DbError::rocksdb_cast_message(rerr, None))?;
 
+        if let Some(data) = res {
+            Ok(data)
+        } else {
+            Err(DbError::db_interaction_error(
+                "Snapshot transaction not found".to_string(),
+            ))
+        }
+    }
+
+    pub fn get_snapshot_nullifier(&self) -> DbResult<Vec<u8>> {
+        let cf_snapshot = self.snapshot_column();
+        let res = self
+            .db
+            .get_cf(&cf_snapshot, DB_SNAPSHOT_NULLIFIER_KEY)
+            .map_err(|rerr| DbError::rocksdb_cast_message(rerr, None))?;
+
+        if let Some(data) = res {
+            Ok(data)
+        } else {
+            Err(DbError::db_interaction_error(
+                "Snapshot nullifier not found".to_string(),
+            ))
+        }
+    }
 
 }
 
