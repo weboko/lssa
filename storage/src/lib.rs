@@ -508,7 +508,41 @@ impl RocksDBIO {
         Ok(())
     }
 
+    pub fn put_snapshot_transaction_db(&self, transaction: Vec<u8>) -> DbResult<()> {
+        let cf_snapshot = self.snapshot_column();
+        self.db
+            .put_cf(
+                &cf_snapshot,
+                DB_SNAPSHOT_TRANSACTION_KEY.as_bytes(),
+                transaction,
+            )
+            .map_err(|rerr| DbError::rocksdb_cast_message(rerr, None))?;
+        Ok(())
+    }
 
+    pub fn put_snapshot_nullifier_db(&self, nullifier: Vec<u8>) -> DbResult<()> {
+        let cf_snapshot = self.snapshot_column();
+        self.db
+            .put_cf(
+                &cf_snapshot,
+                DB_SNAPSHOT_NULLIFIER_KEY.as_bytes(),
+                nullifier,
+            )
+            .map_err(|rerr| DbError::rocksdb_cast_message(rerr, None))?;
+        Ok(())
+    }
+
+    pub fn put_snapshot_account_db(&self, account: Vec<u8>) -> DbResult<()> {
+        let cf_snapshot = self.snapshot_column();
+        self.db
+            .put_cf(
+                &cf_snapshot,
+                DB_SNAPSHOT_ACCOUNT_KEY.as_bytes(),
+                account,
+            )
+            .map_err(|rerr| DbError::rocksdb_cast_message(rerr, None))?;
+        Ok(())
+    }
 }
 
 ///Creates address for sc data blob at corresponding id
