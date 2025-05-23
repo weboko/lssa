@@ -35,6 +35,17 @@ pub const DB_META_FIRST_BLOCK_SET_KEY: &str = "first_block_set";
 ///Key to list of all known smart contract addresses
 pub const DB_META_SC_LIST: &str = "sc_list";
 
+///Key base for storing snapshot which describe block id
+pub const DB_SNAPSHOT_BLOCK_ID_KEY: &str = "block_id";
+///Key base for storing snapshot which describe commitment
+pub const DB_SNAPSHOT_COMMITMENT_KEY: &str = "commitment";
+///Key base for storing snapshot which describe transaction
+pub const DB_SNAPSHOT_TRANSACTION_KEY: &str = "transaction";
+///Key base for storing snapshot which describe nullifier
+pub const DB_SNAPSHOT_NULLIFIER_KEY: &str = "nullifier";
+///Key base for storing snapshot which describe account
+pub const DB_SNAPSHOT_ACCOUNT_KEY: &str = "account";
+
 ///Name of block column family
 pub const CF_BLOCK_NAME: &str = "cf_block";
 ///Name of meta column family
