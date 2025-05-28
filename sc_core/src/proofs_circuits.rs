@@ -43,8 +43,6 @@ pub fn validate_in_commitments_proof(
     in_commitments_proof: &[Vec<u8>],
 ) -> bool {
     // Placeholder implementation.
-    // Replace with Merkle proof verification logic.
-    // hash(&[pedersen_commitment.serialize().to_vec(), in_commitments_proof.concat()].concat()) == root_commitment
 
     in_commitments_proof.contains(in_commitment)
 }

@@ -765,17 +765,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bls12_381"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7bc6d6292be3a19e6379786dac800f551e5865a5bb51ebbe3064ab80433f403"
-dependencies = [
- "ff",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
 name = "bonsai-sdk"
 version = "1.4.0"
 source = "git+https://github.com/risc0/risc0.git?branch=release-2.0#fdd54f961b84b38831a8a488b9d67534a02d80a2"
@@ -1007,7 +996,6 @@ dependencies = [
  "anyhow",
  "elliptic-curve",
  "hex",
- "indexed-merkle-tree",
  "log",
  "reqwest 0.11.27",
  "risc0-zkvm",
@@ -2367,23 +2355,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee796ad498c8d9a1d68e477df8f754ed784ef875de1414ebdaf169f70a6a784"
 
 [[package]]
-name = "indexed-merkle-tree"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d86e7e0a70243eb602dba292003d26682c23cff528c5b3c06c002d242a26d865"
-dependencies = [
- "anyhow",
- "bls12_381",
- "borsh",
- "hex",
- "num",
- "num-bigint 0.4.6",
- "num-traits",
- "serde",
- "sha2",
-]
-
-[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2956,7 +2927,6 @@ dependencies = [
  "elliptic-curve",
  "env_logger",
  "hex",
- "indexed-merkle-tree",
  "k256",
  "log",
  "rand 0.8.5",
@@ -3038,20 +3008,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
-dependencies = [
- "num-bigint 0.4.6",
- "num-complex",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
 name = "num-bigint"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3104,28 +3060,6 @@ version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "num-iter"
-version = "0.1.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1429034a0490724d0075ebb2bc9e875d6503c3cf69e235a8941aa757d83ef5bf"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
-dependencies = [
- "num-bigint 0.4.6",
- "num-integer",
  "num-traits",
 ]
 
@@ -4293,7 +4227,6 @@ dependencies = [
  "elliptic-curve",
  "env_logger",
  "hex",
- "indexed-merkle-tree",
  "k256",
  "light-poseidon",
  "log",
@@ -5229,7 +5162,6 @@ dependencies = [
  "common",
  "env_logger",
  "hex",
- "indexed-merkle-tree",
  "log",
  "serde",
  "serde_json",
