@@ -16,6 +16,7 @@ use crate::key_management::{
 pub type PublicKey = AffinePoint;
 pub type AccountAddress = TreeHashType;
 
+#[derive(Debug, Serialize)]
 pub struct Account {
     pub key_holder: AddressKeyHolder,
     pub address: AccountAddress,

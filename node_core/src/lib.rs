@@ -94,11 +94,11 @@ impl NodeCore {
         let client = Arc::new(SequencerClient::new(config.clone())?);
 
         let genesis_id = client.get_genesis_id().await?;
-        info!("Gesesis id is {genesis_id:?}");
+        info!("Genesis id is {genesis_id:?}");
 
         let genesis_block = client.get_block(genesis_id.genesis_id).await?.block;
 
-        let mut storage = NodeChainStore::new_with_genesis(&config.home, genesis_block);
+        let mut storage = NodeChainStore::new_with_genesis(config.clone(), genesis_block);
 
         pre_start::setup_empty_sc_states(&storage).await?;
 
