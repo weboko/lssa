@@ -84,7 +84,7 @@ impl NodeBlockStore {
                 error!("Failed to store snapshot transactions with error {err:#?}")
             })?;
         self.dbio
-            .put_snapshot_account_db(nullifiers_ser)
+            .put_snapshot_nullifier_db(nullifiers_ser)
             .inspect_err(|err| error!("Failed to store snapshot nullifiers with error {err:#?}"))?;
 
         Ok(())
