@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 use common::block::Block;
-use log::{error, warn};
+use log::error;
 use storage::sc_db_utils::{DataBlob, DataBlobChangeVariant};
 use storage::RocksDBIO;
 
