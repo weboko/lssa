@@ -72,15 +72,21 @@ impl NodeBlockStore {
     }
 
     pub fn get_snapshot_commitment(&self) -> Result<HashStorageMerkleTree<UTXOCommitment>> {
-        Ok(serde_json::from_slice(&self.dbio.get_snapshot_commitment()?)?)
+        Ok(serde_json::from_slice(
+            &self.dbio.get_snapshot_commitment()?,
+        )?)
     }
 
     pub fn get_snapshot_nullifier(&self) -> Result<HashSet<UTXONullifier>> {
-        Ok(serde_json::from_slice(&self.dbio.get_snapshot_nullifier()?)?)
+        Ok(serde_json::from_slice(
+            &self.dbio.get_snapshot_nullifier()?,
+        )?)
     }
 
     pub fn get_snapshot_transaction(&self) -> Result<HashStorageMerkleTree<Transaction>> {
-        Ok(serde_json::from_slice(&self.dbio.get_snapshot_transaction()?)?)
+        Ok(serde_json::from_slice(
+            &self.dbio.get_snapshot_transaction()?,
+        )?)
     }
 }
 

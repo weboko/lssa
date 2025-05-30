@@ -7,7 +7,11 @@ use accounts::account_core::{Account, AccountAddress};
 use anyhow::Result;
 use block_store::NodeBlockStore;
 use common::{
-    block::Block, commitment, merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree}, nullifier::{self, UTXONullifier}, utxo_commitment::UTXOCommitment
+    block::Block,
+    commitment,
+    merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree},
+    nullifier::{self, UTXONullifier},
+    utxo_commitment::UTXOCommitment,
 };
 use k256::{pkcs8::der::asn1::Null, AffinePoint};
 use public_context::PublicSCContext;
@@ -50,13 +54,16 @@ impl NodeChainStore {
             block_id = temp_block_id;
         }
 
-        Ok((Self {
-            acc_map,
-            block_store,
-            nullifier_store,
-            utxo_commitments_store,
-            pub_tx_store,
-        }, block_id))
+        Ok((
+            Self {
+                acc_map,
+                block_store,
+                nullifier_store,
+                utxo_commitments_store,
+                pub_tx_store,
+            },
+            block_id,
+        ))
     }
 
     pub fn dissect_insert_block(&mut self, block: Block) -> Result<()> {
