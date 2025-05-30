@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 use common::block::Block;
-use log::warn;
+use log::{error, warn};
 use storage::sc_db_utils::{DataBlob, DataBlobChangeVariant};
 use storage::RocksDBIO;
 
@@ -66,23 +66,24 @@ impl NodeBlockStore {
         txs_ser: Vec<u8>,
         nullifiers_ser: Vec<u8>,
     ) -> Result<()> {
+        //Error notification for writing into DB error
         self.dbio
             .put_snapshot_block_id_db(id)
-            .inspect_err(|err| warn!("Failed to store snapshot block id with error {err:#?}"))?;
+            .inspect_err(|err| error!("Failed to store snapshot block id with error {err:#?}"))?;
         self.dbio
             .put_snapshot_account_db(accounts_ser)
-            .inspect_err(|err| warn!("Failed to store snapshot accounts with error {err:#?}"))?;
+            .inspect_err(|err| error!("Failed to store snapshot accounts with error {err:#?}"))?;
         self.dbio
             .put_snapshot_commitement_db(comm_ser)
-            .inspect_err(|err| warn!("Failed to store snapshot commitments with error {err:#?}"))?;
+            .inspect_err(|err| error!("Failed to store snapshot commitments with error {err:#?}"))?;
         self.dbio
             .put_snapshot_transaction_db(txs_ser)
             .inspect_err(|err| {
-                warn!("Failed to store snapshot transactions with error {err:#?}")
+                error!("Failed to store snapshot transactions with error {err:#?}")
             })?;
         self.dbio
             .put_snapshot_account_db(nullifiers_ser)
-            .inspect_err(|err| warn!("Failed to store snapshot nullifiers with error {err:#?}"))?;
+            .inspect_err(|err| error!("Failed to store snapshot nullifiers with error {err:#?}"))?;
 
         Ok(())
     }

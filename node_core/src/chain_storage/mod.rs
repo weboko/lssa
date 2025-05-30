@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
-};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use accounts::account_core::{Account, AccountAddress};
 use anyhow::Result;
@@ -145,48 +142,40 @@ impl NodeChainStore {
         if block_id % self.node_config.shapshot_frequency_in_blocks == 0 {
             //Serializing all important data structures
 
-            //If we fail snapshot, it is not the reason to stop running
+            //If we fail serialization, it is not the reason to stop running
             //Logging on warn level in this cases
 
-            let accounts_ser = serde_json::to_vec(&self.acc_map).inspect_err(|err| {
+            if let Ok(accounts_ser) = serde_json::to_vec(&self.acc_map).inspect_err(|err| {
                 warn!("Failed to serialize accounts data {err:#?}");
-            });
+            }) {
+                if let Ok(comm_ser) =
+                    serde_json::to_vec(&self.utxo_commitments_store).inspect_err(|err| {
+                        warn!("Failed to serialize commitments {err:#?}");
+                    })
+                {
+                    if let Ok(txs_ser) = serde_json::to_vec(&self.pub_tx_store).inspect_err(|err| {
+                        warn!("Failed to serialize transactions {err:#?}");
+                    }) {
+                        if let Ok(nullifiers_ser) = serde_json::to_vec(&self.nullifier_store)
+                            .inspect_err(|err| {
+                                warn!("Failed to serialize nullifiers {err:#?}");
+                            })
+                        {
+                            let snapshot_trace = self.block_store.put_snapshot_at_block_id(
+                                block_id,
+                                accounts_ser,
+                                comm_ser,
+                                txs_ser,
+                                nullifiers_ser,
+                            );
 
-            let comm_tree_serialized = serde_json::to_vec(&self.utxo_commitments_store)
-                .inspect_err(|err| {
-                    warn!("Failed to serialize commitments {err:#?}");
-                });
-
-            let tx_tree_serialized = serde_json::to_vec(&self.pub_tx_store).inspect_err(|err| {
-                warn!("Failed to serialize transactions {err:#?}");
-            });
-
-            let nullifiers_serialized =
-                serde_json::to_vec(&self.nullifier_store).inspect_err(|err| {
-                    warn!("Failed to serialize nullifiers {err:#?}");
-                });
-
-            match (
-                accounts_ser,
-                comm_tree_serialized,
-                tx_tree_serialized,
-                nullifiers_serialized,
-            ) {
-                (Ok(accounts_ser), Ok(comm_ser), Ok(txs_ser), Ok(nullifiers_ser)) => {
-                    let snapshot_trace = self.block_store.put_snapshot_at_block_id(
-                        block_id,
-                        accounts_ser,
-                        comm_ser,
-                        txs_ser,
-                        nullifiers_ser,
-                    );
-
-                    info!(
-                        "Snapshot executed at {:?} with results {snapshot_trace:#?}",
-                        block_id
-                    );
+                            info!(
+                                "Snapshot executed at {:?} with results {snapshot_trace:#?}",
+                                block_id
+                            );
+                        }
+                    }
                 }
-                _ => warn!("Failed to serialize node data for snapshot"),
             }
         }
 
