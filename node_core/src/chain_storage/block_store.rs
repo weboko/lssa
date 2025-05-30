@@ -70,6 +70,9 @@ impl NodeBlockStore {
     }
 
 
+    pub fn get_snapshot_transaction(&self) -> Result<HashStorageMerkleTree<Transaction>> {
+        Ok(serde_json::from_slice(&self.dbio.get_snapshot_transaction()?)?)
+    }
 }
 
 #[cfg(test)]
