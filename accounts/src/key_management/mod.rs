@@ -136,7 +136,7 @@ mod tests {
 
         // Generate a random ephemeral public key sender
         let scalar = Scalar::random(&mut OsRng);
-        let ephemeral_public_key_sender = (ProjectivePoint::generator() * scalar).to_affine();
+        let ephemeral_public_key_sender = (ProjectivePoint::GENERATOR * scalar).to_affine();
 
         // Calculate shared secret
         let shared_secret =
@@ -170,7 +170,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(ciphertext),
-                nonce.clone(),
+                *nonce,
             )
             .unwrap();
 
@@ -190,7 +190,7 @@ mod tests {
         assert!(!Into::<bool>::into(
             address_key_holder.viewing_public_key.is_identity()
         ));
-        assert!(address_key_holder.address.as_slice().len() > 0); // Assume TreeHashType has non-zero length for a valid address
+        assert!(!address_key_holder.address.as_slice().is_empty()); // Assume TreeHashType has non-zero length for a valid address
     }
 
     #[test]
@@ -232,7 +232,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(ciphertext.clone()),
-                incorrect_nonce.clone(),
+                *incorrect_nonce,
             )
             .unwrap();
 
@@ -268,7 +268,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(corrupted_ciphertext),
-                nonce.clone(),
+                *nonce,
             )
             .unwrap();
 
@@ -301,7 +301,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(ciphertext),
-                nonce.clone(),
+                *nonce,
             )
             .unwrap();
 

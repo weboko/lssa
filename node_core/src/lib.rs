@@ -204,19 +204,18 @@ impl NodeCore {
             serde_json::to_vec(&ephm_key_holder.generate_ephemeral_public_key()).unwrap();
 
         let encoded_data = Account::encrypt_data(
-            &ephm_key_holder,
+            ephm_key_holder,
             account.key_holder.viewing_public_key,
             &serde_json::to_vec(&utxo).unwrap(),
         );
 
         let tag = account.make_tag();
 
-        let comm = generate_commitments(&vec![utxo]);
+        let comm = generate_commitments(&[utxo]);
 
         let mint_utxo_addr_bytes: Vec<u8> = zkvm::test_methods::MINT_UTXO_ID
             .iter()
-            .map(|num| num.to_le_bytes())
-            .flatten()
+            .flat_map(|num| num.to_le_bytes())
             .collect();
         let sc_addr = hex::encode(mint_utxo_addr_bytes);
 
@@ -297,7 +296,7 @@ impl NodeCore {
             .map(|utxo| {
                 (
                     Account::encrypt_data(
-                        &ephm_key_holder,
+                        ephm_key_holder,
                         account.key_holder.viewing_public_key,
                         &serde_json::to_vec(&utxo).unwrap(),
                     ),
@@ -312,8 +311,7 @@ impl NodeCore {
         let mint_multiple_utxo_addr_bytes: Vec<u8> =
             zkvm::test_methods::MINT_UTXO_MULTIPLE_ASSETS_ID
                 .iter()
-                .map(|num| num.to_le_bytes())
-                .flatten()
+                .flat_map(|num| num.to_le_bytes())
                 .collect();
         let sc_addr = hex::encode(mint_multiple_utxo_addr_bytes);
 
@@ -386,14 +384,13 @@ impl NodeCore {
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         );
 
         let (resulting_utxos, receipt) = prove_send_utxo(utxo, receivers)?;
         let utxo_hashes = resulting_utxos
             .iter()
-            .map(|(utxo, addr)| (addr.clone(), utxo.hash))
+            .map(|(utxo, addr)| (*addr, utxo.hash))
             .collect();
 
         let utxos: Vec<UTXO> = resulting_utxos
@@ -413,7 +410,7 @@ impl NodeCore {
                 let accout_enc = acc_map_read_guard.acc_map.get(&utxo_enc.owner).unwrap();
 
                 let (ciphertext, nonce) = Account::encrypt_data(
-                    &ephm_key_holder,
+                    ephm_key_holder,
                     accout_enc.key_holder.viewing_public_key,
                     &serde_json::to_vec(&utxo_enc).unwrap(),
                 );
@@ -428,8 +425,7 @@ impl NodeCore {
 
         let send_utxo_addr_bytes: Vec<u8> = zkvm::test_methods::SEND_UTXO_ID
             .iter()
-            .map(|num| num.to_le_bytes())
-            .flatten()
+            .flat_map(|num| num.to_le_bytes())
             .collect();
         let sc_addr = hex::encode(send_utxo_addr_bytes);
 
@@ -535,7 +531,7 @@ impl NodeCore {
                 let accout_enc = acc_map_read_guard.acc_map.get(&utxo_enc.owner).unwrap();
 
                 let (ciphertext, nonce) = Account::encrypt_data(
-                    &ephm_key_holder,
+                    ephm_key_holder,
                     accout_enc.key_holder.viewing_public_key,
                     &serde_json::to_vec(&utxo_enc).unwrap(),
                 );
@@ -552,7 +548,7 @@ impl NodeCore {
                 let accout_enc = acc_map_read_guard.acc_map.get(&utxo_enc.owner).unwrap();
 
                 let (ciphertext, nonce) = Account::encrypt_data(
-                    &ephm_key_holder,
+                    ephm_key_holder,
                     accout_enc.key_holder.viewing_public_key,
                     &serde_json::to_vec(&utxo_enc).unwrap(),
                 );
@@ -573,8 +569,7 @@ impl NodeCore {
         let send_multiple_utxo_addr_bytes: Vec<u8> =
             zkvm::test_methods::SEND_UTXO_MULTIPLE_ASSETS_ID
                 .iter()
-                .map(|num| num.to_le_bytes())
-                .flatten()
+                .flat_map(|num| num.to_le_bytes())
                 .collect();
         let sc_addr = hex::encode(send_multiple_utxo_addr_bytes);
 
@@ -654,14 +649,13 @@ impl NodeCore {
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         );
 
         let (resulting_utxos, receipt) = prove_send_utxo_shielded(acc, balance as u128, receivers)?;
         let utxo_hashes = resulting_utxos
             .iter()
-            .map(|(utxo, addr)| (addr.clone(), utxo.hash))
+            .map(|(utxo, addr)| (*addr, utxo.hash))
             .collect();
 
         let utxos: Vec<UTXO> = resulting_utxos
@@ -681,7 +675,7 @@ impl NodeCore {
                 let accout_enc = acc_map_read_guard.acc_map.get(&utxo_enc.owner).unwrap();
 
                 let (ciphertext, nonce) = Account::encrypt_data(
-                    &ephm_key_holder,
+                    ephm_key_holder,
                     accout_enc.key_holder.viewing_public_key,
                     &serde_json::to_vec(&utxo_enc).unwrap(),
                 );
@@ -696,8 +690,7 @@ impl NodeCore {
 
         let mint_utxo_addr_bytes: Vec<u8> = zkvm::test_methods::SEND_UTXO_ID
             .iter()
-            .map(|num| num.to_le_bytes())
-            .flatten()
+            .flat_map(|num| num.to_le_bytes())
             .collect();
         let sc_addr = hex::encode(mint_utxo_addr_bytes);
 
@@ -782,16 +775,14 @@ impl NodeCore {
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         );
 
         let (resulting_balances, receipt) = prove_send_utxo_deshielded(utxo, receivers)?;
 
         let send_utxo_addr_bytes: Vec<u8> = zkvm::test_methods::SEND_UTXO_ID
             .iter()
-            .map(|num| num.to_le_bytes())
-            .flatten()
+            .flat_map(|num| num.to_le_bytes())
             .collect();
         let sc_addr = hex::encode(send_utxo_addr_bytes);
 
@@ -1372,14 +1363,13 @@ impl NodeCore {
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         );
 
         let (resulting_utxos, receipt) = prove_send_utxo(utxo, receivers)?;
         let utxo_hashes = resulting_utxos
             .iter()
-            .map(|(utxo, addr)| (addr.clone(), utxo.hash))
+            .map(|(utxo, addr)| (*addr, utxo.hash))
             .collect();
 
         let utxos: Vec<UTXO> = resulting_utxos
@@ -1399,7 +1389,7 @@ impl NodeCore {
                 let accout_enc = acc_map_read_guard.acc_map.get(&utxo_enc.owner).unwrap();
 
                 let (ciphertext, nonce) = Account::encrypt_data(
-                    &ephm_key_holder,
+                    ephm_key_holder,
                     accout_enc.key_holder.viewing_public_key,
                     &serde_json::to_vec(&utxo_enc).unwrap(),
                 );
@@ -1428,8 +1418,7 @@ impl NodeCore {
 
         let send_utxo_addr_bytes: Vec<u8> = zkvm::test_methods::SEND_UTXO_ID
             .iter()
-            .map(|num| num.to_le_bytes())
-            .flatten()
+            .flat_map(|num| num.to_le_bytes())
             .collect();
         let sc_addr = hex::encode(send_utxo_addr_bytes);
 
@@ -1528,10 +1517,7 @@ impl NodeCore {
             .send_split_tx(
                 utxo.clone(),
                 comm_gen_hash,
-                addrs_receivers
-                    .clone()
-                    .map(|addr| (utxo.amount / 3, addr))
-                    .to_vec(),
+                addrs_receivers.map(|addr| (utxo.amount / 3, addr)).to_vec(),
                 visibility_list,
             )
             .await?;

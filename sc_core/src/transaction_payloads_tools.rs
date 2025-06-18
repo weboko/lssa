@@ -43,7 +43,7 @@ pub fn encode_utxos_to_receivers(
         let ephm_key_holder = &receiver.produce_ephemeral_key_holder();
 
         let encoded_data = Account::encrypt_data(
-            &ephm_key_holder,
+            ephm_key_holder,
             receiver.key_holder.viewing_public_key,
             &serde_json::to_vec(&utxo).unwrap(),
         );
@@ -66,8 +66,7 @@ pub fn generate_nullifiers_spent_utxos(utxos_spent: Vec<(UTXO, &Account)>) -> Ve
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         );
 
         all_nullifiers.push(nullifier);
@@ -91,8 +90,7 @@ pub fn generate_secret_random_commitment(
                 .key_holder
                 .utxo_secret_key_holder
                 .viewing_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         )?,
         generator_blinding_factor: Tweak::new(&mut thread_rng()),
     };

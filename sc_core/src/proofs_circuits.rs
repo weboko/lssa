@@ -38,7 +38,7 @@ pub fn generate_commitments(input_utxos: &[UTXO]) -> Vec<Vec<u8>> {
 // takes the in_commitments[i] as a leaf, the root hash root_commitment and the path in_commitments_proofs[i][],
 // returns True if the in_commitments[i] is in the tree with root hash root_commitment otherwise returns False, as membership proof.
 pub fn validate_in_commitments_proof(
-    _in_commitment: &Vec<u8>,
+    _in_commitment: &[u8],
     _root_commitment: Vec<u8>,
     _in_commitments_proof: &[Vec<u8>],
 ) -> bool {
@@ -65,11 +65,11 @@ fn private_kernel(
     nullifier_secret_key: Scalar,
 ) -> (Vec<u8>, Vec<Vec<u8>>) {
     let nullifiers: Vec<_> = input_utxos
-        .into_iter()
-        .map(|utxo| generate_nullifiers(&utxo, &nullifier_secret_key.to_bytes()))
+        .iter()
+        .map(|utxo| generate_nullifiers(utxo, &nullifier_secret_key.to_bytes()))
         .collect();
 
-    let in_commitments = generate_commitments(&input_utxos);
+    let in_commitments = generate_commitments(input_utxos);
 
     for in_commitment in in_commitments {
         validate_in_commitments_proof(
@@ -183,11 +183,11 @@ fn de_kernel(
     check_balances(public_info as u128, input_utxos);
 
     let nullifiers: Vec<_> = input_utxos
-        .into_iter()
-        .map(|utxo| generate_nullifiers(&utxo, &nullifier_secret_key.to_bytes()))
+        .iter()
+        .map(|utxo| generate_nullifiers(utxo, &nullifier_secret_key.to_bytes()))
         .collect();
 
-    let in_commitments = generate_commitments(&input_utxos);
+    let in_commitments = generate_commitments(input_utxos);
 
     for in_commitment in in_commitments {
         validate_in_commitments_proof(
@@ -235,6 +235,7 @@ pub fn generate_nullifiers_se(pedersen_commitment: &PedersenCommitment, nsk: &[u
 }
 
 #[allow(unused)]
+#[allow(clippy::too_many_arguments)]
 fn se_kernel(
     root_commitment: &[u8],
     root_nullifier: [u8; 32],

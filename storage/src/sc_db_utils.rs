@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use serde::{de::Error, Deserialize, Serialize};
 
 use crate::SC_DATA_BLOB_SIZE;
@@ -49,6 +51,7 @@ impl DataBlob {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum DataBlobChangeVariant {
     Created {
@@ -95,19 +98,11 @@ pub fn produce_blob_list_from_sc_public_state<S: Serialize>(
 
     //`ToDo` Replace with `next_chunk` usage, when feature stabilizes in Rust
     for i in 0..=(ser_data.len() / SC_DATA_BLOB_SIZE) {
-        let next_chunk: Vec<u8>;
-
-        if (i + 1) * SC_DATA_BLOB_SIZE < ser_data.len() {
-            next_chunk = ser_data[(i * SC_DATA_BLOB_SIZE)..((i + 1) * SC_DATA_BLOB_SIZE)]
-                .iter()
-                .cloned()
-                .collect();
+        let next_chunk: Vec<u8> = if (i + 1) * SC_DATA_BLOB_SIZE < ser_data.len() {
+            ser_data[(i * SC_DATA_BLOB_SIZE)..((i + 1) * SC_DATA_BLOB_SIZE)].to_vec()
         } else {
-            next_chunk = ser_data[(i * SC_DATA_BLOB_SIZE)..(ser_data.len())]
-                .iter()
-                .cloned()
-                .collect();
-        }
+            ser_data[(i * SC_DATA_BLOB_SIZE)..(ser_data.len())].to_vec()
+        };
 
         blob_list.push(produce_blob_from_fit_vec(next_chunk));
     }
@@ -126,17 +121,21 @@ pub fn compare_blob_lists(
     let old_len = blob_list_old.len();
     let new_len = blob_list_new.len();
 
-    if old_len > new_len {
-        for id in new_len..old_len {
-            changed_ids.push(DataBlobChangeVariant::Deleted { id });
+    match old_len.cmp(&new_len) {
+        Ordering::Greater => {
+            for id in new_len..old_len {
+                changed_ids.push(DataBlobChangeVariant::Deleted { id });
+            }
         }
-    } else if new_len > old_len {
-        for id in old_len..new_len {
-            changed_ids.push(DataBlobChangeVariant::Created {
-                id,
-                blob: blob_list_new[id],
-            });
+        Ordering::Less => {
+            for (id, blob_item) in blob_list_new.iter().enumerate().take(new_len).skip(old_len) {
+                changed_ids.push(DataBlobChangeVariant::Created {
+                    id,
+                    blob: *blob_item,
+                });
+            }
         }
+        Ordering::Equal => {}
     }
 
     loop {
@@ -172,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_produce_blob_from_fit_vec() {
-        let data = (0..0 + 255).collect();
+        let data = (0..255).collect();
         let blob = produce_blob_from_fit_vec(data);
         assert_eq!(blob.0[..4], [0, 1, 2, 3]);
     }

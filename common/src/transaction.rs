@@ -237,21 +237,21 @@ impl Transaction {
             "Transaction utxo_commitments_spent_hashes is {:?}",
             self.utxo_commitments_spent_hashes
                 .iter()
-                .map(|val| hex::encode(val.clone()))
+                .map(|val| hex::encode(*val))
                 .collect::<Vec<_>>()
         );
         info!(
             "Transaction utxo_commitments_created_hashes is {:?}",
             self.utxo_commitments_created_hashes
                 .iter()
-                .map(|val| hex::encode(val.clone()))
+                .map(|val| hex::encode(*val))
                 .collect::<Vec<_>>()
         );
         info!(
             "Transaction nullifier_created_hashes is {:?}",
             self.nullifier_created_hashes
                 .iter()
-                .map(|val| hex::encode(val.clone()))
+                .map(|val| hex::encode(*val))
                 .collect::<Vec<_>>()
         );
         info!(

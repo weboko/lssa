@@ -330,17 +330,17 @@ impl JsonHandler {
                     utxo_commitments_created_hashes: tx
                         .utxo_commitments_created_hashes
                         .iter()
-                        .map(|val| hex::encode(val.clone()))
+                        .map(hex::encode)
                         .collect::<Vec<_>>(),
                     utxo_commitments_spent_hashes: tx
                         .utxo_commitments_spent_hashes
                         .iter()
-                        .map(|val| hex::encode(val.clone()))
+                        .map(hex::encode)
                         .collect::<Vec<_>>(),
                     utxo_nullifiers_created_hashes: tx
                         .nullifier_created_hashes
                         .iter()
-                        .map(|val| hex::encode(val.clone()))
+                        .map(hex::encode)
                         .collect::<Vec<_>>(),
                     encoded_data: tx
                         .encoded_data
@@ -529,7 +529,7 @@ impl JsonHandler {
             utxo_result: UTXOShortEssentialStruct {
                 hash: hex::encode(new_utxo_rec.hash),
                 asset: new_utxo_rec.asset.clone(),
-                commitment_hash: hex::encode(generate_commitments_helper(&vec![new_utxo_rec])[0]),
+                commitment_hash: hex::encode(generate_commitments_helper(&[new_utxo_rec])[0]),
             },
         };
 
@@ -582,7 +582,7 @@ impl JsonHandler {
             utxo_result: UTXOShortEssentialStruct {
                 hash: hex::encode(new_utxo_rec.hash),
                 asset: new_utxo_rec.asset.clone(),
-                commitment_hash: hex::encode(generate_commitments_helper(&vec![new_utxo_rec])[0]),
+                commitment_hash: hex::encode(generate_commitments_helper(&[new_utxo_rec])[0]),
             },
         };
 

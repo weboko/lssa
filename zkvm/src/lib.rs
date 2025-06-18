@@ -160,12 +160,12 @@ pub fn prove_send_utxo_multiple_assets_one_receiver(
         digest
             .0
             .into_iter()
-            .map(|payload| UTXO::create_utxo_from_payload(payload))
+            .map(UTXO::create_utxo_from_payload)
             .collect(),
         digest
             .1
             .into_iter()
-            .map(|payload| UTXO::create_utxo_from_payload(payload))
+            .map(UTXO::create_utxo_from_payload)
             .collect(),
         receipt,
     ))
@@ -432,7 +432,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], SUMMATION_ELF).unwrap();
 
-        verify(receipt, SUMMATION_ID);
+        let _ = verify(receipt, SUMMATION_ID);
         assert_eq!(digest, message + message_2);
     }
 
@@ -443,7 +443,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], SUMMATION_ELF).unwrap();
 
-        verify(receipt, SUMMATION_ID);
+        let _ = verify(receipt, SUMMATION_ID);
         assert_eq!(digest, message + message_2);
     }
 
@@ -454,7 +454,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], MULTIPLICATION_ELF).unwrap();
 
-        verify(receipt, MULTIPLICATION_ID);
+        let _ = verify(receipt, MULTIPLICATION_ID);
         assert_eq!(digest, message * message_2);
     }
 
@@ -465,7 +465,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], MULTIPLICATION_ELF).unwrap();
 
-        verify(receipt, MULTIPLICATION_ID);
+        let _ = verify(receipt, MULTIPLICATION_ID);
         assert_eq!(digest, message * message_2);
     }
 
