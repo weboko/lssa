@@ -209,7 +209,7 @@ impl ActionData {
                     .into_iter()
                     .map(|owned_utxo| owned_utxo.into())
                     .collect();
-                format!("Published utxos {:?}", pub_own_utxo)
+                format!("Published utxos {pub_own_utxo:?}")
             }
         }
     }
