@@ -550,4 +550,14 @@ mod tests {
         assert_eq!(utxo_exec.owner, owner);
     }
 
+#[test]
+    fn test_prove_mint_utxo() {
+        let owner = AccountAddress::default();
+        let amount = 123456789;
+
+        let (utxo, _) = prove_mint_utxo(amount, owner).expect("proof failed");
+        assert_eq!(utxo.amount, amount);
+        assert_eq!(utxo.owner, owner);
+    }
+
 }
