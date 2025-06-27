@@ -560,4 +560,18 @@ mod tests {
         assert_eq!(utxo.owner, owner);
     }
 
+#[test]
+    fn test_prove_send_utxo() {
+        let owner = AccountAddress::default();
+        let amount = 100;
+        let (input_utxo, _) = prove_mint_utxo(amount, owner).expect("mint failed");
+
+        let parts = vec![(40, owner), (60, owner)];
+        let (outputs, _receipt) = prove_send_utxo(input_utxo, parts.clone()).expect("send failed");
+
+        let total: u128 = outputs.iter().map(|(utxo, _)| utxo.amount).sum();
+        assert_eq!(total, amount);
+        assert_eq!(outputs.len(), 2);
+    }
+
 }
