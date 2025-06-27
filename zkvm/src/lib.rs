@@ -317,7 +317,11 @@ pub fn prove_mint_utxo_multiple_assets(
     ))
 }
 
-pub fn execute_mint_utxo(amount_to_mint: u128, owner: AccountAddress, randomness: [u8; 32]) -> anyhow::Result<UTXO> {
+pub fn execute_mint_utxo(
+    amount_to_mint: u128,
+    owner: AccountAddress,
+    randomness: [u8; 32],
+) -> anyhow::Result<UTXO> {
     let mut builder = ExecutorEnv::builder();
 
     builder.write(&amount_to_mint)?;
@@ -535,7 +539,10 @@ mod tests {
         let gas_calc = GasCalculator::new(1, 1, 1, 1, 1, 1000000, 1000000);
 
         let result = gas_limits_check(vec![message, message_2], SUMMATION_ELF, &gas_calc, 1);
-        assert!(matches!(result, Err(ExecutionFailureKind::InsufficientFundsError)));
+        assert!(matches!(
+            result,
+            Err(ExecutionFailureKind::InsufficientFundsError)
+        ));
     }
 
     #[test]
@@ -611,7 +618,8 @@ mod tests {
             prove_mint_utxo(50, owner).unwrap().0,
         ];
 
-        let (to_receiver, to_change, _receipt) = prove_send_utxo_multiple_assets_one_receiver(utxos, 1, receiver).unwrap();
+        let (to_receiver, to_change, _receipt) =
+            prove_send_utxo_multiple_assets_one_receiver(utxos, 1, receiver).unwrap();
         let total_to_receiver: u128 = to_receiver.iter().map(|u| u.amount).sum();
 
         assert!(total_to_receiver > 0);
