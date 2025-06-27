@@ -527,4 +527,14 @@ mod tests {
         assert!(result.is_ok());
     }
 
+#[test]
+    fn test_gas_limits_check_insufficient_funds() {
+        let message = 1;
+        let message_2 = 2;
+        let gas_calc = GasCalculator::new(1, 1, 1, 1, 1, 1000000, 1000000);
+
+        let result = gas_limits_check(vec![message, message_2], SUMMATION_ELF, &gas_calc, 1);
+        assert!(matches!(result, Err(ExecutionFailureKind::InsufficientFundsError)));
+    }
+
 }
