@@ -432,7 +432,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], SUMMATION_ELF).unwrap();
 
-        verify(receipt, SUMMATION_ID);
+        verify(receipt, SUMMATION_ID).unwrap();
         assert_eq!(digest, message + message_2);
     }
 
@@ -443,7 +443,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], SUMMATION_ELF).unwrap();
 
-        verify(receipt, SUMMATION_ID);
+        verify(receipt, SUMMATION_ID).unwrap();
         assert_eq!(digest, message + message_2);
     }
 
@@ -454,7 +454,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], MULTIPLICATION_ELF).unwrap();
 
-        verify(receipt, MULTIPLICATION_ID);
+        verify(receipt, MULTIPLICATION_ID).unwrap();
         assert_eq!(digest, message * message_2);
     }
 
@@ -465,7 +465,7 @@ mod tests {
 
         let (digest, receipt) = prove(vec![message, message_2], MULTIPLICATION_ELF).unwrap();
 
-        verify(receipt, MULTIPLICATION_ID);
+        verify(receipt, MULTIPLICATION_ID).unwrap();
         assert_eq!(digest, message * message_2);
     }
 
