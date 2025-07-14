@@ -4336,6 +4336,7 @@ dependencies = [
  "common",
  "elliptic-curve",
  "env_logger",
+ "hex",
  "k256",
  "log",
  "mempool",

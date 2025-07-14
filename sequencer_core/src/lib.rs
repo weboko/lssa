@@ -53,6 +53,7 @@ impl SequencerCore {
                 &config.home,
                 config.genesis_id,
                 config.is_genesis_random,
+                &config.initial_accounts,
             ),
             mempool: MemPool::<TransactionMempool>::default(),
             chain_height: config.genesis_id,
@@ -252,6 +253,8 @@ impl SequencerCore {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::AccountInitialData;
+
     use super::*;
     use std::path::PathBuf;
 
@@ -274,6 +277,18 @@ mod tests {
             max_num_tx_in_block: 10,
             block_create_timeout_millis: 1000,
             port: 8080,
+            initial_accounts: vec![
+                AccountInitialData {
+                    addr: "bfd91e6703273a115ad7f099ef32f621243be69369d00ddef5d3a25117d09a8c"
+                        .to_string(),
+                    balance: 10,
+                },
+                AccountInitialData {
+                    addr: "20573479053979b98d2ad09ef31a0750f22c77709bed51c4e64946bd1e376f31"
+                        .to_string(),
+                    balance: 100,
+                },
+            ],
         }
     }
 
@@ -322,6 +337,39 @@ mod tests {
         assert_eq!(sequencer.chain_height, config.genesis_id);
         assert_eq!(sequencer.sequencer_config.max_num_tx_in_block, 10);
         assert_eq!(sequencer.sequencer_config.port, 8080);
+
+        let acc1_addr: [u8; 32] = hex::decode(
+            "bfd91e6703273a115ad7f099ef32f621243be69369d00ddef5d3a25117d09a8c".to_string(),
+        )
+        .unwrap()
+        .try_into()
+        .unwrap();
+        let acc2_addr: [u8; 32] = hex::decode(
+            "20573479053979b98d2ad09ef31a0750f22c77709bed51c4e64946bd1e376f31".to_string(),
+        )
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+        assert!(sequencer.store.acc_store.contains_account(&acc1_addr));
+        assert!(sequencer.store.acc_store.contains_account(&acc2_addr));
+
+        assert_eq!(
+            10,
+            sequencer
+                .store
+                .acc_store
+                .get_account_balance(&acc1_addr)
+                .unwrap()
+        );
+        assert_eq!(
+            100,
+            sequencer
+                .store
+                .acc_store
+                .get_account_balance(&acc2_addr)
+                .unwrap()
+        );
     }
 
     #[test]
