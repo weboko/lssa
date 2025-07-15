@@ -3,12 +3,14 @@ use common::merkle_tree_public::TreeHashType;
 use constants_types::{CipherText, Nonce};
 use elliptic_curve::point::AffineCoordinates;
 use ephemeral_key_holder::EphemeralKeyHolder;
-use k256::AffinePoint;
+use k256::{ecdsa::SigningKey, AffinePoint, FieldBytes};
 use log::info;
+use rand::{rngs::OsRng, RngCore};
 use secret_holders::{SeedHolder, TopSecretKeyHolder, UTXOSecretKeyHolder};
 use serde::{Deserialize, Serialize};
 
 use crate::account_core::PublicKey;
+pub type PublicAccountSecretKey = [u8; 32];
 
 pub mod constants_types;
 pub mod ephemeral_key_holder;
@@ -21,6 +23,7 @@ pub struct AddressKeyHolder {
     #[allow(dead_code)]
     top_secret_key_holder: TopSecretKeyHolder,
     pub utxo_secret_key_holder: UTXOSecretKeyHolder,
+    pub pub_account_secret_key: PublicAccountSecretKey,
     pub address: TreeHashType,
     pub nullifer_public_key: PublicKey,
     pub viewing_public_key: PublicKey,
@@ -39,13 +42,26 @@ impl AddressKeyHolder {
         let nullifer_public_key = utxo_secret_key_holder.generate_nullifier_public_key();
         let viewing_public_key = utxo_secret_key_holder.generate_viewing_public_key();
 
+        let pub_account_secret_key = {
+            let mut bytes = [0; 32];
+            OsRng.fill_bytes(&mut bytes);
+            bytes
+        };
+
         Self {
             top_secret_key_holder,
             utxo_secret_key_holder,
             address,
             nullifer_public_key,
             viewing_public_key,
+            pub_account_secret_key,
         }
+    }
+
+    pub fn pub_account_secret_key(&self) -> SigningKey {
+        let field_bytes = FieldBytes::from_slice(&self.pub_account_secret_key);
+        // TODO: remove unwrap
+        SigningKey::from_bytes(&field_bytes).unwrap()
     }
 
     pub fn calculate_shared_secret_receiver(

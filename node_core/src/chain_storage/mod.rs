@@ -320,7 +320,7 @@ mod tests {
             sc_addr: "sc_addr".to_string(),
             state_changes: (serde_json::Value::Null, 0),
         };
-        SignedTransaction::from_transaction_body(body, SignaturePrivateKey::ONE)
+        SignedTransaction::from_transaction_body(body, SignaturePrivateKey::random(&mut rng))
     }
 
     fn create_sample_block(block_id: u64, prev_block_id: u64) -> Block {

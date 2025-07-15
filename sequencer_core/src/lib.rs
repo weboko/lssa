@@ -311,7 +311,7 @@ mod tests {
             sc_addr: "sc_addr".to_string(),
             state_changes: (serde_json::Value::Null, 0),
         };
-        SignedTransaction::from_transaction_body(body, SignaturePrivateKey::ONE)
+        SignedTransaction::from_transaction_body(body, SignaturePrivateKey::random(&mut rng))
     }
 
     fn common_setup(sequencer: &mut SequencerCore) {

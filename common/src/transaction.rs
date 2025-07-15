@@ -1,8 +1,17 @@
-use k256::Scalar;
+use k256::{
+    ecdsa::{
+        signature::{Signer, Verifier},
+        Signature, SigningKey, VerifyingKey,
+    },
+    EncodedPoint, Scalar,
+};
 use log::info;
 use secp256k1_zkp::{PedersenCommitment, Tweak};
-use serde::{Deserialize, Serialize};
+use serde::de::{Error as DeError, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use sha2::{digest::FixedOutput, Digest};
+use std::fmt;
 
 use crate::merkle_tree_public::TreeHashType;
 
@@ -217,10 +226,9 @@ impl TransactionBody {
     }
 }
 
-pub type SignaturePrivateKey = Scalar;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct TransactionSignature;
+pub type SignaturePrivateKey = SigningKey;
+pub type SignaturePublicKey = VerifyingKey;
+pub type TransactionSignature = Signature;
 
 type TransactionHash = TreeHashType;
 
@@ -229,24 +237,36 @@ type TransactionHash = TreeHashType;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SignedTransaction {
     pub body: TransactionBody,
-    signature: TransactionSignature,
+    signature: (TransactionSignature, SignaturePublicKey),
 }
 
 impl SignedTransaction {
     pub fn from_transaction_body(
         body: TransactionBody,
-        _private_key: SignaturePrivateKey,
+        private_key: SignaturePrivateKey,
     ) -> SignedTransaction {
-        let _hash = body.hash();
+        let hash = body.hash();
+        let signature: Signature = private_key.sign(&hash);
         // TODO: Implement actual signature over `hash`
-        let signature = TransactionSignature {};
-        Self { body, signature }
+        let public_key = VerifyingKey::from(&private_key);
+        Self {
+            body,
+            signature: (signature, public_key),
+        }
     }
 
     pub fn into_authenticated(self) -> Result<AuthenticatedTransaction, TransactionSignatureError> {
         let hash = self.body.hash();
-        // TODO: Check signature over hash
-        Err(TransactionSignatureError::InvalidSignature)
+        let (signature, public_key) = &self.signature;
+
+        public_key
+            .verify(&hash, signature)
+            .map_err(|_| TransactionSignatureError::InvalidSignature)?;
+
+        Ok(AuthenticatedTransaction {
+            hash,
+            signed_tx: self,
+        })
     }
 }
 
@@ -269,7 +289,7 @@ impl AuthenticatedTransaction {
     }
 
     pub fn signature(&self) -> &TransactionSignature {
-        &self.signed_tx.signature
+        &self.signed_tx.signature.0
     }
 
     pub fn hash(&self) -> &TransactionHash {

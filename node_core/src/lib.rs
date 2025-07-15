@@ -265,10 +265,7 @@ impl NodeCore {
             state_changes,
         };
         // TODO: Change to the correct key once established.
-        let key_to_sign_transaction = account
-            .key_holder
-            .utxo_secret_key_holder
-            .nullifier_secret_key;
+        let key_to_sign_transaction = account.key_holder.pub_account_secret_key();
 
         Ok((
             SignedTransaction::from_transaction_body(transaction_body, key_to_sign_transaction),
@@ -366,10 +363,7 @@ impl NodeCore {
             state_changes,
         };
         // TODO: Change to the correct key once established.
-        let key_to_sign_transaction = account
-            .key_holder
-            .utxo_secret_key_holder
-            .nullifier_secret_key;
+        let key_to_sign_transaction = account.key_holder.pub_account_secret_key();
 
         Ok((
             SignedTransaction::from_transaction_body(transaction_body, key_to_sign_transaction),
@@ -487,10 +481,7 @@ impl NodeCore {
         };
 
         // TODO: Change to the correct key once established.
-        let key_to_sign_transaction = account
-            .key_holder
-            .utxo_secret_key_holder
-            .nullifier_secret_key;
+        let key_to_sign_transaction = account.key_holder.pub_account_secret_key();
 
         Ok((
             SignedTransaction::from_transaction_body(transaction_body, key_to_sign_transaction),
@@ -637,10 +628,7 @@ impl NodeCore {
         };
 
         // TODO: Change to the correct key once established.
-        let key_to_sign_transaction = account
-            .key_holder
-            .utxo_secret_key_holder
-            .nullifier_secret_key;
+        let key_to_sign_transaction = account.key_holder.pub_account_secret_key();
 
         Ok((
             SignedTransaction::from_transaction_body(transaction_body, key_to_sign_transaction),
@@ -771,10 +759,7 @@ impl NodeCore {
         };
 
         // TODO: Change to the correct key once established.
-        let key_to_sign_transaction = account
-            .key_holder
-            .utxo_secret_key_holder
-            .nullifier_secret_key;
+        let key_to_sign_transaction = account.key_holder.pub_account_secret_key();
 
         Ok((
             SignedTransaction::from_transaction_body(transaction_body, key_to_sign_transaction),
@@ -866,10 +851,7 @@ impl NodeCore {
         };
 
         // TODO: Change to the correct key once established.
-        let key_to_sign_transaction = account
-            .key_holder
-            .utxo_secret_key_holder
-            .nullifier_secret_key;
+        let key_to_sign_transaction = account.key_holder.pub_account_secret_key();
 
         Ok(SignedTransaction::from_transaction_body(
             transaction_body,
@@ -1512,10 +1494,7 @@ impl NodeCore {
             state_changes,
         };
         // TODO: Change to the correct key once established.
-        let key_to_sign_transaction = account
-            .key_holder
-            .utxo_secret_key_holder
-            .nullifier_secret_key;
+        let key_to_sign_transaction = account.key_holder.pub_account_secret_key();
 
         Ok((
             SignedTransaction::from_transaction_body(transaction_body, key_to_sign_transaction),
