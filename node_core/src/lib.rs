@@ -1590,20 +1590,8 @@ impl NodeCore {
         Ok(())
     }
 
-    // ///Deposit balance, make it private
-    // pub async fn subscenario_2(&mut self) -> Result<(), ExecutionFailureKind> {
-    //     let acc_addr = self.create_new_account().await;
-    //
-    //     self.operate_account_deposit_public(acc_addr, 100).await?;
-    //
-    //     self.operate_account_send_shielded_one_receiver(acc_addr, acc_addr, 100)
-    //         .await?;
-    //
-    //     Ok(())
-    // }
-
     ///Mint utxo, privately send it to another user
-    pub async fn subscenario_3(&mut self) -> Result<(), ExecutionFailureKind> {
+    pub async fn subscenario_2(&mut self) -> Result<(), ExecutionFailureKind> {
         let acc_addr = self.create_new_account().await;
         let acc_addr_rec = self.create_new_account().await;
 
@@ -1615,21 +1603,8 @@ impl NodeCore {
         Ok(())
     }
 
-    // ///Deposit balance, shielded send it to another user
-    // pub async fn subscenario_4(&mut self) -> Result<(), ExecutionFailureKind> {
-    //     let acc_addr = self.create_new_account().await;
-    //     let acc_addr_rec = self.create_new_account().await;
-    //
-    //     self.operate_account_deposit_public(acc_addr, 100).await?;
-    //
-    //     self.operate_account_send_shielded_one_receiver(acc_addr, acc_addr_rec, 100)
-    //         .await?;
-    //
-    //     Ok(())
-    // }
-
     ///Mint utxo, deshielded send it to another user
-    pub async fn subscenario_5(&mut self) -> Result<(), ExecutionFailureKind> {
+    pub async fn subscenario_3(&mut self) -> Result<(), ExecutionFailureKind> {
         let acc_addr = self.create_new_account().await;
         let acc_addr_rec = self.create_new_account().await;
 

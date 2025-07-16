@@ -83,12 +83,12 @@ impl JsonHandler {
                     .subscenario_1()
                     .await
                     .map_err(cast_common_execution_error_into_rpc_error)?,
-                3 => store
-                    .subscenario_3()
+                2 => store
+                    .subscenario_2()
                     .await
                     .map_err(cast_common_execution_error_into_rpc_error)?,
-                5 => store
-                    .subscenario_5()
+                3 => store
+                    .subscenario_3()
                     .await
                     .map_err(cast_common_execution_error_into_rpc_error)?,
                 _ => return Err(RpcErr(RpcError::invalid_params("Scenario id not found"))),
