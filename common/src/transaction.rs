@@ -231,16 +231,18 @@ pub type TransactionSignature = Signature;
 pub type SignaturePublicKey = VerifyingKey;
 pub type SignaturePrivateKey = SigningKey;
 
-/// A transaction with a signature.
+/// A container for a transaction body with a signature.
 /// Meant to be sent through the network to the sequencer
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Transaction {
-    pub body: TransactionBody,
+    body: TransactionBody,
     signature: TransactionSignature,
     public_key: VerifyingKey,
 }
 
 impl Transaction {
+    /// Returns a new transaction signed with the provided `private_key`.
+    /// The signature is generated over the hash of the body as computed by `body.hash()`
     pub fn new(body: TransactionBody, private_key: SigningKey) -> Transaction {
         let hash = body.hash();
         let signature: TransactionSignature = private_key.sign(&hash);
@@ -252,6 +254,8 @@ impl Transaction {
         }
     }
 
+    /// Converts the transaction into an `AuthenticatedTransaction` by verifying its signature.
+    /// Returns an error if the signature verification fails.
     pub fn into_authenticated(self) -> Result<AuthenticatedTransaction, TransactionSignatureError> {
         let hash = self.body.hash();
 
@@ -263,6 +267,11 @@ impl Transaction {
             hash,
             transaction: self,
         })
+    }
+
+    /// Returns the body of the transaction
+    pub fn body(&self) -> &TransactionBody {
+        &self.body
     }
 }
 
@@ -276,14 +285,12 @@ pub struct AuthenticatedTransaction {
 }
 
 impl AuthenticatedTransaction {
-    pub fn as_transaction(&self) -> &Transaction {
+    /// Returns the underlying transaction
+    pub fn transaction(&self) -> &Transaction {
         &self.transaction
     }
 
-    pub fn body(&self) -> &TransactionBody {
-        &self.transaction.body
-    }
-
+    /// Returns the precomputed hash over the body of the transaction
     pub fn hash(&self) -> &TransactionHash {
         &self.hash
     }
@@ -320,6 +327,13 @@ mod tests {
         }
     }
 
+    fn test_transaction() -> Transaction {
+        let body = test_transaction_body();
+        let key_bytes = FieldBytes::from_slice(&[37; 32]);
+        let private_key: SigningKey = SigningKey::from_bytes(key_bytes).unwrap();
+        Transaction::new(body, private_key)
+    }
+
     #[test]
     fn test_transaction_hash_is_sha256_of_json_bytes() {
         let body = test_transaction_body();
@@ -349,20 +363,26 @@ mod tests {
     }
 
     #[test]
-    fn test_into_authenticated_succeeds_for_valid_signature() {
+    fn test_transaction_body_getter() {
         let body = test_transaction_body();
         let key_bytes = FieldBytes::from_slice(&[37; 32]);
         let private_key: SigningKey = SigningKey::from_bytes(key_bytes).unwrap();
-        let transaction = Transaction::new(body, private_key.clone());
+        let transaction = Transaction::new(body.clone(), private_key.clone());
+        assert_eq!(transaction.body(), &body);
+    }
+
+    #[test]
+    fn test_into_authenticated_succeeds_for_valid_signature() {
+        let transaction = test_transaction();
         let authenticated_tx = transaction.clone().into_authenticated().unwrap();
 
-        let signature = authenticated_tx.as_transaction().signature;
+        let signature = authenticated_tx.transaction().signature;
         let hash = authenticated_tx.hash();
-        assert_eq!(authenticated_tx.as_transaction(), &transaction);
-        assert_eq!(hash, &transaction.body.hash());
 
+        assert_eq!(authenticated_tx.transaction(), &transaction);
+        assert_eq!(hash, &transaction.body.hash());
         assert!(authenticated_tx
-            .as_transaction()
+            .transaction()
             .public_key
             .verify(hash, &signature)
             .is_ok());
@@ -380,9 +400,24 @@ mod tests {
             this.signature = private_key.sign(b"deadbeef");
             this
         };
+
         matches!(
             transaction.into_authenticated(),
             Err(TransactionSignatureError::InvalidSignature)
         );
+    }
+
+    #[test]
+    fn test_authenticated_transaction_getter() {
+        let transaction = test_transaction();
+        let authenticated_tx = transaction.clone().into_authenticated().unwrap();
+        assert_eq!(authenticated_tx.transaction(), &transaction);
+    }
+
+    #[test]
+    fn test_authenticated_transaction_hash_getter() {
+        let transaction = test_transaction();
+        let authenticated_tx = transaction.clone().into_authenticated().unwrap();
+        assert_eq!(authenticated_tx.hash(), &transaction.body.hash());
     }
 }

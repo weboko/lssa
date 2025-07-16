@@ -3,12 +3,12 @@ use mempool::mempoolitem::MemPoolItem;
 use serde::{Deserialize, Serialize};
 
 pub struct MempoolTransaction {
-    pub tx: AuthenticatedTransaction,
+    pub auth_tx: AuthenticatedTransaction,
 }
 
 impl From<AuthenticatedTransaction> for MempoolTransaction {
-    fn from(value: AuthenticatedTransaction) -> Self {
-        Self { tx: value }
+    fn from(auth_tx: AuthenticatedTransaction) -> Self {
+        Self { auth_tx }
     }
 }
 
@@ -16,6 +16,6 @@ impl MemPoolItem for MempoolTransaction {
     type Identifier = TreeHashType;
 
     fn identifier(&self) -> Self::Identifier {
-        *self.tx.hash()
+        *self.auth_tx.hash()
     }
 }

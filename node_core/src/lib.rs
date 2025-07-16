@@ -860,10 +860,10 @@ impl NodeCore {
 
         let point_before_prove = std::time::Instant::now();
         let (tx, utxo_hash) = self.mint_utxo_private(acc, amount).await?;
-        tx.body.log();
+        tx.body().log();
         let point_after_prove = std::time::Instant::now();
 
-        let commitment_generated_hash = tx.body.utxo_commitments_created_hashes[0];
+        let commitment_generated_hash = tx.body().utxo_commitments_created_hashes[0];
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
         info!("Mint utxo proof spent {timedelta:?} milliseconds");
@@ -888,10 +888,10 @@ impl NodeCore {
         let (tx, utxo_hashes) = self
             .mint_utxo_multiple_assets_private(acc, amount, number_of_assets)
             .await?;
-        tx.body.log();
+        tx.body().log();
         let point_after_prove = std::time::Instant::now();
 
-        let commitment_generated_hashes = tx.body.utxo_commitments_created_hashes.clone();
+        let commitment_generated_hashes = tx.body().utxo_commitments_created_hashes.clone();
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
         info!("Mint utxo proof spent {timedelta:?} milliseconds");
@@ -961,7 +961,7 @@ impl NodeCore {
         let (tx, utxo_hashes) = self
             .transfer_utxo_private(utxo, comm_hash, receivers)
             .await?;
-        tx.body.log();
+        tx.body().log();
         let point_after_prove = std::time::Instant::now();
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
@@ -987,7 +987,7 @@ impl NodeCore {
         let (tx, utxo_hashes_received, utxo_hashes_not_spent) = self
             .transfer_utxo_multiple_assets_private(utxos, comm_hashes, number_to_send, receiver)
             .await?;
-        tx.body.log();
+        tx.body().log();
         let point_after_prove = std::time::Instant::now();
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
@@ -1013,7 +1013,7 @@ impl NodeCore {
         let (tx, utxo_hashes) = self
             .transfer_balance_shielded(acc, amount, receivers)
             .await?;
-        tx.body.log();
+        tx.body().log();
         let point_after_prove = std::time::Instant::now();
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
@@ -1038,7 +1038,7 @@ impl NodeCore {
         let tx = self
             .transfer_utxo_deshielded(utxo, comm_gen_hash, receivers)
             .await?;
-        tx.body.log();
+        tx.body().log();
         let point_after_prove = std::time::Instant::now();
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
@@ -1507,13 +1507,13 @@ impl NodeCore {
         let (tx, utxo_hashes) = self
             .split_utxo(utxo, comm_hash, receivers, visibility_list)
             .await?;
-        tx.body.log();
+        tx.body().log();
         let point_after_prove = std::time::Instant::now();
 
         let timedelta = (point_after_prove - point_before_prove).as_millis();
         info!("Send private utxo proof spent {timedelta:?} milliseconds");
 
-        let commitments = tx.body.utxo_commitments_created_hashes.clone();
+        let commitments = tx.body().utxo_commitments_created_hashes.clone();
 
         Ok((
             self.sequencer_client.send_tx(tx, tx_roots).await?,

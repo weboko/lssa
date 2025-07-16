@@ -58,6 +58,7 @@ impl AddressKeyHolder {
         }
     }
 
+    /// Returns the signing key for public transaction signatures
     pub fn get_pub_account_signing_key(&self) -> SigningKey {
         let field_bytes = FieldBytes::from_slice(&self.pub_account_signing_key);
         // TODO: remove unwrap

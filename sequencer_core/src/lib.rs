@@ -10,13 +10,13 @@ use common::{
 };
 use config::SequencerConfig;
 use mempool::MemPool;
+use mempool_transaction::MempoolTransaction;
 use sequencer_store::{accounts_store::AccountPublicData, SequecerChainStore};
 use serde::{Deserialize, Serialize};
-use transaction_mempool::MempoolTransaction;
 
 pub mod config;
+pub mod mempool_transaction;
 pub mod sequencer_store;
-pub mod transaction_mempool;
 
 pub struct SequencerCore {
     pub store: SequecerChainStore,
@@ -86,7 +86,7 @@ impl SequencerCore {
             ref utxo_commitments_created_hashes,
             ref nullifier_created_hashes,
             ..
-        } = tx.body();
+        } = tx.transaction().body();
 
         let tx_hash = *tx.hash();
 
@@ -180,7 +180,7 @@ impl SequencerCore {
         let mempool_size = self.mempool.len();
         if mempool_size >= self.sequencer_config.max_num_tx_in_block {
             return Err(TransactionMalformationErrorKind::MempoolFullForRound {
-                tx: transaction.body.hash(),
+                tx: transaction.body().hash(),
             });
         }
 
@@ -193,13 +193,13 @@ impl SequencerCore {
 
     fn execute_check_transaction_on_state(
         &mut self,
-        tx: &MempoolTransaction,
+        mempool_tx: &MempoolTransaction,
     ) -> Result<(), TransactionMalformationErrorKind> {
         let TransactionBody {
             ref utxo_commitments_created_hashes,
             ref nullifier_created_hashes,
             ..
-        } = tx.tx.body();
+        } = mempool_tx.auth_tx.transaction().body();
 
         for utxo_comm in utxo_commitments_created_hashes {
             self.store
@@ -213,7 +213,9 @@ impl SequencerCore {
             });
         }
 
-        self.store.pub_tx_store.add_tx(tx.tx.as_transaction());
+        self.store
+            .pub_tx_store
+            .add_tx(mempool_tx.auth_tx.transaction());
 
         Ok(())
     }
@@ -248,7 +250,7 @@ impl SequencerCore {
             prev_block_id: self.chain_height,
             transactions: transactions
                 .into_iter()
-                .map(|tx_mem| tx_mem.tx.as_transaction().clone())
+                .map(|tx_mem| tx_mem.auth_tx.transaction().clone())
                 .collect(),
             data: vec![],
             prev_block_hash,
@@ -270,9 +272,9 @@ mod tests {
     use std::path::PathBuf;
 
     use common::transaction::{SignaturePrivateKey, Transaction, TransactionBody, TxKind};
+    use mempool_transaction::MempoolTransaction;
     use rand::Rng;
     use secp256k1_zkp::Tweak;
-    use transaction_mempool::MempoolTransaction;
 
     fn setup_sequencer_config() -> SequencerConfig {
         let mut rng = rand::thread_rng();
@@ -320,7 +322,7 @@ mod tests {
     fn common_setup(sequencer: &mut SequencerCore) {
         let tx = create_dummy_transaction(vec![[9; 32]], vec![[7; 32]], vec![[8; 32]]);
         let tx_mempool = MempoolTransaction {
-            tx: tx.into_authenticated().unwrap(),
+            auth_tx: tx.into_authenticated().unwrap(),
         };
         sequencer.mempool.push_item(tx_mempool);
 
@@ -377,7 +379,7 @@ mod tests {
 
         // Fill the mempool
         let dummy_tx = MempoolTransaction {
-            tx: tx.clone().into_authenticated().unwrap(),
+            auth_tx: tx.clone().into_authenticated().unwrap(),
         };
         sequencer.mempool.push_item(dummy_tx);
 
@@ -411,7 +413,7 @@ mod tests {
 
         let tx = create_dummy_transaction(vec![[94; 32]], vec![[7; 32]], vec![[8; 32]]);
         let tx_mempool = MempoolTransaction {
-            tx: tx.into_authenticated().unwrap(),
+            auth_tx: tx.into_authenticated().unwrap(),
         };
         sequencer.mempool.push_item(tx_mempool);
 

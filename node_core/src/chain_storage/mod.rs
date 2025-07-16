@@ -127,8 +127,9 @@ impl NodeChainStore {
         let block_id = block.block_id;
 
         for tx in &block.transactions {
-            if !tx.body.execution_input.is_empty() {
-                let public_action = serde_json::from_slice::<ActionData>(&tx.body.execution_input);
+            if !tx.body().execution_input.is_empty() {
+                let public_action =
+                    serde_json::from_slice::<ActionData>(&tx.body().execution_input);
 
                 if let Ok(public_action) = public_action {
                     match public_action {
@@ -162,7 +163,7 @@ impl NodeChainStore {
             }
 
             self.utxo_commitments_store.add_tx_multiple(
-                tx.body
+                tx.body()
                     .utxo_commitments_created_hashes
                     .clone()
                     .into_iter()
@@ -170,17 +171,17 @@ impl NodeChainStore {
                     .collect(),
             );
 
-            for nullifier in tx.body.nullifier_created_hashes.iter() {
+            for nullifier in tx.body().nullifier_created_hashes.iter() {
                 self.nullifier_store.insert(UTXONullifier {
                     utxo_hash: *nullifier,
                 });
             }
 
-            if !tx.body.encoded_data.is_empty() {
+            if !tx.body().encoded_data.is_empty() {
                 let ephemeral_public_key_sender =
-                    serde_json::from_slice::<AffinePoint>(&tx.body.ephemeral_pub_key)?;
+                    serde_json::from_slice::<AffinePoint>(&tx.body().ephemeral_pub_key)?;
 
-                for (ciphertext, nonce, tag) in tx.body.encoded_data.clone() {
+                for (ciphertext, nonce, tag) in tx.body().encoded_data.clone() {
                     let slice = nonce.as_slice();
                     let nonce =
                         accounts::key_management::constants_types::Nonce::clone_from_slice(slice);
