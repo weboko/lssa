@@ -3,7 +3,6 @@ use common::merkle_tree_public::merkle_tree::UTXOCommitmentsMerkleTree;
 use rand::{thread_rng, RngCore};
 use secp256k1_zkp::{CommitmentSecrets, Generator, PedersenCommitment, Tag, Tweak, SECP256K1};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
 use utxo::utxo_core::UTXO;
 
 use crate::{cryptography::poseidon_hash, public_context::PublicSCContext};
@@ -26,7 +25,7 @@ pub fn generate_nullifiers(input_utxo: &UTXO, npk: &[u8]) -> Vec<u8> {
 ///
 ///  uses the input_utxo
 ///
-///  returns commitment here comminment is a hash(bincode(input_utxo))
+///  returns commitment here commitment is a hash(bincode(input_utxo))
 pub fn generate_commitment(input_utxo: &UTXO) -> Vec<u8> {
     let serialized = bincode::serialize(input_utxo).unwrap(); // Serialize UTXO.
     hash(&serialized)
@@ -50,21 +49,13 @@ pub fn generate_commitments(input_utxos: &[UTXO]) -> Vec<Vec<u8>> {
 /// Validate inclusion proof for in_commitments
 ///
 /// ToDo: Solve it in more scalable way
-pub fn validate_in_commitments_proof(
+pub fn validate_in_commitments_tree(
     in_commitment: &Vec<u8>,
     commitment_tree: &UTXOCommitmentsMerkleTree,
 ) -> bool {
     let alighned_hash: [u8; 32] = in_commitment.clone().try_into().unwrap();
 
     commitment_tree.get_proof(alighned_hash).is_some()
-}
-
-/// Validate that `nullifier` has not been present in set items before
-pub fn validate_nullifier_not_present_in_set_items(
-    nullifier: [u8; 32],
-    nullifiers_set: &HashSet<[u8; 32]>,
-) -> bool {
-    !nullifiers_set.contains(&nullifier)
 }
 
 /// Check, that input utxos balances is equal to out utxo balances
@@ -99,17 +90,16 @@ pub fn private_circuit(
     }
 
     for in_commitment in in_commitments {
-        assert!(validate_in_commitments_proof(
+        assert!(validate_in_commitments_tree(
             &in_commitment,
             &public_context.commitments_tree,
         ));
     }
 
     for nullifier in in_nullifiers.iter() {
-        assert!(validate_nullifier_not_present_in_set_items(
-            nullifier.clone().try_into().unwrap(),
-            &public_context.nullifiers_set,
-        ));
+        let nullifier: [u8; 32] = nullifier.clone().try_into().unwrap();
+
+        assert!(!public_context.nullifiers_set.contains(&nullifier));
     }
 
     (in_nullifiers, generate_commitments(&output_utxos))
@@ -149,17 +139,16 @@ pub fn deshielded_circuit(
     }
 
     for in_commitment in in_commitments {
-        assert!(validate_in_commitments_proof(
+        assert!(validate_in_commitments_tree(
             &in_commitment,
             &public_context.commitments_tree,
         ));
     }
 
     for nullifier in in_nullifiers.iter() {
-        assert!(validate_nullifier_not_present_in_set_items(
-            nullifier.clone().try_into().unwrap(),
-            &public_context.nullifiers_set,
-        ));
+        let nullifier: [u8; 32] = nullifier.clone().try_into().unwrap();
+
+        assert!(!public_context.nullifiers_set.contains(&nullifier));
     }
 
     in_nullifiers
@@ -241,7 +230,7 @@ pub fn verify_commitment(
 /// Validate inclusion proof for pedersen_commitment
 ///
 /// ToDo: Solve it in more scalable way
-pub fn validate_in_commitments_proof_se(
+pub fn validate_in_commitments_tree_se(
     pedersen_commitment: &PedersenCommitment,
     commitment_tree: &UTXOCommitmentsMerkleTree,
 ) -> bool {
@@ -291,7 +280,7 @@ pub fn shielded_circuit(
 
     let nullifier = generate_nullifiers_se(&pedersen_commitment, &key_ser);
 
-    assert!(validate_in_commitments_proof_se(
+    assert!(validate_in_commitments_tree_se(
         &pedersen_commitment,
         &public_context.commitments_tree,
     ));
