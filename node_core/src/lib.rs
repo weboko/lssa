@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use common::ExecutionFailureKind;
+use common::{public_transfer_receipts::PublicNativeTokenSend, ExecutionFailureKind};
 
 use accounts::account_core::{Account, AccountAddress};
 use anyhow::Result;
@@ -930,6 +930,52 @@ impl NodeCore {
                     acc,
                     amount,
                 }))
+                .unwrap(),
+                commitment,
+                tweak,
+                secret_r,
+                sc_addr,
+                state_changes,
+            )
+            .into();
+        tx.log();
+
+        Ok(self.sequencer_client.send_tx(tx, tx_roots).await?)
+    }
+
+    pub async fn send_public_native_token_transfer(
+        &self,
+        from: AccountAddress,
+        to: AccountAddress,
+        moved_balance: u64,
+    ) -> Result<SendTxResponse, ExecutionFailureKind> {
+        let tx_roots = self.get_roots().await;
+
+        let public_context = {
+            let read_guard = self.storage.read().await;
+
+            read_guard.produce_context(from)
+        };
+
+        let (tweak, secret_r, commitment) = pedersen_commitment_vec(
+            //Will not panic, as public context is serializable
+            public_context.produce_u64_list_from_context().unwrap(),
+        );
+
+        let sc_addr = hex::encode([0; 32]);
+
+        //Native  does not change its state
+        let state_changes: Vec<DataBlobChangeVariant> = vec![];
+        let new_len = 0;
+        let state_changes = (serde_json::to_value(state_changes).unwrap(), new_len);
+
+        let tx: Transaction =
+            sc_core::transaction_payloads_tools::create_public_transaction_payload(
+                serde_json::to_vec(&PublicNativeTokenSend {
+                    from,
+                    to,
+                    moved_balance,
+                })
                 .unwrap(),
                 commitment,
                 tweak,

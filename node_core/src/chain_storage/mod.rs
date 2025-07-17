@@ -7,6 +7,7 @@ use common::{
     block::Block,
     merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree},
     nullifier::UTXONullifier,
+    public_transfer_receipts::PublicNativeTokenSend,
     utxo_commitment::UTXOCommitment,
 };
 use k256::AffinePoint;
@@ -157,6 +158,20 @@ impl NodeChainStore {
                             }
                         }
                         _ => {}
+                    }
+                } else {
+                    let native_transfer =
+                        serde_json::from_slice::<PublicNativeTokenSend>(&tx.execution_input);
+
+                    if let Ok(transfer) = native_transfer {
+                        if let Some(acc_sender) = self.acc_map.get_mut(&transfer.from) {
+                            //Can panic, we depend on sequencer maintaining chain consistency here
+                            acc_sender.balance -= transfer.moved_balance;
+
+                            if let Some(acc_rec) = self.acc_map.get_mut(&transfer.to) {
+                                acc_rec.balance += transfer.moved_balance;
+                            }
+                        }
                     }
                 }
             }
