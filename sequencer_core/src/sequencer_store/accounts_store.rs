@@ -1,4 +1,5 @@
 use accounts::account_core::AccountAddress;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -61,8 +62,23 @@ impl SequencerAccountsStore {
     }
 
     ///Remove account from storage
-    pub fn unregister_account(&mut self, account_addr: AccountAddress) {
-        self.accounts.remove(&account_addr);
+    ///
+    /// Fails, if `balance` is != 0
+    ///
+    /// Returns `Option<AccountAddress>` which is `None` if `account_addr` vere not present in store
+    pub fn unregister_account(
+        &mut self,
+        account_addr: AccountAddress,
+    ) -> Result<Option<AccountAddress>> {
+        if let Some(account_balance) = self.get_account_balance(&account_addr) {
+            if account_balance == 0 {
+                Ok(self.accounts.remove(&account_addr).map(|data| data.address))
+            } else {
+                anyhow::bail!("Chain consistency violation: It is forbidden to remove account with nonzero balance");
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     ///Number of accounts present in store
@@ -118,6 +134,26 @@ mod tests {
     }
 
     #[test]
+    fn account_sequencer_store_unregister_acc_not_present() {
+        let mut seq_acc_store = SequencerAccountsStore::default();
+
+        seq_acc_store.register_account([1; 32]);
+
+        let rem_res = seq_acc_store.unregister_account([2; 32]).unwrap();
+
+        assert!(rem_res.is_none());
+    }
+
+    #[test]
+    fn account_sequencer_store_unregister_acc_not_zero_balance() {
+        let mut seq_acc_store = SequencerAccountsStore::new(&[([1; 32], 12), ([2; 32], 100)]);
+
+        let rem_res = seq_acc_store.unregister_account([1; 32]);
+
+        assert!(rem_res.is_err());
+    }
+
+    #[test]
     fn account_sequencer_store_unregister_acc() {
         let mut seq_acc_store = SequencerAccountsStore::default();
 
@@ -125,7 +161,7 @@ mod tests {
 
         assert!(seq_acc_store.contains_account(&[1; 32]));
 
-        seq_acc_store.unregister_account([1; 32]);
+        seq_acc_store.unregister_account([1; 32]).unwrap().unwrap();
 
         assert!(!seq_acc_store.contains_account(&[1; 32]));
     }
