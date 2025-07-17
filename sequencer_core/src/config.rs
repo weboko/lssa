@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+//
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 ///Helperstruct for account serialization
 pub struct AccountInitialData {
