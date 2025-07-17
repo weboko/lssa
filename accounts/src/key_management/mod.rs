@@ -42,7 +42,7 @@ impl AddressKeyHolder {
         let nullifer_public_key = utxo_secret_key_holder.generate_nullifier_public_key();
         let viewing_public_key = utxo_secret_key_holder.generate_viewing_public_key();
 
-        let pub_account_secret_key = {
+        let pub_account_signing_key = {
             let mut bytes = [0; 32];
             OsRng.fill_bytes(&mut bytes);
             bytes
@@ -54,7 +54,7 @@ impl AddressKeyHolder {
             address,
             nullifer_public_key,
             viewing_public_key,
-            pub_account_signing_key: pub_account_secret_key,
+            pub_account_signing_key,
         }
     }
 
