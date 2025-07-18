@@ -5,7 +5,10 @@ use std::sync::{
 
 use common::ExecutionFailureKind;
 
-use accounts::account_core::{Account, AccountAddress};
+use accounts::{
+    account_core::{Account, AccountAddress},
+    key_management::ephemeral_key_holder::EphemeralKeyHolder,
+};
 use anyhow::Result;
 use chain_storage::NodeChainStore;
 use common::transaction::{Transaction, TransactionPayload, TxKind};
@@ -197,7 +200,7 @@ impl NodeCore {
 
         let account = acc_map_read_guard.acc_map.get(&acc).unwrap();
 
-        let ephm_key_holder = &account.produce_ephemeral_key_holder();
+        let ephm_key_holder = EphemeralKeyHolder::new_os_random();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -285,7 +288,7 @@ impl NodeCore {
 
         let account = acc_map_read_guard.acc_map.get(&acc).unwrap();
 
-        let ephm_key_holder = &account.produce_ephemeral_key_holder();
+        let ephm_key_holder = EphemeralKeyHolder::new_os_random();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -398,7 +401,7 @@ impl NodeCore {
             .map(|(utxo, _)| utxo.clone())
             .collect();
 
-        let ephm_key_holder = &account.produce_ephemeral_key_holder();
+        let ephm_key_holder = EphemeralKeyHolder::new_os_random();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -519,7 +522,7 @@ impl NodeCore {
             .map(|utxo| utxo.hash)
             .collect();
 
-        let ephm_key_holder = &account.produce_ephemeral_key_holder();
+        let ephm_key_holder = EphemeralKeyHolder::new_os_random();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -663,7 +666,7 @@ impl NodeCore {
             .map(|(utxo, _)| utxo.clone())
             .collect();
 
-        let ephm_key_holder = &account.produce_ephemeral_key_holder();
+        let ephm_key_holder = EphemeralKeyHolder::new_os_random();
         ephm_key_holder.log();
 
         let eph_pub_key =
@@ -1377,7 +1380,7 @@ impl NodeCore {
             .map(|(utxo, _)| utxo.clone())
             .collect();
 
-        let ephm_key_holder = &account.produce_ephemeral_key_holder();
+        let ephm_key_holder = EphemeralKeyHolder::new_os_random();
         ephm_key_holder.log();
 
         let eph_pub_key =
