@@ -11,7 +11,7 @@ use accounts::{
 };
 use anyhow::Result;
 use chain_storage::NodeChainStore;
-use common::transaction::{Transaction, TransactionPayload, TxKind};
+use common::transaction::{Transaction, TxKind};
 use config::NodeConfig;
 use log::info;
 use sc_core::proofs_circuits::{
@@ -249,7 +249,7 @@ impl NodeCore {
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
-            TransactionPayload {
+            Transaction {
                 tx_kind: TxKind::Private,
                 execution_input: vec![],
                 execution_output: vec![],
@@ -346,7 +346,7 @@ impl NodeCore {
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
-            TransactionPayload {
+            Transaction {
                 tx_kind: TxKind::Private,
                 execution_input: vec![],
                 execution_output: vec![],
@@ -462,7 +462,7 @@ impl NodeCore {
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
-            TransactionPayload {
+            Transaction {
                 tx_kind: TxKind::Private,
                 execution_input: vec![],
                 execution_output: vec![],
@@ -607,7 +607,7 @@ impl NodeCore {
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
-            TransactionPayload {
+            Transaction {
                 tx_kind: TxKind::Private,
                 execution_input: vec![],
                 execution_output: vec![],
@@ -730,7 +730,7 @@ impl NodeCore {
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
-            TransactionPayload {
+            Transaction {
                 tx_kind: TxKind::Shielded,
                 execution_input: serde_json::to_vec(&ActionData::SendMoneyShieldedTx(
                     SendMoneyShieldedTx {
@@ -823,7 +823,7 @@ impl NodeCore {
 
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
-        Ok(TransactionPayload {
+        Ok(Transaction {
             tx_kind: TxKind::Deshielded,
             execution_input: serde_json::to_vec(&ActionData::SendMoneyDeshieldedTx(
                 SendMoneyDeshieldedTx {
@@ -1462,7 +1462,7 @@ impl NodeCore {
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(vec_public_info);
 
         Ok((
-            TransactionPayload {
+            Transaction {
                 tx_kind: TxKind::Shielded,
                 execution_input: vec![],
                 execution_output: serde_json::to_vec(&publication).unwrap(),

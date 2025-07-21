@@ -26,7 +26,6 @@ pub enum TxKind {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 ///General transaction object
 pub struct Transaction {
-    pub hash: TreeHashType,
     pub tx_kind: TxKind,
     ///Tx input data (public part)
     pub execution_input: Vec<u8>,
@@ -56,70 +55,6 @@ pub struct Transaction {
     ///
     /// First value represents vector of changes, second is new length of a state
     pub state_changes: (serde_json::Value, usize),
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-///General transaction object
-pub struct TransactionPayload {
-    pub tx_kind: TxKind,
-    ///Tx input data (public part)
-    pub execution_input: Vec<u8>,
-    ///Tx output data (public_part)
-    pub execution_output: Vec<u8>,
-    ///Tx input utxo commitments
-    pub utxo_commitments_spent_hashes: Vec<TreeHashType>,
-    ///Tx output utxo commitments
-    pub utxo_commitments_created_hashes: Vec<TreeHashType>,
-    ///Tx output nullifiers
-    pub nullifier_created_hashes: Vec<TreeHashType>,
-    ///Execution proof (private part)
-    pub execution_proof_private: String,
-    ///Encoded blobs of data
-    pub encoded_data: Vec<(CipherText, Vec<u8>, Tag)>,
-    ///Transaction senders ephemeral pub key
-    pub ephemeral_pub_key: Vec<u8>,
-    ///Public (Pedersen) commitment
-    pub commitment: Vec<PedersenCommitment>,
-    ///tweak
-    pub tweak: Tweak,
-    ///secret_r
-    pub secret_r: [u8; 32],
-    ///Hex-encoded address of a smart contract account called
-    pub sc_addr: String,
-    ///Recorded changes in state of smart contract
-    ///
-    /// First value represents vector of changes, second is new length of a state
-    pub state_changes: (serde_json::Value, usize),
-}
-
-impl From<TransactionPayload> for Transaction {
-    fn from(value: TransactionPayload) -> Self {
-        let raw_data = serde_json::to_vec(&value).unwrap();
-
-        let mut hasher = sha2::Sha256::new();
-
-        hasher.update(&raw_data);
-
-        let hash = <TreeHashType>::from(hasher.finalize_fixed());
-
-        Self {
-            hash,
-            tx_kind: value.tx_kind,
-            execution_input: value.execution_input,
-            execution_output: value.execution_output,
-            utxo_commitments_spent_hashes: value.utxo_commitments_spent_hashes,
-            utxo_commitments_created_hashes: value.utxo_commitments_created_hashes,
-            nullifier_created_hashes: value.nullifier_created_hashes,
-            execution_proof_private: value.execution_proof_private,
-            encoded_data: value.encoded_data,
-            ephemeral_pub_key: value.ephemeral_pub_key,
-            commitment: value.commitment,
-            tweak: value.tweak,
-            secret_r: value.secret_r,
-            sc_addr: value.sc_addr,
-            state_changes: value.state_changes,
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -216,8 +151,19 @@ impl ActionData {
 }
 
 impl Transaction {
+    /// Computes and returns the SHA-256 hash of the JSON-serialized representation of `self`.
+    pub fn hash(&self) -> TreeHashType {
+        // TODO: Remove `unwrap` by implementing a `to_bytes` method
+        // that deterministically encodes all transaction fields to bytes
+        // and guarantees serialization will succeed.
+        let raw_data = serde_json::to_vec(&self).unwrap();
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&raw_data);
+        TreeHashType::from(hasher.finalize_fixed())
+    }
+
     pub fn log(&self) {
-        info!("Transaction hash is {:?}", hex::encode(self.hash));
+        info!("Transaction hash is {:?}", hex::encode(self.hash()));
         info!("Transaction tx_kind is {:?}", self.tx_kind);
         info!("Transaction execution_input is {:?}", {
             if let Ok(action) = serde_json::from_slice::<ActionData>(&self.execution_input) {
@@ -265,5 +211,46 @@ impl Transaction {
             "Transaction ephemeral_pub_key is {:?}",
             hex::encode(self.ephemeral_pub_key.clone())
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use secp256k1_zkp::{constants::SECRET_KEY_SIZE, Tweak};
+    use sha2::{digest::FixedOutput, Digest};
+
+    use crate::{
+        merkle_tree_public::TreeHashType,
+        transaction::{Transaction, TxKind},
+    };
+
+    #[test]
+    fn test_transaction_hash_is_sha256_of_json_bytes() {
+        let tx = Transaction {
+            tx_kind: TxKind::Public,
+            execution_input: vec![1, 2, 3, 4],
+            execution_output: vec![5, 6, 7, 8],
+            utxo_commitments_spent_hashes: vec![[9; 32], [10; 32], [11; 32], [12; 32]],
+            utxo_commitments_created_hashes: vec![[13; 32]],
+            nullifier_created_hashes: vec![[0; 32], [1; 32], [2; 32], [3; 32]],
+            execution_proof_private: "loremipsum".to_string(),
+            encoded_data: vec![(vec![255, 255, 255], vec![254, 254, 254], 1)],
+            ephemeral_pub_key: vec![5; 32],
+            commitment: vec![],
+            tweak: Tweak::from_slice(&[7; SECRET_KEY_SIZE]).unwrap(),
+            secret_r: [8; 32],
+            sc_addr: "someAddress".to_string(),
+            state_changes: (serde_json::Value::Null, 10),
+        };
+        let expected_hash = {
+            let data = serde_json::to_vec(&tx).unwrap();
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(&data);
+            TreeHashType::from(hasher.finalize_fixed())
+        };
+
+        let hash = tx.hash();
+
+        assert_eq!(expected_hash, hash);
     }
 }
