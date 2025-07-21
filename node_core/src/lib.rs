@@ -36,6 +36,8 @@ pub mod config;
 pub mod pre_start;
 pub mod sequencer_client;
 
+//
+
 fn vec_u8_to_vec_u64(bytes: Vec<u8>) -> Vec<u64> {
     // Pad with zeros to make sure it's a multiple of 8
     let mut padded = bytes.clone();
