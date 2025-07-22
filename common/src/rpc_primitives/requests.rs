@@ -1,5 +1,4 @@
 use crate::block::Block;
-use crate::merkle_tree_public::TreeHashType;
 use crate::parse_request;
 use crate::transaction::Transaction;
 

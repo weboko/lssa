@@ -300,8 +300,6 @@ mod tests {
     }
 
     fn create_dummy_transaction(
-        hash: TreeHashType,
-        // execution_input: Vec<u8>,
         nullifier_created_hashes: Vec<[u8; 32]>,
         utxo_commitments_spent_hashes: Vec<[u8; 32]>,
         utxo_commitments_created_hashes: Vec<[u8; 32]>,
@@ -420,7 +418,6 @@ mod tests {
                 .utxo_commitments_store
                 .add_tx_multiple(vec![UTXOCommitment { hash: [3u8; 32] }]);
             store.pub_tx_store.add_tx(create_dummy_transaction(
-                [12; 32],
                 vec![[9; 32]],
                 vec![[7; 32]],
                 vec![[8; 32]],
