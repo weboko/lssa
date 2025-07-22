@@ -3,7 +3,9 @@ use std::sync::{
     Arc,
 };
 
-use common::{transaction::Transaction, ExecutionFailureKind};
+use common::{
+    public_transfer_receipts::PublicNativeTokenSend, transaction::Transaction, ExecutionFailureKind,
+};
 
 use accounts::{
     account_core::{Account, AccountAddress},
@@ -977,7 +979,7 @@ impl NodeCore {
         let new_len = 0;
         let state_changes = (serde_json::to_value(state_changes).unwrap(), new_len);
 
-        let tx: Transaction =
+        let tx: TransactionBody =
             sc_core::transaction_payloads_tools::create_public_transaction_payload(
                 serde_json::to_vec(&PublicNativeTokenSend {
                     from,
@@ -994,7 +996,24 @@ impl NodeCore {
             .into();
         tx.log();
 
-        Ok(self.sequencer_client.send_tx(tx, tx_roots).await?)
+        {
+            let read_guard = self.storage.read().await;
+
+            let account = read_guard.acc_map.get(&from);
+
+            if let Some(account) = account {
+                let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
+
+                let signed_transaction = Transaction::new(tx, key_to_sign_transaction);
+
+                Ok(self
+                    .sequencer_client
+                    .send_tx(signed_transaction, tx_roots)
+                    .await?)
+            } else {
+                Err(ExecutionFailureKind::AmountMismatchError)
+            }
+        }
     }
 
     pub async fn send_private_send_tx(

@@ -6,6 +6,7 @@ use common::{
     block::{Block, HashableBlockData},
     merkle_tree_public::TreeHashType,
     nullifier::UTXONullifier,
+    public_transfer_receipts::PublicNativeTokenSend,
     transaction::{AuthenticatedTransaction, Transaction, TransactionBody, TxKind},
     utxo_commitment::UTXOCommitment,
 };
@@ -37,6 +38,9 @@ pub enum TransactionMalformationErrorKind {
     ChainStateFurtherThanTransactionState { tx: TreeHashType },
     FailedToInsert { tx: TreeHashType, details: String },
     InvalidSignature,
+    AccountNotFound { tx: TreeHashType, acc: TreeHashType },
+    BalanceMismatch { tx: TreeHashType },
+    FailedToDecode { tx: TreeHashType },
 }
 
 impl Display for TransactionMalformationErrorKind {
@@ -100,6 +104,50 @@ impl SequencerCore {
                     tx: tx_hash,
                 },
             );
+        }
+
+        //Balance check
+        if let Ok(native_transfer_action) =
+            serde_json::from_slice::<PublicNativeTokenSend>(&execution_input)
+        {
+            if let Some(from_balance) = self
+                .store
+                .acc_store
+                .get_account_balance(&native_transfer_action.from)
+            {
+                if let Some(to_balance) = self
+                    .store
+                    .acc_store
+                    .get_account_balance(&native_transfer_action.to)
+                {
+                    if from_balance >= native_transfer_action.moved_balance {
+                        self.store.acc_store.set_account_balance(
+                            &native_transfer_action.from,
+                            from_balance - native_transfer_action.moved_balance,
+                        );
+                        self.store.acc_store.set_account_balance(
+                            &native_transfer_action.to,
+                            to_balance + native_transfer_action.moved_balance,
+                        );
+                    } else {
+                        return Err(TransactionMalformationErrorKind::BalanceMismatch {
+                            tx: tx_hash,
+                        });
+                    }
+                } else {
+                    return Err(TransactionMalformationErrorKind::AccountNotFound {
+                        tx: tx_hash,
+                        acc: native_transfer_action.to,
+                    });
+                }
+            } else {
+                return Err(TransactionMalformationErrorKind::AccountNotFound {
+                    tx: tx_hash,
+                    acc: native_transfer_action.from,
+                });
+            }
+        } else {
+            return Err(TransactionMalformationErrorKind::FailedToDecode { tx: tx_hash });
         }
 
         //Sanity check

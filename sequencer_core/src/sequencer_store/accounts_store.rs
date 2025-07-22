@@ -61,6 +61,25 @@ impl SequencerAccountsStore {
         self.accounts.get(account_addr).map(|acc| acc.balance)
     }
 
+    ///Update `account_addr` balance,
+    ///
+    /// returns `None` if account address not found, othervise returns previous balance
+    pub fn set_account_balance(
+        &mut self,
+        account_addr: &AccountAddress,
+        new_balance: u64,
+    ) -> Option<u64> {
+        let acc_data = self.accounts.get_mut(account_addr);
+
+        acc_data.map(|data| {
+            let old_bal = data.balance;
+
+            data.balance = new_balance;
+
+            old_bal
+        })
+    }
+
     ///Remove account from storage
     ///
     /// Fails, if `balance` is != 0

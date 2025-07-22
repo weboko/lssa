@@ -161,7 +161,7 @@ impl NodeChainStore {
                     }
                 } else {
                     let native_transfer =
-                        serde_json::from_slice::<PublicNativeTokenSend>(&tx.execution_input);
+                        serde_json::from_slice::<PublicNativeTokenSend>(&tx.body().execution_input);
 
                     if let Ok(transfer) = native_transfer {
                         if let Some(acc_sender) = self.acc_map.get_mut(&transfer.from) {
