@@ -166,10 +166,10 @@ impl JsonHandler {
     async fn process_get_transaction_by_hash(&self, request: Request) -> Result<Value, RpcErr> {
         let get_transaction_req = GetTransactionByHashRequest::parse(Some(request.params))?;
         let bytes: Vec<u8> = hex::decode(get_transaction_req.hash)
-            .map_err(|_| RpcError::invalid_params("invalid hash".to_string()))?;
+            .map_err(|_| RpcError::invalid_params("invalid hex".to_string()))?;
         let hash: TreeHashType = bytes
             .try_into()
-            .map_err(|_| RpcError::invalid_params("invalid hash".to_string()))?;
+            .map_err(|_| RpcError::invalid_params("invalid length".to_string()))?;
 
         let transaction = {
             let state = self.sequencer_state.lock().await;
@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_get_transaction_by_hash_for_invalid_hash() {
+    async fn test_get_transaction_by_hash_for_invalid_hex() {
         let json_handler = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
@@ -393,7 +393,31 @@ mod tests {
             "error": {
                 "code": -32602,
                 "message": "Invalid params",
-                "data": "invalid hash"
+                "data": "invalid hex"
+            }
+        });
+
+        let response = call_rpc_handler_with_json(json_handler, request).await;
+
+        assert_eq!(response, expected_response);
+    }
+
+    #[actix_web::test]
+    async fn test_get_transaction_by_hash_for_invalid_length() {
+        let json_handler = json_handler_for_tests();
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "get_transaction_by_hash",
+            "params": { "hash": "cafecafe" },
+            "id": 1
+        });
+        let expected_response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32602,
+                "message": "Invalid params",
+                "data": "invalid length"
             }
         });
 
