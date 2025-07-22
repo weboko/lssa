@@ -199,9 +199,10 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{rpc_handler, JsonHandler};
-    use common::rpc_primitives::RpcPollingConfig;
+    use common::{rpc_primitives::RpcPollingConfig, transaction::Transaction};
     use sequencer_core::{
         config::{AccountInitialData, SequencerConfig},
+        transaction_mempool::TransactionMempool,
         SequencerCore,
     };
     use serde_json::Value;
@@ -236,11 +237,34 @@ mod tests {
 
     fn json_handler_for_tests() -> JsonHandler {
         let config = sequencer_config_for_tests();
-        let sequencer_core = Arc::new(Mutex::new(SequencerCore::start_from_config(config)));
+        let mut sequencer_core = SequencerCore::start_from_config(config);
+        let tx = Transaction {
+            tx_kind: common::transaction::TxKind::Public,
+            execution_input: Default::default(),
+            execution_output: Default::default(),
+            utxo_commitments_spent_hashes: Default::default(),
+            utxo_commitments_created_hashes: Default::default(),
+            nullifier_created_hashes: Default::default(),
+            execution_proof_private: Default::default(),
+            encoded_data: Default::default(),
+            ephemeral_pub_key: Default::default(),
+            commitment: Default::default(),
+            tweak: Default::default(),
+            secret_r: Default::default(),
+            sc_addr: Default::default(),
+            state_changes: Default::default(),
+        };
+
+        sequencer_core
+            .push_tx_into_mempool_pre_check(TransactionMempool { tx }, [[0; 32]; 2])
+            .unwrap();
+        sequencer_core
+            .produce_new_block_with_mempool_transactions()
+            .unwrap();
 
         JsonHandler {
             polling_config: RpcPollingConfig::default(),
-            sequencer_state: sequencer_core,
+            sequencer_state: Arc::new(Mutex::new(sequencer_core)),
         }
     }
 
@@ -345,7 +369,7 @@ mod tests {
             "id": 1,
             "jsonrpc": "2.0",
             "result": {
-                "transaction": Value::Null
+                "transaction": null
             }
         });
 
@@ -370,6 +394,43 @@ mod tests {
                 "code": -32602,
                 "message": "Invalid params",
                 "data": "invalid hash"
+            }
+        });
+
+        let response = call_rpc_handler_with_json(json_handler, request).await;
+
+        assert_eq!(response, expected_response);
+    }
+
+    #[actix_web::test]
+    async fn test_get_transaction_by_hash_for_existing_transaction() {
+        let json_handler = json_handler_for_tests();
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "get_transaction_by_hash",
+            "params": { "hash": "ca8e38269c0137d27cbe7c55d240a834b46e86e236578b9a1a3a25b3dabc5709" },
+            "id": 1
+        });
+        let expected_response = serde_json::json!({
+            "id": 1,
+            "jsonrpc": "2.0",
+            "result": {
+                "transaction": {
+                    "commitment": [],
+                    "encoded_data": [],
+                    "ephemeral_pub_key": [],
+                    "execution_input": [],
+                    "execution_output": [],
+                    "execution_proof_private": "",
+                    "nullifier_created_hashes": [],
+                    "sc_addr": "",
+                    "secret_r": vec![0; 32],
+                    "state_changes": [null, 0],
+                    "tweak": "0".repeat(64),
+                    "tx_kind": "Public",
+                    "utxo_commitments_created_hashes": [],
+                    "utxo_commitments_spent_hashes": []
+                }
             }
         });
 
