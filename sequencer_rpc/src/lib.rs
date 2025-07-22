@@ -42,3 +42,4 @@ pub fn rpc_error_responce_inverter(err: RpcError) -> RpcError {
         data: content,
     }
 }
+
