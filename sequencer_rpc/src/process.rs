@@ -2,7 +2,7 @@ use actix_web::Error as HttpError;
 use serde_json::Value;
 
 use common::rpc_primitives::{
-    errors::{RpcError, RpcParseError},
+    errors::RpcError,
     message::{Message, Request},
     parser::RpcRequest,
     requests::{GetAccountBalanceRequest, GetAccountBalanceResponse},
@@ -141,7 +141,7 @@ impl JsonHandler {
     async fn process_get_account_balance(&self, request: Request) -> Result<Value, RpcErr> {
         let get_account_req = GetAccountBalanceRequest::parse(Some(request.params))?;
         let address = hex::decode(get_account_req.address)
-            .map_err(|_| RpcParseError("invalid address".to_string()))?;
+            .map_err(|_| RpcError::invalid_params("invalid address".to_string()))?;
 
         let balance = {
             let state = self.sequencer_state.lock().await;
@@ -277,16 +277,9 @@ mod tests {
             "jsonrpc": "2.0",
             "id": 1,
             "error": {
-                "code": -32700,
-                "message": "Parse error",
-                "name": "REQUEST_VALIDATION_ERROR",
-                "data": "invalid address",
-                "cause": {
-                    "name": "PARSE_ERROR",
-                    "info": {
-                        "error_message": "invalid address"
-                    }
-                }
+                "code": -32602,
+                "message": "Invalid params",
+                "data": "invalid address"
             }
         });
         let response = call_rpc_handler_with_json(json_handler, request).await;
