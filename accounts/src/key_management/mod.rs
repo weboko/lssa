@@ -61,7 +61,7 @@ impl AddressKeyHolder {
     pub fn get_pub_account_signing_key(&self) -> SigningKey {
         let field_bytes = FieldBytes::from_slice(&self.pub_account_signing_key);
         // TODO: remove unwrap
-        SigningKey::from_bytes(&field_bytes).unwrap()
+        SigningKey::from_bytes(field_bytes).unwrap()
     }
 
     pub fn calculate_shared_secret_receiver(
@@ -183,7 +183,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(ciphertext),
-                nonce.clone(),
+                *nonce,
             )
             .unwrap();
 
@@ -203,7 +203,7 @@ mod tests {
         assert!(!Into::<bool>::into(
             address_key_holder.viewing_public_key.is_identity()
         ));
-        assert!(address_key_holder.address.as_slice().len() > 0); // Assume TreeHashType has non-zero length for a valid address
+        assert!(!address_key_holder.address.as_slice().is_empty()); // Assume TreeHashType has non-zero length for a valid address
     }
 
     #[test]
@@ -245,7 +245,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(ciphertext.clone()),
-                incorrect_nonce.clone(),
+                *incorrect_nonce,
             )
             .unwrap();
 
@@ -281,7 +281,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(corrupted_ciphertext),
-                nonce.clone(),
+                *nonce,
             )
             .unwrap();
 
@@ -314,7 +314,7 @@ mod tests {
             .decrypt_data(
                 ephemeral_public_key_sender,
                 CipherText::from(ciphertext),
-                nonce.clone(),
+                *nonce,
             )
             .unwrap();
 

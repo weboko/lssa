@@ -95,6 +95,12 @@ impl SequencerCore {
 
         let tx_hash = *tx.hash();
 
+        let mempool_size = self.mempool.len();
+
+        if mempool_size >= self.sequencer_config.max_num_tx_in_block {
+            return Err(TransactionMalformationErrorKind::MempoolFullForRound { tx: tx_hash });
+        }
+
         let curr_sequencer_roots = self.get_tree_roots();
 
         if tx_roots != curr_sequencer_roots {
@@ -165,23 +171,20 @@ impl SequencerCore {
 
         //Tree checks
         let tx_tree_check = self.store.pub_tx_store.get_tx(tx_hash).is_some();
-        let nullifier_tree_check = nullifier_created_hashes
-            .iter()
-            .map(|nullifier_hash| {
-                self.store.nullifier_store.contains(&UTXONullifier {
-                    utxo_hash: *nullifier_hash,
-                })
+        let nullifier_tree_check = nullifier_created_hashes.iter().any(|nullifier_hash| {
+            self.store.nullifier_store.contains(&UTXONullifier {
+                utxo_hash: *nullifier_hash,
             })
-            .any(|check| check);
-        let utxo_commitments_check = utxo_commitments_created_hashes
-            .iter()
-            .map(|utxo_commitment_hash| {
-                self.store
-                    .utxo_commitments_store
-                    .get_tx(*utxo_commitment_hash)
-                    .is_some()
-            })
-            .any(|check| check);
+        });
+        let utxo_commitments_check =
+            utxo_commitments_created_hashes
+                .iter()
+                .any(|utxo_commitment_hash| {
+                    self.store
+                        .utxo_commitments_store
+                        .get_tx(*utxo_commitment_hash)
+                        .is_some()
+                });
 
         if tx_tree_check {
             return Err(
@@ -267,7 +270,7 @@ impl SequencerCore {
             .pop_size(self.sequencer_config.max_num_tx_in_block);
 
         for tx in &transactions {
-            self.execute_check_transaction_on_state(&tx)?;
+            self.execute_check_transaction_on_state(tx)?;
         }
 
         let prev_block_hash = self
@@ -315,7 +318,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let random_u8: u8 = rng.gen();
 
-        let path_str = format!("/tmp/sequencer_{:?}", random_u8);
+        let path_str = format!("/tmp/sequencer_{random_u8:?}");
 
         SequencerConfig {
             home: PathBuf::from(path_str),

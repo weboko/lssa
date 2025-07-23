@@ -66,8 +66,7 @@ pub fn generate_nullifiers_spent_utxos(utxos_spent: Vec<(UTXO, &Account)>) -> Ve
                 .key_holder
                 .utxo_secret_key_holder
                 .nullifier_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         );
 
         all_nullifiers.push(nullifier);
@@ -91,8 +90,7 @@ pub fn generate_secret_random_commitment(
                 .key_holder
                 .utxo_secret_key_holder
                 .viewing_secret_key
-                .to_bytes()
-                .to_vec(),
+                .to_bytes(),
         )?,
         generator_blinding_factor: Tweak::new(&mut thread_rng()),
     };
