@@ -38,6 +38,6 @@ impl MemPoolItem for TransactionMempool {
     type Identifier = TreeHashType;
 
     fn identifier(&self) -> Self::Identifier {
-        self.tx.hash
+        self.tx.hash()
     }
 }

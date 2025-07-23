@@ -308,7 +308,6 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         Transaction {
-            hash,
             tx_kind: TxKind::Private,
             execution_input: vec![],
             execution_output: vec![],
