@@ -61,7 +61,7 @@ impl AddressKeyHolder {
     pub fn get_pub_account_signing_key(&self) -> SigningKey {
         let field_bytes = FieldBytes::from_slice(&self.pub_account_signing_key);
         // TODO: remove unwrap
-        SigningKey::from_bytes(&field_bytes).unwrap()
+        SigningKey::from_bytes(field_bytes).unwrap()
     }
 
     pub fn calculate_shared_secret_receiver(
