@@ -6,6 +6,7 @@ use storage::RocksDBIO;
 
 pub struct SequecerBlockStore {
     dbio: RocksDBIO,
+    // TODO: Consider adding the hashmap to the database for faster recovery.
     tx_hash_to_block_map: HashMap<TreeHashType, u64>,
     pub genesis_id: u64,
 }
