@@ -148,7 +148,7 @@ impl SequencerCore {
         {
             let mut output = [0; 32];
             let mut keccak_hasher = Keccak::v256();
-            keccak_hasher.update(&tx.transaction().signature.to_bytes());
+            keccak_hasher.update(&tx.transaction().public_key.to_sec1_bytes());
             keccak_hasher.finalize(&mut output);
 
             if native_transfer_action.from != output {
@@ -228,22 +228,6 @@ impl SequencerCore {
 
         let tx_hash = *mempool_tx.auth_tx.hash();
 
-        for utxo_comm in utxo_commitments_created_hashes {
-            self.store
-                .utxo_commitments_store
-                .add_tx(&UTXOCommitment { hash: *utxo_comm });
-        }
-
-        for nullifier in nullifier_created_hashes.iter() {
-            self.store.nullifier_store.insert(UTXONullifier {
-                utxo_hash: *nullifier,
-            });
-        }
-
-        self.store
-            .pub_tx_store
-            .add_tx(mempool_tx.auth_tx.transaction());
-
         //Balance check
         if let Ok(native_transfer_action) =
             serde_json::from_slice::<PublicNativeTokenSend>(execution_input)
@@ -270,6 +254,22 @@ impl SequencerCore {
                 return Err(TransactionMalformationErrorKind::BalanceMismatch { tx: tx_hash });
             }
         }
+
+        for utxo_comm in utxo_commitments_created_hashes {
+            self.store
+                .utxo_commitments_store
+                .add_tx(&UTXOCommitment { hash: *utxo_comm });
+        }
+
+        for nullifier in nullifier_created_hashes.iter() {
+            self.store.nullifier_store.insert(UTXONullifier {
+                utxo_hash: *nullifier,
+            });
+        }
+
+        self.store
+            .pub_tx_store
+            .add_tx(mempool_tx.auth_tx.transaction());
 
         Ok(())
     }
