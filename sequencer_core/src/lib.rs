@@ -262,15 +262,15 @@ impl SequencerCore {
 
         self.store.block_store.put_block_at_id(block)?;
 
-        self.chain_height += 1;
+        self.chain_height = new_block_height;
 
-        Ok(self.chain_height - 1)
+        Ok(self.chain_height)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::AccountInitialData;
+    use crate::{config::AccountInitialData, sequencer_store::accounts_store};
 
     use super::*;
     use std::path::PathBuf;
@@ -521,6 +521,7 @@ mod tests {
     fn test_produce_new_block_with_mempool_transactions() {
         let config = setup_sequencer_config();
         let mut sequencer = SequencerCore::start_from_config(config);
+        let genesis_height = sequencer.chain_height;
 
         let tx = create_dummy_transaction(vec![[94; 32]], vec![[7; 32]], vec![[8; 32]]);
         let tx_mempool = MempoolTransaction {
@@ -530,6 +531,44 @@ mod tests {
 
         let block_id = sequencer.produce_new_block_with_mempool_transactions();
         assert!(block_id.is_ok());
-        assert_eq!(block_id.unwrap(), 1);
+        assert_eq!(block_id.unwrap(), genesis_height + 1);
+    }
+
+    #[test]
+    fn test_replay_transactions_are_rejected() {
+        let config = setup_sequencer_config();
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        let tx = create_dummy_transaction(vec![[94; 32]], vec![[7; 32]], vec![[8; 32]]);
+
+        // The transaction should be included the first time
+        let tx_mempool_original = MempoolTransaction {
+            auth_tx: tx.clone().into_authenticated().unwrap(),
+        };
+        sequencer.mempool.push_item(tx_mempool_original);
+        let current_height = sequencer
+            .produce_new_block_with_mempool_transactions()
+            .unwrap();
+        let block = sequencer
+            .store
+            .block_store
+            .get_block_at_id(current_height)
+            .unwrap();
+        assert_eq!(block.transactions, vec![tx.clone()]);
+
+        // Add same transaction should fail
+        let tx_mempool_replay = MempoolTransaction {
+            auth_tx: tx.into_authenticated().unwrap(),
+        };
+        sequencer.mempool.push_item(tx_mempool_replay);
+        let current_height = sequencer
+            .produce_new_block_with_mempool_transactions()
+            .unwrap();
+        let block = sequencer
+            .store
+            .block_store
+            .get_block_at_id(current_height)
+            .unwrap();
+        assert!(block.transactions.is_empty());
     }
 }

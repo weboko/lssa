@@ -7,18 +7,28 @@ use std::collections::HashMap;
 pub(crate) struct AccountPublicData {
     pub balance: u64,
     pub address: AccountAddress,
+    nonce: u64,
 }
 
 impl AccountPublicData {
     pub fn new(address: AccountAddress) -> Self {
         Self {
             balance: 0,
+            nonce: 0,
             address,
         }
     }
 
     fn new_with_balance(address: AccountAddress, balance: u64) -> Self {
-        Self { balance, address }
+        Self {
+            balance,
+            address,
+            nonce: 0,
+        }
+    }
+
+    fn nonce(&self) -> u64 {
+        self.nonce
     }
 }
 
@@ -111,11 +121,25 @@ mod tests {
     }
 
     #[test]
+    fn test_zero_nonce_account_data_creation() {
+        let new_acc = AccountPublicData::new([1; 32]);
+
+        assert_eq!(new_acc.nonce, 0);
+    }
+
+    #[test]
     fn test_non_zero_balance_account_data_creation() {
         let new_acc = AccountPublicData::new_with_balance([1; 32], 10);
 
         assert_eq!(new_acc.balance, 10);
         assert_eq!(new_acc.address, [1; 32]);
+    }
+
+    #[test]
+    fn test_zero_nonce_account_data_creation_with_balance() {
+        let new_acc = AccountPublicData::new_with_balance([1; 32], 10);
+
+        assert_eq!(new_acc.nonce, 0);
     }
 
     #[test]
