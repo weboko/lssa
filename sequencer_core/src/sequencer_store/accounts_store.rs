@@ -74,6 +74,13 @@ impl SequencerAccountsStore {
             .unwrap_or(0)
     }
 
+    pub fn get_account_nonce(&self, account_addr: &AccountAddress) -> u64 {
+        self.accounts
+            .get(account_addr)
+            .map(|acc| acc.nonce)
+            .unwrap_or(0)
+    }
+
     ///Update `account_addr` balance,
     ///
     /// returns 0, if account address not found, otherwise returns previous balance
@@ -89,6 +96,12 @@ impl SequencerAccountsStore {
                 old_balance
             })
             .unwrap_or(0)
+    }
+
+    pub fn increase_nonce(&mut self, account_addr: &AccountAddress) -> Option<u64> {
+        let acc_data = self.accounts.get_mut(account_addr)?;
+        acc_data.nonce += 1;
+        Some(acc_data.nonce)
     }
 
     ///Remove account from storage

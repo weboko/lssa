@@ -41,6 +41,7 @@ pub enum TransactionMalformationErrorKind {
     InvalidSignature,
     IncorrectSender,
     BalanceMismatch { tx: TreeHashType },
+    NonceMismatch { tx: TreeHashType },
     FailedToDecode { tx: TreeHashType },
 }
 
@@ -223,10 +224,20 @@ impl SequencerCore {
             ref utxo_commitments_created_hashes,
             ref nullifier_created_hashes,
             execution_input,
+            nonce,
             ..
         } = mempool_tx.auth_tx.transaction().body();
 
         let tx_hash = *mempool_tx.auth_tx.hash();
+
+        // Nonce check
+        let mut signer_addres = [0; 32];
+        let mut keccak_hasher = Keccak::v256();
+        keccak_hasher.update(&mempool_tx.auth_tx.transaction().public_key.to_sec1_bytes());
+        keccak_hasher.finalize(&mut signer_addres);
+        if self.store.acc_store.get_account_nonce(&signer_addres) != *nonce {
+            return Err(TransactionMalformationErrorKind::NonceMismatch { tx: tx_hash });
+        }
 
         //Balance check
         if let Ok(native_transfer_action) =
@@ -250,6 +261,9 @@ impl SequencerCore {
                     &native_transfer_action.to,
                     to_balance + native_transfer_action.balance_to_move,
                 );
+
+                // Update nonce
+                let _new_nonce = self.store.acc_store.increase_nonce(&signer_addres);
             } else {
                 return Err(TransactionMalformationErrorKind::BalanceMismatch { tx: tx_hash });
             }
@@ -287,7 +301,7 @@ impl SequencerCore {
             .pop_size(self.sequencer_config.max_num_tx_in_block);
 
         for tx in &transactions {
-            self.execute_check_transaction_on_state(tx)?;
+            self.execute_check_transaction_on_state(tx);
         }
 
         let prev_block_hash = self
@@ -612,6 +626,7 @@ mod tests {
             secret_r: [0; 32],
             sc_addr: "sc_addr".to_string(),
             state_changes: (serde_json::Value::Null, 0),
+            nonce: 0,
         };
         Transaction::new(body, SignaturePrivateKey::random(&mut rng))
     }

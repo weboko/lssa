@@ -337,6 +337,7 @@ mod tests {
             secret_r: [0; 32],
             sc_addr: "sc_addr".to_string(),
             state_changes: (serde_json::Value::Null, 0),
+            nonce: 1,
         };
         Transaction::new(body, SignaturePrivateKey::random(&mut rng))
     }

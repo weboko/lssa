@@ -274,6 +274,7 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
+            nonce: 1,
         };
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
 
@@ -370,6 +371,7 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
+            nonce: 1,
         };
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
 
@@ -484,6 +486,7 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
+            nonce: 1
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -629,6 +632,7 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
+            nonce: 1,
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -757,6 +761,7 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
+            nonce: 1
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -846,6 +851,7 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
+            nonce: 1
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -992,6 +998,7 @@ impl NodeCore {
                 secret_r,
                 sc_addr,
                 state_changes,
+                1,
             );
         tx.log();
 
@@ -1548,6 +1555,7 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
+            nonce: 1,
         };
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
 

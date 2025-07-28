@@ -15,6 +15,7 @@ pub fn create_public_transaction_payload(
     secret_r: [u8; 32],
     sc_addr: String,
     state_changes: (serde_json::Value, usize),
+    nonce: u64
 ) -> TransactionBody {
     TransactionBody {
         tx_kind: TxKind::Public,
@@ -31,6 +32,7 @@ pub fn create_public_transaction_payload(
         secret_r,
         sc_addr,
         state_changes,
+        nonce,
     }
 }
 
