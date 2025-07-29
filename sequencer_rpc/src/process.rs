@@ -291,7 +291,6 @@ mod tests {
             nonce: 0,
         };
         let tx = Transaction::new(tx_body, SignaturePrivateKey::from_slice(&[1; 32]).unwrap());
-        println!("{:?}", tx.body().hash());
 
         sequencer_core
             .push_tx_into_mempool_pre_check(tx, [[0; 32]; 2])

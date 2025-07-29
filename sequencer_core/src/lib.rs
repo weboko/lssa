@@ -765,7 +765,52 @@ mod tests {
     }
 
     #[test]
-    fn test_replay_transactions_are_rejected() {
+    fn test_replay_transactions_are_rejected_in_the_same_block() {
+        let config = setup_sequencer_config();
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        common_setup(&mut sequencer);
+
+        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        let sign_key1 = create_signing_key_for_account1();
+
+        let tx = create_dummy_transaction_native_token_transfer(acc1, 0, acc2, 100, sign_key1);
+
+        let tx_mempool_original = MempoolTransaction {
+            auth_tx: tx.clone().into_authenticated().unwrap(),
+        };
+        let tx_mempool_replay = MempoolTransaction {
+            auth_tx: tx.clone().into_authenticated().unwrap(),
+        };
+
+        // Pushing two copies of the same tx to the mempool
+        sequencer.mempool.push_item(tx_mempool_original);
+        sequencer.mempool.push_item(tx_mempool_replay);
+
+        // Create block
+        let current_height = sequencer
+            .produce_new_block_with_mempool_transactions()
+            .unwrap();
+        let block = sequencer
+            .store
+            .block_store
+            .get_block_at_id(current_height)
+            .unwrap();
+
+        // Only one should be included in the block
+        assert_eq!(block.transactions, vec![tx.clone()]);
+    }
+
+    #[test]
+    fn test_replay_transactions_are_rejected_in_different_blocks() {
         let config = setup_sequencer_config();
         let mut sequencer = SequencerCore::start_from_config(config);
 
