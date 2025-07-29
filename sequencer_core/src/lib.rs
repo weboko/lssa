@@ -334,24 +334,20 @@ mod tests {
     use crate::config::AccountInitialData;
 
     use super::*;
-    use std::path::PathBuf;
 
     use common::transaction::{SignaturePrivateKey, Transaction, TransactionBody, TxKind};
     use k256::{ecdsa::SigningKey, FieldBytes};
     use mempool_transaction::MempoolTransaction;
-    use rand::Rng;
     use secp256k1_zkp::Tweak;
 
     fn setup_sequencer_config_variable_initial_accounts(
         initial_accounts: Vec<AccountInitialData>,
     ) -> SequencerConfig {
-        let mut rng = rand::thread_rng();
-        let random_u8: u8 = rng.gen();
-
-        let path_str = format!("/tmp/sequencer_{random_u8:?}");
+        let tempdir = tempfile::tempdir().unwrap();
+        let home = tempdir.path().to_path_buf();
 
         SequencerConfig {
-            home: PathBuf::from(path_str),
+            home,
             override_rust_log: Some("info".to_string()),
             genesis_id: 1,
             is_genesis_random: false,
