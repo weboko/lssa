@@ -62,8 +62,6 @@ pub struct TransactionBody {
     ///
     /// First value represents vector of changes, second is new length of a state
     pub state_changes: (serde_json::Value, usize),
-
-    pub nonce: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -328,7 +326,6 @@ mod tests {
             secret_r: [8; 32],
             sc_addr: "someAddress".to_string(),
             state_changes: (serde_json::Value::Null, 10),
-            nonce: 1,
         }
     }
 

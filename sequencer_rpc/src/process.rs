@@ -288,7 +288,6 @@ mod tests {
             secret_r: Default::default(),
             sc_addr: Default::default(),
             state_changes: Default::default(),
-            nonce: 0,
         };
         let tx = Transaction::new(tx_body, SignaturePrivateKey::from_slice(&[1; 32]).unwrap());
 
@@ -500,7 +499,7 @@ mod tests {
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_transaction_by_hash",
-            "params": { "hash": "b70b861373b99a509b27a0c61d6340762c9a0c0026520921d92218712efc3bca"},
+            "params": { "hash": "a5210ef33912a448cfe6eda43878c144df81f7bdf51d19b5ddf97be11806a6ed"},
             "id": 1
         });
 
@@ -524,10 +523,9 @@ mod tests {
                         "tx_kind": "Shielded",
                         "utxo_commitments_created_hashes": [],
                         "utxo_commitments_spent_hashes": [],
-                        "nonce": 0,
                     },
                     "public_key": "3056301006072A8648CE3D020106052B8104000A034200041B84C5567B126440995D3ED5AABA0565D71E1834604819FF9C17F5E9D5DD078F70BEAF8F588B541507FED6A642C5AB42DFDF8120A7F639DE5122D47A69A8E8D1",
-                    "signature": "50AEACE783026D0B6CE221474A928A05A99E2942246DF1C79162C08175F80744746E4A00D6C7F70BDBCF6D7B3668334396B9378FB0F58DC2E8A9B13F3BF001C4"
+                    "signature": "A4E0D6A25BE829B006124F0DFD766427967AA3BEA96C29219E79BB2CC871891F384748C27E28718A4450AA78709FBF1A57DB33BCD575A2C819D2A439C2D878E6"
                 }
             }
         });

@@ -274,7 +274,6 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
-            nonce: 1,
         };
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
 
@@ -371,7 +370,6 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
-            nonce: 1,
         };
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
 
@@ -486,7 +484,6 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
-            nonce: 1,
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -632,7 +629,6 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
-            nonce: 1,
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -761,7 +757,6 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
-            nonce: 1,
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -851,7 +846,6 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
-            nonce: 1,
         };
 
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
@@ -962,6 +956,7 @@ impl NodeCore {
     pub async fn send_public_native_token_transfer(
         &self,
         from: AccountAddress,
+        nonce: u64,
         to: AccountAddress,
         balance_to_move: u64,
     ) -> Result<SendTxResponse, ExecutionFailureKind> {
@@ -989,6 +984,7 @@ impl NodeCore {
             sc_core::transaction_payloads_tools::create_public_transaction_payload(
                 serde_json::to_vec(&PublicNativeTokenSend {
                     from,
+                    nonce,
                     to,
                     balance_to_move,
                 })
@@ -998,7 +994,6 @@ impl NodeCore {
                 secret_r,
                 sc_addr,
                 state_changes,
-                1,
             );
         tx.log();
 
@@ -1555,7 +1550,6 @@ impl NodeCore {
             secret_r,
             sc_addr,
             state_changes,
-            nonce: 1,
         };
         let key_to_sign_transaction = account.key_holder.get_pub_account_signing_key();
 

@@ -95,7 +95,6 @@ mod tests {
             secret_r: Default::default(),
             sc_addr: Default::default(),
             state_changes: Default::default(),
-            nonce: 1,
         };
         let tx = Transaction::new(body, SignaturePrivateKey::from_slice(&[1; 32]).unwrap());
         (
