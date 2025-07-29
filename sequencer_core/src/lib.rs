@@ -4,6 +4,7 @@ use accounts::account_core::AccountAddress;
 use anyhow::Result;
 use common::{
     block::{Block, HashableBlockData},
+    execution_input::PublicNativeTokenSend,
     merkle_tree_public::TreeHashType,
     nullifier::UTXONullifier,
     transaction::{AuthenticatedTransaction, Transaction, TransactionBody, TxKind},
@@ -14,6 +15,7 @@ use mempool::MemPool;
 use mempool_transaction::MempoolTransaction;
 use sequencer_store::SequecerChainStore;
 use serde::{Deserialize, Serialize};
+use tiny_keccak::{Hasher, Keccak};
 
 pub mod config;
 pub mod mempool_transaction;
@@ -26,7 +28,7 @@ pub struct SequencerCore {
     pub chain_height: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TransactionMalformationErrorKind {
     PublicTransactionChangedPrivateData { tx: TreeHashType },
     PrivateTransactionChangedPublicData { tx: TreeHashType },
@@ -37,6 +39,9 @@ pub enum TransactionMalformationErrorKind {
     ChainStateFurtherThanTransactionState { tx: TreeHashType },
     FailedToInsert { tx: TreeHashType, details: String },
     InvalidSignature,
+    IncorrectSender,
+    BalanceMismatch { tx: TreeHashType },
+    FailedToDecode { tx: TreeHashType },
 }
 
 impl Display for TransactionMalformationErrorKind {
@@ -137,6 +142,21 @@ impl SequencerCore {
             _ => {}
         };
 
+        //Native transfers checks
+        if let Ok(native_transfer_action) =
+            serde_json::from_slice::<PublicNativeTokenSend>(execution_input)
+        {
+            let mut output = [0; 32];
+            let mut keccak_hasher = Keccak::v256();
+            keccak_hasher.update(&tx.transaction().public_key.to_sec1_bytes());
+            keccak_hasher.finalize(&mut output);
+
+            //Correct sender check
+            if native_transfer_action.from != output {
+                return Err(TransactionMalformationErrorKind::IncorrectSender);
+            }
+        }
+
         //Tree checks
         let tx_tree_check = self.store.pub_tx_store.get_tx(tx_hash).is_some();
         let nullifier_tree_check = nullifier_created_hashes.iter().any(|nullifier_hash| {
@@ -203,8 +223,39 @@ impl SequencerCore {
         let TransactionBody {
             ref utxo_commitments_created_hashes,
             ref nullifier_created_hashes,
+            execution_input,
             ..
         } = mempool_tx.auth_tx.transaction().body();
+
+        let tx_hash = *mempool_tx.auth_tx.hash();
+
+        //Balance move
+        if let Ok(native_transfer_action) =
+            serde_json::from_slice::<PublicNativeTokenSend>(execution_input)
+        {
+            let from_balance = self
+                .store
+                .acc_store
+                .get_account_balance(&native_transfer_action.from);
+            let to_balance = self
+                .store
+                .acc_store
+                .get_account_balance(&native_transfer_action.to);
+
+            //Balance check
+            if from_balance < native_transfer_action.balance_to_move {
+                return Err(TransactionMalformationErrorKind::BalanceMismatch { tx: tx_hash });
+            }
+
+            self.store.acc_store.set_account_balance(
+                &native_transfer_action.from,
+                from_balance - native_transfer_action.balance_to_move,
+            );
+            self.store.acc_store.set_account_balance(
+                &native_transfer_action.to,
+                to_balance + native_transfer_action.balance_to_move,
+            );
+        }
 
         for utxo_comm in utxo_commitments_created_hashes {
             self.store
@@ -276,6 +327,7 @@ mod tests {
     use std::path::PathBuf;
 
     use common::transaction::{SignaturePrivateKey, Transaction, TransactionBody, TxKind};
+    use k256::{ecdsa::SigningKey, FieldBytes};
     use mempool_transaction::MempoolTransaction;
     use rand::Rng;
     use secp256k1_zkp::Tweak;
@@ -301,18 +353,27 @@ mod tests {
     }
 
     fn setup_sequencer_config() -> SequencerConfig {
-        let initial_accounts = vec![
-            AccountInitialData {
-                addr: "bfd91e6703273a115ad7f099ef32f621243be69369d00ddef5d3a25117d09a8c"
-                    .to_string(),
-                balance: 10,
-            },
-            AccountInitialData {
-                addr: "20573479053979b98d2ad09ef31a0750f22c77709bed51c4e64946bd1e376f31"
-                    .to_string(),
-                balance: 100,
-            },
+        let acc1_addr = vec![
+            13, 150, 223, 204, 65, 64, 25, 56, 12, 157, 222, 12, 211, 220, 229, 170, 201, 15, 181,
+            68, 59, 248, 113, 16, 135, 65, 174, 175, 222, 85, 42, 215,
         ];
+
+        let acc2_addr = vec![
+            151, 72, 112, 233, 190, 141, 10, 192, 138, 168, 59, 63, 199, 167, 166, 134, 41, 29,
+            135, 50, 80, 138, 186, 152, 179, 96, 128, 243, 156, 44, 243, 100,
+        ];
+
+        let initial_acc1 = AccountInitialData {
+            addr: hex::encode(acc1_addr),
+            balance: 10000,
+        };
+
+        let initial_acc2 = AccountInitialData {
+            addr: hex::encode(acc2_addr),
+            balance: 20000,
+        };
+
+        let initial_accounts = vec![initial_acc1, initial_acc2];
 
         setup_sequencer_config_variable_initial_accounts(initial_accounts)
     }
@@ -343,6 +404,59 @@ mod tests {
         Transaction::new(body, SignaturePrivateKey::random(&mut rng))
     }
 
+    fn create_dummy_transaction_native_token_transfer(
+        from: [u8; 32],
+        to: [u8; 32],
+        balance_to_move: u64,
+        signing_key: SigningKey,
+    ) -> Transaction {
+        let mut rng = rand::thread_rng();
+
+        let native_token_transfer = PublicNativeTokenSend {
+            from,
+            to,
+            balance_to_move,
+        };
+
+        let body = TransactionBody {
+            tx_kind: TxKind::Public,
+            execution_input: serde_json::to_vec(&native_token_transfer).unwrap(),
+            execution_output: vec![],
+            utxo_commitments_spent_hashes: vec![],
+            utxo_commitments_created_hashes: vec![],
+            nullifier_created_hashes: vec![],
+            execution_proof_private: "".to_string(),
+            encoded_data: vec![],
+            ephemeral_pub_key: vec![10, 11, 12],
+            commitment: vec![],
+            tweak: Tweak::new(&mut rng),
+            secret_r: [0; 32],
+            sc_addr: "sc_addr".to_string(),
+            state_changes: (serde_json::Value::Null, 0),
+        };
+        Transaction::new(body, signing_key)
+    }
+
+    fn create_signing_key_for_account1() -> SigningKey {
+        let pub_sign_key_acc1 = [
+            133, 143, 177, 187, 252, 66, 237, 236, 234, 252, 244, 138, 5, 151, 3, 99, 217, 231,
+            112, 217, 77, 211, 58, 218, 176, 68, 99, 53, 152, 228, 198, 190,
+        ];
+
+        let field_bytes = FieldBytes::from_slice(&pub_sign_key_acc1);
+        SigningKey::from_bytes(field_bytes).unwrap()
+    }
+
+    fn create_signing_key_for_account2() -> SigningKey {
+        let pub_sign_key_acc2 = [
+            54, 90, 62, 225, 71, 225, 228, 148, 143, 53, 210, 23, 137, 158, 171, 156, 48, 7, 139,
+            52, 117, 242, 214, 7, 99, 29, 122, 184, 59, 116, 144, 107,
+        ];
+
+        let field_bytes = FieldBytes::from_slice(&pub_sign_key_acc2);
+        SigningKey::from_bytes(field_bytes).unwrap()
+    }
+
     fn common_setup(sequencer: &mut SequencerCore) {
         let tx = create_dummy_transaction(vec![[9; 32]], vec![[7; 32]], vec![[8; 32]]);
         let mempool_tx = MempoolTransaction {
@@ -364,68 +478,65 @@ mod tests {
         assert_eq!(sequencer.sequencer_config.max_num_tx_in_block, 10);
         assert_eq!(sequencer.sequencer_config.port, 8080);
 
-        let acc1_addr: [u8; 32] =
-            hex::decode("bfd91e6703273a115ad7f099ef32f621243be69369d00ddef5d3a25117d09a8c")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let acc2_addr: [u8; 32] =
-            hex::decode("20573479053979b98d2ad09ef31a0750f22c77709bed51c4e64946bd1e376f31")
-                .unwrap()
-                .try_into()
-                .unwrap();
+        let acc1_addr = hex::decode(config.initial_accounts[0].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let acc2_addr = hex::decode(config.initial_accounts[1].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
 
         assert!(sequencer.store.acc_store.contains_account(&acc1_addr));
         assert!(sequencer.store.acc_store.contains_account(&acc2_addr));
 
         assert_eq!(
-            10,
-            sequencer
-                .store
-                .acc_store
-                .get_account_balance(&acc1_addr)
-                .unwrap()
+            10000,
+            sequencer.store.acc_store.get_account_balance(&acc1_addr)
         );
         assert_eq!(
-            100,
-            sequencer
-                .store
-                .acc_store
-                .get_account_balance(&acc2_addr)
-                .unwrap()
+            20000,
+            sequencer.store.acc_store.get_account_balance(&acc2_addr)
         );
     }
 
     #[test]
-    fn test_start_different_intial_accounts() {
-        let initial_accounts = vec![
-            AccountInitialData {
-                addr: "bfd91e6703273a115ad7f099ef32f621243be69369d00ddef5d3a25117ffffff"
-                    .to_string(),
-                balance: 1000,
-            },
-            AccountInitialData {
-                addr: "20573479053979b98d2ad09ef31a0750f22c77709bed51c4e64946bd1effffff"
-                    .to_string(),
-                balance: 1000,
-            },
+    fn test_start_different_intial_accounts_balances() {
+        let acc1_addr = vec![
+            13, 150, 223, 204, 65, 64, 25, 56, 12, 157, 222, 12, 211, 220, 229, 170, 201, 15, 181,
+            68, 59, 248, 113, 16, 135, 65, 174, 175, 222, 42, 42, 42,
         ];
+
+        let acc2_addr = vec![
+            151, 72, 112, 233, 190, 141, 10, 192, 138, 168, 59, 63, 199, 167, 166, 134, 41, 29,
+            135, 50, 80, 138, 186, 152, 179, 96, 128, 243, 156, 42, 42, 42,
+        ];
+
+        let initial_acc1 = AccountInitialData {
+            addr: hex::encode(acc1_addr),
+            balance: 10000,
+        };
+
+        let initial_acc2 = AccountInitialData {
+            addr: hex::encode(acc2_addr),
+            balance: 20000,
+        };
+
+        let initial_accounts = vec![initial_acc1, initial_acc2];
 
         let intial_accounts_len = initial_accounts.len();
 
         let config = setup_sequencer_config_variable_initial_accounts(initial_accounts);
         let sequencer = SequencerCore::start_from_config(config.clone());
 
-        let acc1_addr: [u8; 32] =
-            hex::decode("bfd91e6703273a115ad7f099ef32f621243be69369d00ddef5d3a25117ffffff")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let acc2_addr: [u8; 32] =
-            hex::decode("20573479053979b98d2ad09ef31a0750f22c77709bed51c4e64946bd1effffff")
-                .unwrap()
-                .try_into()
-                .unwrap();
+        let acc1_addr = hex::decode(config.initial_accounts[0].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let acc2_addr = hex::decode(config.initial_accounts[1].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
 
         assert!(sequencer.store.acc_store.contains_account(&acc1_addr));
         assert!(sequencer.store.acc_store.contains_account(&acc2_addr));
@@ -433,20 +544,12 @@ mod tests {
         assert_eq!(sequencer.store.acc_store.len(), intial_accounts_len);
 
         assert_eq!(
-            1000,
-            sequencer
-                .store
-                .acc_store
-                .get_account_balance(&acc1_addr)
-                .unwrap()
+            10000,
+            sequencer.store.acc_store.get_account_balance(&acc1_addr)
         );
         assert_eq!(
-            1000,
-            sequencer
-                .store
-                .acc_store
-                .get_account_balance(&acc2_addr)
-                .unwrap()
+            20000,
+            sequencer.store.acc_store.get_account_balance(&acc2_addr)
         );
     }
 
@@ -473,6 +576,124 @@ mod tests {
         let result = sequencer.transaction_pre_check(tx, tx_roots);
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_transaction_pre_check_native_transfer_valid() {
+        let config = setup_sequencer_config();
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        common_setup(&mut sequencer);
+
+        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        let sign_key1 = create_signing_key_for_account1();
+
+        let tx = create_dummy_transaction_native_token_transfer(acc1, acc2, 10, sign_key1);
+        let tx_roots = sequencer.get_tree_roots();
+        let result = sequencer.transaction_pre_check(tx, tx_roots);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_transaction_pre_check_native_transfer_other_signature() {
+        let config = setup_sequencer_config();
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        common_setup(&mut sequencer);
+
+        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        let sign_key2 = create_signing_key_for_account2();
+
+        let tx = create_dummy_transaction_native_token_transfer(acc1, acc2, 10, sign_key2);
+        let tx_roots = sequencer.get_tree_roots();
+        let result = sequencer.transaction_pre_check(tx, tx_roots);
+
+        assert_eq!(
+            result.err().unwrap(),
+            TransactionMalformationErrorKind::IncorrectSender
+        );
+    }
+
+    #[test]
+    fn test_transaction_pre_check_native_transfer_sent_too_much() {
+        let config = setup_sequencer_config();
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        common_setup(&mut sequencer);
+
+        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        let sign_key1 = create_signing_key_for_account1();
+
+        let tx = create_dummy_transaction_native_token_transfer(acc1, acc2, 10000000, sign_key1);
+        let tx_roots = sequencer.get_tree_roots();
+        let result = sequencer.transaction_pre_check(tx, tx_roots);
+
+        //Passed pre-check
+        assert!(result.is_ok());
+
+        let result = sequencer.execute_check_transaction_on_state(&result.unwrap().into());
+        let is_failed_at_balance_mismatch = matches!(
+            result.err().unwrap(),
+            TransactionMalformationErrorKind::BalanceMismatch { tx: _ }
+        );
+
+        assert!(is_failed_at_balance_mismatch);
+    }
+
+    #[test]
+    fn test_transaction_execute_native_transfer() {
+        let config = setup_sequencer_config();
+        let mut sequencer = SequencerCore::start_from_config(config);
+
+        common_setup(&mut sequencer);
+
+        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        let sign_key1 = create_signing_key_for_account1();
+
+        let tx = create_dummy_transaction_native_token_transfer(acc1, acc2, 100, sign_key1);
+
+        sequencer
+            .execute_check_transaction_on_state(&tx.into_authenticated().unwrap().into())
+            .unwrap();
+
+        let bal_from = sequencer.store.acc_store.get_account_balance(&acc1);
+        let bal_to = sequencer.store.acc_store.get_account_balance(&acc2);
+
+        assert_eq!(bal_from, 9900);
+        assert_eq!(bal_to, 20100);
     }
 
     #[test]
