@@ -155,16 +155,6 @@ impl SequencerCore {
             if native_transfer_action.from != output {
                 return Err(TransactionMalformationErrorKind::IncorrectSender);
             }
-
-            let from_balance = self
-                .store
-                .acc_store
-                .get_account_balance(&native_transfer_action.from);
-
-            //Balance check
-            if from_balance < native_transfer_action.balance_to_move {
-                return Err(TransactionMalformationErrorKind::BalanceMismatch { tx: tx_hash });
-            }
         }
 
         //Tree checks
@@ -237,6 +227,8 @@ impl SequencerCore {
             ..
         } = mempool_tx.auth_tx.transaction().body();
 
+        let tx_hash = *mempool_tx.auth_tx.hash();
+
         //Balance move
         if let Ok(native_transfer_action) =
             serde_json::from_slice::<PublicNativeTokenSend>(execution_input)
@@ -249,6 +241,11 @@ impl SequencerCore {
                 .store
                 .acc_store
                 .get_account_balance(&native_transfer_action.to);
+
+            //Balance check
+            if from_balance < native_transfer_action.balance_to_move {
+                return Err(TransactionMalformationErrorKind::BalanceMismatch { tx: tx_hash });
+            }
 
             self.store.acc_store.set_account_balance(
                 &native_transfer_action.from,
@@ -656,6 +653,10 @@ mod tests {
         let tx_roots = sequencer.get_tree_roots();
         let result = sequencer.transaction_pre_check(tx, tx_roots);
 
+        //Passed pre-check
+        assert!(result.is_ok());
+
+        let result = sequencer.execute_check_transaction_on_state(&result.unwrap().into());
         let is_failed_at_balance_mismatch = matches!(
             result.err().unwrap(),
             TransactionMalformationErrorKind::BalanceMismatch { tx: _ }
