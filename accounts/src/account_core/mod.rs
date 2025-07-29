@@ -223,8 +223,6 @@ impl Default for Account {
 
 #[cfg(test)]
 mod tests {
-    use common::transaction::SignaturePrivateKey;
-
     use super::*;
 
     fn generate_dummy_utxo(address: TreeHashType, amount: u128) -> UTXO {

@@ -1,5 +1,4 @@
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
-use common::{merkle_tree_public::TreeHashType, transaction::SignaturePublicKey};
 use constants_types::{CipherText, Nonce};
 use elliptic_curve::point::AffineCoordinates;
 use k256::{ecdsa::SigningKey, AffinePoint, FieldBytes};
@@ -7,7 +6,6 @@ use log::info;
 use rand::{rngs::OsRng, RngCore};
 use secret_holders::{SeedHolder, TopSecretKeyHolder, UTXOSecretKeyHolder};
 use serde::{Deserialize, Serialize};
-use tiny_keccak::{Hasher, Keccak};
 
 use crate::account_core::PublicKey;
 pub type PublicAccountSigningKey = [u8; 32];
@@ -124,7 +122,7 @@ mod tests {
     use elliptic_curve::point::AffineCoordinates;
     use k256::{AffinePoint, ProjectivePoint, Scalar};
 
-    use crate::key_management::ephemeral_key_holder::EphemeralKeyHolder;
+    use crate::{account_core::address, key_management::ephemeral_key_holder::EphemeralKeyHolder};
 
     use super::*;
 
@@ -351,10 +349,7 @@ mod tests {
 
         let verifying_key = signing_key.verifying_key();
 
-        let mut address = [0; 32];
-        let mut keccak_hasher = Keccak::v256();
-        keccak_hasher.update(&verifying_key.to_sec1_bytes());
-        keccak_hasher.finalize(&mut address);
+        let address = address::from_public_key(verifying_key);
 
         println!("======Prerequisites======");
         println!();
