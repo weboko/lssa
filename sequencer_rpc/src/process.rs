@@ -1,4 +1,5 @@
 use actix_web::Error as HttpError;
+use sequencer_core::config::AccountInitialData;
 use serde_json::Value;
 
 use common::{
@@ -8,8 +9,8 @@ use common::{
         message::{Message, Request},
         parser::RpcRequest,
         requests::{
-            GetAccountBalanceRequest, GetAccountBalanceResponse, GetTransactionByHashRequest,
-            GetTransactionByHashResponse,
+            GetAccountBalanceRequest, GetAccountBalanceResponse, GetInitialTestnetAccountsRequest,
+            GetTransactionByHashRequest, GetTransactionByHashResponse,
         },
     },
 };
@@ -34,6 +35,8 @@ pub const GET_TRANSACTION_BY_HASH: &str = "get_transaction_by_hash";
 pub const HELLO_FROM_SEQUENCER: &str = "HELLO_FROM_SEQUENCER";
 
 pub const SUCCESS: &str = "Success";
+
+pub const GET_INITIAL_TESTNET_ACCOUNTS: &str = "get_initial_testnet_accounts";
 
 impl JsonHandler {
     pub async fn process(&self, message: Message) -> Result<Message, HttpError> {
@@ -140,6 +143,21 @@ impl JsonHandler {
         respond(helperstruct)
     }
 
+    /// Returns the initial accounts for testnet
+    /// ToDo: Useful only for testnet and needs to be removed later
+    async fn get_initial_testnet_accounts(&self, request: Request) -> Result<Value, RpcErr> {
+        let _get_initial_testnet_accounts_request =
+            GetInitialTestnetAccountsRequest::parse(Some(request.params))?;
+
+        let initial_accounts: Vec<AccountInitialData> = {
+            let state = self.sequencer_state.lock().await;
+
+            state.sequencer_config.initial_accounts.clone()
+        };
+
+        respond(initial_accounts)
+    }
+
     /// Returns the balance of the account at the given address.
     /// The address must be a valid hex string of the correct length.
     async fn process_get_account_balance(&self, request: Request) -> Result<Value, RpcErr> {
@@ -153,8 +171,7 @@ impl JsonHandler {
         let balance = {
             let state = self.sequencer_state.lock().await;
             state.store.acc_store.get_account_balance(&address)
-        }
-        .unwrap_or(0);
+        };
 
         let helperstruct = GetAccountBalanceResponse { balance };
 
@@ -187,6 +204,7 @@ impl JsonHandler {
             GET_BLOCK => self.process_get_block_data(request).await,
             GET_GENESIS => self.process_get_genesis(request).await,
             GET_LAST_BLOCK => self.process_get_last_block(request).await,
+            GET_INITIAL_TESTNET_ACCOUNTS => self.get_initial_testnet_accounts(request).await,
             GET_ACCOUNT_BALANCE => self.process_get_account_balance(request).await,
             GET_TRANSACTION_BY_HASH => self.process_get_transaction_by_hash(request).await,
             _ => Err(RpcErr(RpcError::method_not_found(request.method))),
@@ -214,16 +232,27 @@ mod tests {
     fn sequencer_config_for_tests() -> SequencerConfig {
         let tempdir = tempdir().unwrap();
         let home = tempdir.path().to_path_buf();
-        let initial_accounts = vec![
-            AccountInitialData {
-                addr: "cafe".repeat(16).to_string(),
-                balance: 100,
-            },
-            AccountInitialData {
-                addr: "feca".repeat(16).to_string(),
-                balance: 200,
-            },
+        let acc1_addr = vec![
+            13, 150, 223, 204, 65, 64, 25, 56, 12, 157, 222, 12, 211, 220, 229, 170, 201, 15, 181,
+            68, 59, 248, 113, 16, 135, 65, 174, 175, 222, 85, 42, 215,
         ];
+
+        let acc2_addr = vec![
+            151, 72, 112, 233, 190, 141, 10, 192, 138, 168, 59, 63, 199, 167, 166, 134, 41, 29,
+            135, 50, 80, 138, 186, 152, 179, 96, 128, 243, 156, 44, 243, 100,
+        ];
+
+        let initial_acc1 = AccountInitialData {
+            addr: hex::encode(acc1_addr),
+            balance: 10000,
+        };
+
+        let initial_acc2 = AccountInitialData {
+            addr: hex::encode(acc2_addr),
+            balance: 20000,
+        };
+
+        let initial_accounts = vec![initial_acc1, initial_acc2];
 
         SequencerConfig {
             home,
@@ -237,9 +266,13 @@ mod tests {
         }
     }
 
-    fn json_handler_for_tests() -> JsonHandler {
+    fn json_handler_for_tests() -> (JsonHandler, Vec<AccountInitialData>) {
         let config = sequencer_config_for_tests();
+
         let mut sequencer_core = SequencerCore::start_from_config(config);
+
+        let initial_accounts = sequencer_core.sequencer_config.initial_accounts.clone();
+
         let tx_body = TransactionBody {
             tx_kind: common::transaction::TxKind::Public,
             execution_input: Default::default(),
@@ -265,10 +298,15 @@ mod tests {
             .produce_new_block_with_mempool_transactions()
             .unwrap();
 
-        JsonHandler {
-            polling_config: RpcPollingConfig::default(),
-            sequencer_state: Arc::new(Mutex::new(sequencer_core)),
-        }
+        let sequencer_core = Arc::new(Mutex::new(sequencer_core));
+
+        (
+            JsonHandler {
+                polling_config: RpcPollingConfig::default(),
+                sequencer_state: sequencer_core,
+            },
+            initial_accounts,
+        )
     }
 
     async fn call_rpc_handler_with_json(handler: JsonHandler, request_json: Value) -> Value {
@@ -294,7 +332,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_account_balance_for_non_existent_account() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, _) = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_account_balance",
@@ -316,7 +354,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_account_balance_for_invalid_hex() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, _) = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_account_balance",
@@ -339,7 +377,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_account_balance_for_invalid_length() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, _) = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_account_balance",
@@ -362,18 +400,21 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_account_balance_for_existing_account() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, initial_accounts) = json_handler_for_tests();
+
+        let acc1_addr = initial_accounts[0].addr.clone();
+
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_account_balance",
-            "params": { "address": "cafe".repeat(16) },
+            "params": { "address": acc1_addr },
             "id": 1
         });
         let expected_response = serde_json::json!({
             "id": 1,
             "jsonrpc": "2.0",
             "result": {
-                "balance": 100
+                "balance": 10000
             }
         });
 
@@ -384,7 +425,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_transaction_by_hash_for_non_existent_hash() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, _) = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_transaction_by_hash",
@@ -406,7 +447,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_transaction_by_hash_for_invalid_hex() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, _) = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_transaction_by_hash",
@@ -430,7 +471,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_transaction_by_hash_for_invalid_length() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, _) = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_transaction_by_hash",
@@ -454,7 +495,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_transaction_by_hash_for_existing_transaction() {
-        let json_handler = json_handler_for_tests();
+        let (json_handler, _) = json_handler_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_transaction_by_hash",

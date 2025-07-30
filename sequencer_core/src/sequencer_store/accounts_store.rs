@@ -56,9 +56,33 @@ impl SequencerAccountsStore {
 
     ///Check `account_addr` balance,
     ///
-    ///returns `None`, if account address not found
-    pub fn get_account_balance(&self, account_addr: &AccountAddress) -> Option<u64> {
-        self.accounts.get(account_addr).map(|acc| acc.balance)
+    ///returns 0, if account address not found
+    pub fn get_account_balance(&self, account_addr: &AccountAddress) -> u64 {
+        self.accounts
+            .get(account_addr)
+            .map(|acc| acc.balance)
+            .unwrap_or(0)
+    }
+
+    ///Update `account_addr` balance,
+    ///
+    /// returns 0, if account address not found, otherwise returns previous balance
+    ///
+    /// Also, if account was not previously found, sets it with zero balance
+    pub fn set_account_balance(&mut self, account_addr: &AccountAddress, new_balance: u64) -> u64 {
+        let acc_data = self.accounts.get_mut(account_addr);
+
+        if let Some(acc_data) = acc_data {
+            let old_balance = acc_data.balance;
+
+            acc_data.balance = new_balance;
+
+            old_balance
+        } else {
+            self.register_account(*account_addr);
+
+            0
+        }
     }
 
     ///Remove account from storage
@@ -70,14 +94,10 @@ impl SequencerAccountsStore {
         &mut self,
         account_addr: AccountAddress,
     ) -> Result<Option<AccountAddress>> {
-        if let Some(account_balance) = self.get_account_balance(&account_addr) {
-            if account_balance == 0 {
-                Ok(self.accounts.remove(&account_addr).map(|data| data.address))
-            } else {
-                anyhow::bail!("Chain consistency violation: It is forbidden to remove account with nonzero balance");
-            }
+        if self.get_account_balance(&account_addr) == 0 {
+            Ok(self.accounts.remove(&account_addr).map(|data| data.address))
         } else {
-            Ok(None)
+            anyhow::bail!("Chain consistency violation: It is forbidden to remove account with nonzero balance");
         }
     }
 
@@ -133,7 +153,7 @@ mod tests {
 
         assert!(seq_acc_store.contains_account(&[1; 32]));
 
-        let acc_balance = seq_acc_store.get_account_balance(&[1; 32]).unwrap();
+        let acc_balance = seq_acc_store.get_account_balance(&[1; 32]);
 
         assert_eq!(acc_balance, 0);
     }
@@ -178,11 +198,11 @@ mod tests {
         assert!(seq_acc_store.contains_account(&[1; 32]));
         assert!(seq_acc_store.contains_account(&[2; 32]));
 
-        let acc_balance = seq_acc_store.get_account_balance(&[1; 32]).unwrap();
+        let acc_balance = seq_acc_store.get_account_balance(&[1; 32]);
 
         assert_eq!(acc_balance, 12);
 
-        let acc_balance = seq_acc_store.get_account_balance(&[2; 32]).unwrap();
+        let acc_balance = seq_acc_store.get_account_balance(&[2; 32]);
 
         assert_eq!(acc_balance, 100);
     }
@@ -196,15 +216,15 @@ mod tests {
         assert!(seq_acc_store.contains_account(&[7; 32]));
         assert!(seq_acc_store.contains_account(&[8; 32]));
 
-        let acc_balance = seq_acc_store.get_account_balance(&[6; 32]).unwrap();
+        let acc_balance = seq_acc_store.get_account_balance(&[6; 32]);
 
         assert_eq!(acc_balance, 120);
 
-        let acc_balance = seq_acc_store.get_account_balance(&[7; 32]).unwrap();
+        let acc_balance = seq_acc_store.get_account_balance(&[7; 32]);
 
         assert_eq!(acc_balance, 15);
 
-        let acc_balance = seq_acc_store.get_account_balance(&[8; 32]).unwrap();
+        let acc_balance = seq_acc_store.get_account_balance(&[8; 32]);
 
         assert_eq!(acc_balance, 10);
     }
@@ -216,7 +236,7 @@ mod tests {
 
         let acc_balance = seq_acc_store.get_account_balance(&[9; 32]);
 
-        assert!(acc_balance.is_none());
+        assert_eq!(acc_balance, 0);
     }
 
     #[test]
@@ -224,5 +244,16 @@ mod tests {
         let seq_acc_store = SequencerAccountsStore::default();
 
         assert!(seq_acc_store.is_empty());
+    }
+
+    #[test]
+    fn account_sequencer_store_set_balance_to_unknown_account() {
+        let mut seq_acc_store = SequencerAccountsStore::default();
+
+        let ret = seq_acc_store.set_account_balance(&[1; 32], 100);
+
+        assert_eq!(ret, 0);
+        assert!(seq_acc_store.contains_account(&[1; 32]));
+        assert_eq!(seq_acc_store.get_account_balance(&[1; 32]), 0);
     }
 }

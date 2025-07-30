@@ -29,12 +29,10 @@ impl SequecerChainStore {
         is_genesis_random: bool,
         initial_accounts: &[AccountInitialData],
     ) -> Self {
-        let acc_data_decoded: Vec<([u8; 32], u64)> = initial_accounts
+        let init_accs: Vec<_> = initial_accounts
             .iter()
             .map(|acc_data| {
                 (
-                    //ToDo: Handle this error for direct error message
-                    //Failure to produce account address is critical, so error handling is needed only for clarity
                     hex::decode(acc_data.addr.clone())
                         .unwrap()
                         .try_into()
@@ -44,7 +42,7 @@ impl SequecerChainStore {
             })
             .collect();
 
-        let acc_store = SequencerAccountsStore::new(&acc_data_decoded);
+        let acc_store = SequencerAccountsStore::new(&init_accs);
         let nullifier_store = HashSet::new();
         let utxo_commitments_store = UTXOCommitmentsMerkleTree::new(vec![]);
         let pub_tx_store = PublicTransactionMerkleTree::new(vec![]);
