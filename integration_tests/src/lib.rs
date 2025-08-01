@@ -6,7 +6,8 @@ use clap::Parser;
 use common::rpc_primitives::RpcConfig;
 use log::info;
 use node_core::{NodeCore, config::NodeConfig};
-use sequencer_core::{SequencerCore, config::SequencerConfig};
+use sequencer_core::config::SequencerConfig;
+use sequencer_runner::startup_sequencer;
 use tempfile::TempDir;
 use tokio::{sync::Mutex, task::JoinHandle};
 
@@ -47,42 +48,8 @@ pub async fn pre_test(
     let (temp_dir_node, temp_dir_sequencer) =
         replace_home_dir_with_temp_dir_in_configs(&mut node_config, &mut sequencer_config);
 
-    let block_timeout = sequencer_config.block_create_timeout_millis;
-    let sequencer_port = sequencer_config.port;
-
-    let sequencer_core = SequencerCore::start_from_config(sequencer_config);
-
-    info!("Sequencer core set up");
-
-    let seq_core_wrapped = Arc::new(Mutex::new(sequencer_core));
-
-    let http_server = sequencer_rpc::new_http_server(
-        RpcConfig::with_port(sequencer_port),
-        seq_core_wrapped.clone(),
-    )?;
-    info!("HTTP server started");
-    let seq_http_server_handle = http_server.handle();
-    tokio::spawn(http_server);
-
-    info!("Starting main sequencer loop");
-
-    let sequencer_loop_handle: JoinHandle<Result<()>> = tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(std::time::Duration::from_millis(block_timeout)).await;
-
-            info!("Collecting transactions from mempool, block creation");
-
-            let id = {
-                let mut state = seq_core_wrapped.lock().await;
-
-                state.produce_new_block_with_mempool_transactions()?
-            };
-
-            info!("Block with id {id} created");
-
-            info!("Waiting for new transactions");
-        }
-    });
+    let (seq_http_server_handle, sequencer_loop_handle) =
+        startup_sequencer(sequencer_config).await?;
 
     let node_port = node_config.port;
 
@@ -185,7 +152,7 @@ pub async fn test_success_move_to_another_account(wrapped_node_core: Arc<Mutex<N
     let acc_sender = hex::decode(ACC_SENDER).unwrap().try_into().unwrap();
     let acc_receiver_new_acc = [42; 32];
 
-    let hex_acc_reveiver_new_acc = hex::encode(acc_receiver_new_acc);
+    let hex_acc_receiver_new_acc = hex::encode(acc_receiver_new_acc);
 
     let guard = wrapped_node_core.lock().await;
 
@@ -205,7 +172,7 @@ pub async fn test_success_move_to_another_account(wrapped_node_core: Arc<Mutex<N
         .unwrap();
     let acc_2_balance = guard
         .sequencer_client
-        .get_account_balance(hex_acc_reveiver_new_acc)
+        .get_account_balance(hex_acc_receiver_new_acc)
         .await
         .unwrap();
 
