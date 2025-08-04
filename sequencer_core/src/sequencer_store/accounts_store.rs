@@ -94,6 +94,10 @@ impl SequencerAccountsStore {
         } else {
             self.register_account(*account_addr);
 
+            let acc = self.accounts.get_mut(account_addr).unwrap();
+
+            acc.balance = new_balance;
+
             0
         }
     }
@@ -295,7 +299,7 @@ mod tests {
 
         assert_eq!(ret, 0);
         assert!(seq_acc_store.contains_account(&[1; 32]));
-        assert_eq!(seq_acc_store.get_account_balance(&[1; 32]), 0);
+        assert_eq!(seq_acc_store.get_account_balance(&[1; 32]), 100);
     }
 
     #[test]
