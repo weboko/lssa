@@ -1,4 +1,4 @@
-use std::sync::{atomic::AtomicU64, Arc};
+use std::sync::Arc;
 
 use common::{
     execution_input::PublicNativeTokenSend, transaction::Transaction, ExecutionFailureKind,
@@ -9,7 +9,6 @@ use anyhow::Result;
 use chain_storage::NodeChainStore;
 use common::transaction::TransactionBody;
 use config::NodeConfig;
-use log::info;
 use sc_core::proofs_circuits::{generate_commitments, pedersen_commitment_vec};
 use sequencer_client::{json::SendTxResponse, SequencerClient};
 use serde::{Deserialize, Serialize};
@@ -73,7 +72,6 @@ pub enum ActionData {
 
 pub struct NodeCore {
     pub storage: Arc<RwLock<NodeChainStore>>,
-    pub curr_height: Arc<AtomicU64>,
     pub node_config: NodeConfig,
     pub sequencer_client: Arc<SequencerClient>,
     pub gas_calculator: GasCalculator,
@@ -83,22 +81,15 @@ impl NodeCore {
     pub async fn start_from_config_update_chain(config: NodeConfig) -> Result<Self> {
         let client = Arc::new(SequencerClient::new(config.clone())?);
 
-        let genesis_id = client.get_genesis_id().await?;
-        info!("Genesis id is {genesis_id:?}");
-
-        let genesis_block = client.get_block(genesis_id.genesis_id).await?.block;
-
-        let (mut storage, chain_height) = NodeChainStore::new(config.clone(), genesis_block)?;
+        let mut storage = NodeChainStore::new(config.clone())?;
         for acc in config.clone().initial_accounts {
             storage.acc_map.insert(acc.address, acc);
         }
 
         let wrapped_storage = Arc::new(RwLock::new(storage));
-        let chain_height_wrapped = Arc::new(AtomicU64::new(chain_height));
 
         Ok(Self {
             storage: wrapped_storage,
-            curr_height: chain_height_wrapped,
             node_config: config.clone(),
             sequencer_client: client.clone(),
             gas_calculator: GasCalculator::from(config.gas_config),

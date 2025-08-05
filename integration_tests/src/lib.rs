@@ -3,7 +3,6 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use actix_web::dev::ServerHandle;
 use anyhow::Result;
 use clap::Parser;
-use common::rpc_primitives::RpcConfig;
 use log::info;
 use node_core::{NodeCore, config::NodeConfig};
 use sequencer_core::config::SequencerConfig;
@@ -31,7 +30,6 @@ pub async fn pre_test(
 ) -> Result<(
     ServerHandle,
     JoinHandle<Result<()>>,
-    ServerHandle,
     TempDir,
     TempDir,
     Arc<Mutex<NodeCore>>,
@@ -43,7 +41,7 @@ pub async fn pre_test(
         sequencer_runner::config::from_file(home_dir_sequencer.join("sequencer_config.json"))
             .unwrap();
     let mut node_config =
-        node_runner::config::from_file(home_dir_node.join("node_config.json")).unwrap();
+        node_core::config::from_file(home_dir_node.join("node_config.json")).unwrap();
 
     let (temp_dir_node, temp_dir_sequencer) =
         replace_home_dir_with_temp_dir_in_configs(&mut node_config, &mut sequencer_config);
@@ -51,25 +49,13 @@ pub async fn pre_test(
     let (seq_http_server_handle, sequencer_loop_handle) =
         startup_sequencer(sequencer_config).await?;
 
-    let node_port = node_config.port;
-
     let node_core = NodeCore::start_from_config_update_chain(node_config.clone()).await?;
 
     let wrapped_node_core = Arc::new(Mutex::new(node_core));
 
-    let http_server = node_rpc::new_http_server(
-        RpcConfig::with_port(node_port),
-        node_config.clone(),
-        wrapped_node_core.clone(),
-    )?;
-    info!("HTTP server started");
-    let node_http_server_handle = http_server.handle();
-    tokio::spawn(http_server);
-
     Ok((
         seq_http_server_handle,
         sequencer_loop_handle,
-        node_http_server_handle,
         temp_dir_node,
         temp_dir_sequencer,
         wrapped_node_core,
@@ -94,18 +80,15 @@ pub async fn post_test(
     residual: (
         ServerHandle,
         JoinHandle<Result<()>>,
-        ServerHandle,
         TempDir,
         TempDir,
         Arc<Mutex<NodeCore>>,
     ),
 ) {
-    let (seq_http_server_handle, sequencer_loop_handle, node_http_server_handle, _, _, _) =
-        residual;
+    let (seq_http_server_handle, sequencer_loop_handle, _, _, _) = residual;
 
     info!("Cleanup");
 
-    node_http_server_handle.stop(true).await;
     sequencer_loop_handle.abort();
     seq_http_server_handle.stop(true).await;
 
@@ -224,7 +207,7 @@ macro_rules! test_cleanup_wrap {
     ($home_dir:ident, $test_func:ident) => {{
         let res = pre_test($home_dir.clone()).await.unwrap();
 
-        let wrapped_node_core = res.5.clone();
+        let wrapped_node_core = res.4.clone();
 
         info!("Waiting for first block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;

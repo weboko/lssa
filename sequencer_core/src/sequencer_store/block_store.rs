@@ -76,39 +76,7 @@ fn block_to_transactions_map(block: &Block) -> HashMap<TreeHashType, u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::transaction::{SignaturePrivateKey, TransactionBody};
     use tempfile::tempdir;
-
-    fn create_dummy_block_with_transaction(block_id: u64) -> (Block, Transaction) {
-        let body = TransactionBody {
-            tx_kind: common::transaction::TxKind::Public,
-            execution_input: Default::default(),
-            execution_output: Default::default(),
-            utxo_commitments_spent_hashes: Default::default(),
-            utxo_commitments_created_hashes: Default::default(),
-            nullifier_created_hashes: Default::default(),
-            execution_proof_private: Default::default(),
-            encoded_data: Default::default(),
-            ephemeral_pub_key: Default::default(),
-            commitment: Default::default(),
-            tweak: Default::default(),
-            secret_r: Default::default(),
-            sc_addr: Default::default(),
-            state_changes: Default::default(),
-        };
-        let tx = Transaction::new(body, SignaturePrivateKey::from_slice(&[1; 32]).unwrap());
-        (
-            Block {
-                block_id,
-                prev_block_id: block_id - 1,
-                prev_block_hash: [0; 32],
-                hash: [1; 32],
-                transactions: vec![tx.clone()],
-                data: vec![],
-            },
-            tx,
-        )
-    }
 
     #[test]
     fn test_get_transaction_by_hash() {
@@ -125,7 +93,10 @@ mod tests {
         // Start an empty node store
         let mut node_store =
             SequecerBlockStore::open_db_with_genesis(path, Some(genesis_block)).unwrap();
-        let (block, tx) = create_dummy_block_with_transaction(1);
+
+        let tx = common::test_utils::produce_dummy_empty_transaction();
+        let block = common::test_utils::produce_dummy_block(1, None, vec![tx.clone()], vec![]);
+
         // Try retrieve a tx that's not in the chain yet.
         let retrieved_tx = node_store.get_transaction_by_hash(tx.body().hash());
         assert_eq!(None, retrieved_tx);

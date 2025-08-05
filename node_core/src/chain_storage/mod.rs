@@ -3,7 +3,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use accounts::account_core::{address::AccountAddress, Account};
 use anyhow::Result;
 use common::{
-    block::Block,
     merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree},
     nullifier::UTXONullifier,
 };
@@ -13,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use crate::config::NodeConfig;
 
 pub mod accounts_store;
-//pub mod block_store;
 
 #[derive(Deserialize, Serialize)]
 pub struct AccMap {
@@ -50,23 +48,21 @@ pub struct NodeChainStore {
 }
 
 impl NodeChainStore {
-    pub fn new(config: NodeConfig, genesis_block: Block) -> Result<(Self, u64)> {
+    pub fn new(config: NodeConfig) -> Result<Self> {
         let acc_map = HashMap::new();
         let nullifier_store = HashSet::new();
         let utxo_commitments_store = UTXOCommitmentsMerkleTree::new(vec![]);
         let pub_tx_store = PublicTransactionMerkleTree::new(vec![]);
-        let block_id = genesis_block.block_id;
 
-        Ok((
+        Ok(
             Self {
                 acc_map,
                 nullifier_store,
                 utxo_commitments_store,
                 pub_tx_store,
                 node_config: config,
-            },
-            block_id,
-        ))
+            }
+        )
     }
 
     pub fn produce_context(&self, caller: AccountAddress) -> PublicSCContext {
@@ -97,9 +93,6 @@ mod tests {
     use super::*;
     use crate::config::GasConfig;
     use accounts::account_core::Account;
-    use common::block::{Block, Data};
-    use common::transaction::{SignaturePrivateKey, Transaction, TransactionBody, TxKind};
-    use secp256k1_zkp::Tweak;
     use std::path::PathBuf;
     use tempfile::tempdir;
 
@@ -277,55 +270,16 @@ mod tests {
         initial_accounts
     }
 
-    fn create_genesis_block() -> Block {
-        Block {
-            block_id: 0,
-            prev_block_id: 0,
-            prev_block_hash: [0; 32],
-            hash: [1; 32],
-            transactions: vec![],
-            data: Data::default(),
-        }
-    }
-
-    //ToDo: Continue refactor
-    fn create_dummy_transaction(
-        nullifier_created_hashes: Vec<[u8; 32]>,
-        utxo_commitments_spent_hashes: Vec<[u8; 32]>,
-        utxo_commitments_created_hashes: Vec<[u8; 32]>,
-    ) -> Transaction {
-        let mut rng = rand::thread_rng();
-
-        let body = TransactionBody {
-            tx_kind: TxKind::Private,
-            execution_input: vec![],
-            execution_output: vec![],
-            utxo_commitments_spent_hashes,
-            utxo_commitments_created_hashes,
-            nullifier_created_hashes,
-            execution_proof_private: "dummy_proof".to_string(),
-            encoded_data: vec![],
-            ephemeral_pub_key: vec![10, 11, 12],
-            commitment: vec![],
-            tweak: Tweak::new(&mut rng),
-            secret_r: [0; 32],
-            sc_addr: "sc_addr".to_string(),
-            state_changes: (serde_json::Value::Null, 0),
-        };
-        Transaction::new(body, SignaturePrivateKey::random(&mut rng))
-    }
-
-    //ToDo: Continue refactor
-    fn create_sample_block(block_id: u64, prev_block_id: u64) -> Block {
-        Block {
-            block_id,
-            prev_block_id,
-            prev_block_hash: [0; 32],
-            hash: [1; 32],
-            transactions: vec![],
-            data: Data::default(),
-        }
-    }
+    // fn create_genesis_block() -> Block {
+    //     Block {
+    //         block_id: 0,
+    //         prev_block_id: 0,
+    //         prev_block_hash: [0; 32],
+    //         hash: [1; 32],
+    //         transactions: vec![],
+    //         data: Data::default(),
+    //     }
+    // }
 
     fn create_sample_node_config(home: PathBuf) -> NodeConfig {
         NodeConfig {
@@ -359,11 +313,8 @@ mod tests {
 
         let config = create_sample_node_config(path.to_path_buf());
 
-        let genesis_block = create_genesis_block();
+        let store = NodeChainStore::new(config.clone()).unwrap();
 
-        let (store, block_id) = NodeChainStore::new(config.clone(), genesis_block.clone()).unwrap();
-
-        assert_eq!(block_id, 0);
         assert!(store.acc_map.is_empty());
         assert!(store.nullifier_store.is_empty());
         assert_eq!(

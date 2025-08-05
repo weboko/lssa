@@ -1,15 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-  "node_runner",
   "sequencer_runner",
   "storage",
   "accounts",
   "utxo",
-  "vm",
-  "networking",
-  "consensus",
-  "node_rpc",
   "sequencer_rpc",
   "mempool",
   "zkvm",

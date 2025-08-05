@@ -3,7 +3,7 @@ use std::fmt::Display;
 use accounts::account_core::address::{self, AccountAddress};
 use anyhow::Result;
 use common::{
-    block::{Block, HashableBlockData},
+    block::HashableBlockData,
     execution_input::PublicNativeTokenSend,
     merkle_tree_public::TreeHashType,
     nullifier::UTXONullifier,
@@ -321,7 +321,7 @@ impl SequencerCore {
             prev_block_hash,
         };
 
-        let block = Block::produce_block_from_hashable_data(hashable_data);
+        let block = hashable_data.into();
 
         self.store.block_store.put_block_at_id(block)?;
 
@@ -336,11 +336,8 @@ mod tests {
     use crate::config::AccountInitialData;
 
     use super::*;
-
-    use common::transaction::{SignaturePrivateKey, Transaction, TransactionBody, TxKind};
     use k256::{ecdsa::SigningKey, FieldBytes};
     use mempool_transaction::MempoolTransaction;
-    use secp256k1_zkp::Tweak;
 
     fn setup_sequencer_config_variable_initial_accounts(
         initial_accounts: Vec<AccountInitialData>,
@@ -386,67 +383,6 @@ mod tests {
         setup_sequencer_config_variable_initial_accounts(initial_accounts)
     }
 
-    fn create_dummy_transaction(
-        nullifier_created_hashes: Vec<[u8; 32]>,
-        utxo_commitments_spent_hashes: Vec<[u8; 32]>,
-        utxo_commitments_created_hashes: Vec<[u8; 32]>,
-    ) -> Transaction {
-        let mut rng = rand::thread_rng();
-
-        let body = TransactionBody {
-            tx_kind: TxKind::Private,
-            execution_input: vec![],
-            execution_output: vec![],
-            utxo_commitments_spent_hashes,
-            utxo_commitments_created_hashes,
-            nullifier_created_hashes,
-            execution_proof_private: "dummy_proof".to_string(),
-            encoded_data: vec![],
-            ephemeral_pub_key: vec![10, 11, 12],
-            commitment: vec![],
-            tweak: Tweak::new(&mut rng),
-            secret_r: [0; 32],
-            sc_addr: "sc_addr".to_string(),
-            state_changes: (serde_json::Value::Null, 0),
-        };
-        Transaction::new(body, SignaturePrivateKey::random(&mut rng))
-    }
-
-    fn create_dummy_transaction_native_token_transfer(
-        from: [u8; 32],
-        nonce: u64,
-        to: [u8; 32],
-        balance_to_move: u64,
-        signing_key: SigningKey,
-    ) -> Transaction {
-        let mut rng = rand::thread_rng();
-
-        let native_token_transfer = PublicNativeTokenSend {
-            from,
-            nonce,
-            to,
-            balance_to_move,
-        };
-
-        let body = TransactionBody {
-            tx_kind: TxKind::Public,
-            execution_input: serde_json::to_vec(&native_token_transfer).unwrap(),
-            execution_output: vec![],
-            utxo_commitments_spent_hashes: vec![],
-            utxo_commitments_created_hashes: vec![],
-            nullifier_created_hashes: vec![],
-            execution_proof_private: "".to_string(),
-            encoded_data: vec![],
-            ephemeral_pub_key: vec![10, 11, 12],
-            commitment: vec![],
-            tweak: Tweak::new(&mut rng),
-            secret_r: [0; 32],
-            sc_addr: "sc_addr".to_string(),
-            state_changes: (serde_json::Value::Null, 0),
-        };
-        Transaction::new(body, signing_key)
-    }
-
     fn create_signing_key_for_account1() -> SigningKey {
         let pub_sign_key_acc1 = [
             133, 143, 177, 187, 252, 66, 237, 236, 234, 252, 244, 138, 5, 151, 3, 99, 217, 231,
@@ -468,7 +404,11 @@ mod tests {
     }
 
     fn common_setup(sequencer: &mut SequencerCore) {
-        let tx = create_dummy_transaction(vec![[9; 32]], vec![[7; 32]], vec![[8; 32]]);
+        let tx = common::test_utils::create_dummy_private_transaction_random_signer(
+            vec![[9; 32]],
+            vec![[7; 32]],
+            vec![[8; 32]],
+        );
         let mempool_tx = MempoolTransaction {
             auth_tx: tx.into_authenticated().unwrap(),
         };
@@ -581,7 +521,11 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let tx = create_dummy_transaction(vec![[91; 32]], vec![[71; 32]], vec![[81; 32]]);
+        let tx = common::test_utils::create_dummy_private_transaction_random_signer(
+            vec![[91; 32]],
+            vec![[71; 32]],
+            vec![[81; 32]],
+        );
         let tx_roots = sequencer.get_tree_roots();
         let result = sequencer.transaction_pre_check(tx, tx_roots);
 
@@ -606,7 +550,9 @@ mod tests {
 
         let sign_key1 = create_signing_key_for_account1();
 
-        let tx = create_dummy_transaction_native_token_transfer(acc1, 0, acc2, 10, sign_key1);
+        let tx = common::test_utils::create_dummy_transaction_native_token_transfer(
+            acc1, 0, acc2, 10, sign_key1,
+        );
         let tx_roots = sequencer.get_tree_roots();
         let result = sequencer.transaction_pre_check(tx, tx_roots);
 
@@ -631,7 +577,9 @@ mod tests {
 
         let sign_key2 = create_signing_key_for_account2();
 
-        let tx = create_dummy_transaction_native_token_transfer(acc1, 0, acc2, 10, sign_key2);
+        let tx = common::test_utils::create_dummy_transaction_native_token_transfer(
+            acc1, 0, acc2, 10, sign_key2,
+        );
         let tx_roots = sequencer.get_tree_roots();
         let result = sequencer.transaction_pre_check(tx, tx_roots);
 
@@ -659,7 +607,9 @@ mod tests {
 
         let sign_key1 = create_signing_key_for_account1();
 
-        let tx = create_dummy_transaction_native_token_transfer(acc1, 0, acc2, 10000000, sign_key1);
+        let tx = common::test_utils::create_dummy_transaction_native_token_transfer(
+            acc1, 0, acc2, 10000000, sign_key1,
+        );
         let tx_roots = sequencer.get_tree_roots();
         let result = sequencer.transaction_pre_check(tx, tx_roots);
 
@@ -693,7 +643,9 @@ mod tests {
 
         let sign_key1 = create_signing_key_for_account1();
 
-        let tx = create_dummy_transaction_native_token_transfer(acc1, 0, acc2, 100, sign_key1);
+        let tx = common::test_utils::create_dummy_transaction_native_token_transfer(
+            acc1, 0, acc2, 100, sign_key1,
+        );
 
         sequencer
             .execute_check_transaction_on_state(&tx.into_authenticated().unwrap().into())
@@ -716,7 +668,11 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let tx = create_dummy_transaction(vec![[92; 32]], vec![[72; 32]], vec![[82; 32]]);
+        let tx = common::test_utils::create_dummy_private_transaction_random_signer(
+            vec![[92; 32]],
+            vec![[72; 32]],
+            vec![[82; 32]],
+        );
         let tx_roots = sequencer.get_tree_roots();
 
         // Fill the mempool
@@ -740,7 +696,11 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let tx = create_dummy_transaction(vec![[93; 32]], vec![[73; 32]], vec![[83; 32]]);
+        let tx = common::test_utils::create_dummy_private_transaction_random_signer(
+            vec![[93; 32]],
+            vec![[73; 32]],
+            vec![[83; 32]],
+        );
         let tx_roots = sequencer.get_tree_roots();
 
         let result = sequencer.push_tx_into_mempool_pre_check(tx, tx_roots);
@@ -754,7 +714,11 @@ mod tests {
         let mut sequencer = SequencerCore::start_from_config(config);
         let genesis_height = sequencer.chain_height;
 
-        let tx = create_dummy_transaction(vec![[94; 32]], vec![[7; 32]], vec![[8; 32]]);
+        let tx = common::test_utils::create_dummy_private_transaction_random_signer(
+            vec![[94; 32]],
+            vec![[7; 32]],
+            vec![[8; 32]],
+        );
         let tx_mempool = MempoolTransaction {
             auth_tx: tx.into_authenticated().unwrap(),
         };
@@ -783,7 +747,9 @@ mod tests {
 
         let sign_key1 = create_signing_key_for_account1();
 
-        let tx = create_dummy_transaction_native_token_transfer(acc1, 0, acc2, 100, sign_key1);
+        let tx = common::test_utils::create_dummy_transaction_native_token_transfer(
+            acc1, 0, acc2, 100, sign_key1,
+        );
 
         let tx_mempool_original = MempoolTransaction {
             auth_tx: tx.clone().into_authenticated().unwrap(),
@@ -828,7 +794,9 @@ mod tests {
 
         let sign_key1 = create_signing_key_for_account1();
 
-        let tx = create_dummy_transaction_native_token_transfer(acc1, 0, acc2, 100, sign_key1);
+        let tx = common::test_utils::create_dummy_transaction_native_token_transfer(
+            acc1, 0, acc2, 100, sign_key1,
+        );
 
         // The transaction should be included the first time
         let tx_mempool_original = MempoolTransaction {

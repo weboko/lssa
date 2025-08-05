@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path};
 use accounts_store::SequencerAccountsStore;
 use block_store::SequecerBlockStore;
 use common::{
-    block::{Block, HashableBlockData},
+    block::HashableBlockData,
     merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree},
     nullifier::UTXONullifier,
 };
@@ -63,7 +63,7 @@ impl SequecerChainStore {
             prev_block_hash,
         };
 
-        let genesis_block = Block::produce_block_from_hashable_data(hashable_data);
+        let genesis_block = hashable_data.into();
 
         //Sequencer should panic if unable to open db,
         //as fixing this issue may require actions non-native to program scope
