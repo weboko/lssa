@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 risc0-zkvm = "2.2"
+nssa-core = {path="core"}
 program-methods = { path = "program_methods" }
