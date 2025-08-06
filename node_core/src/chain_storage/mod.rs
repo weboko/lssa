@@ -89,7 +89,6 @@ impl NodeChainStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::GasConfig;
     use accounts::account_core::Account;
     use std::path::PathBuf;
     use tempfile::tempdir;
@@ -268,39 +267,13 @@ mod tests {
         initial_accounts
     }
 
-    // fn create_genesis_block() -> Block {
-    //     Block {
-    //         block_id: 0,
-    //         prev_block_id: 0,
-    //         prev_block_hash: [0; 32],
-    //         hash: [1; 32],
-    //         transactions: vec![],
-    //         data: Data::default(),
-    //     }
-    // }
-
     fn create_sample_node_config(home: PathBuf) -> NodeConfig {
         NodeConfig {
             home,
             override_rust_log: None,
             sequencer_addr: "http://127.0.0.1".to_string(),
             seq_poll_timeout_secs: 1,
-            port: 8000,
-            gas_config: create_sample_gas_config(),
-            shapshot_frequency_in_blocks: 1,
             initial_accounts: create_initial_accounts(),
-        }
-    }
-
-    fn create_sample_gas_config() -> GasConfig {
-        GasConfig {
-            gas_fee_per_byte_deploy: 0,
-            gas_fee_per_input_buffer_runtime: 0,
-            gas_fee_per_byte_runtime: 0,
-            gas_cost_runtime: 0,
-            gas_cost_deploy: 0,
-            gas_limit_deploy: 0,
-            gas_limit_runtime: 0,
         }
     }
 

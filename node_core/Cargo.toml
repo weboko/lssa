@@ -21,6 +21,7 @@ tempfile.workspace = true
 risc0-zkvm = { git = "https://github.com/risc0/risc0.git", branch = "release-2.3" }
 hex.workspace = true
 actix-rt.workspace = true
+clap.workspace = true
 
 [dependencies.sc_core]
 path = "../sc_core"

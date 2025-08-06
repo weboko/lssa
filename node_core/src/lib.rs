@@ -1,22 +1,25 @@
-use std::sync::Arc;
+use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr, sync::Arc};
 
 use common::{
     execution_input::PublicNativeTokenSend, transaction::Transaction, ExecutionFailureKind,
 };
 
 use accounts::account_core::{address::AccountAddress, Account};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chain_storage::NodeChainStore;
 use common::transaction::TransactionBody;
 use config::NodeConfig;
+use log::info;
 use sc_core::proofs_circuits::{generate_commitments, pedersen_commitment_vec};
 use sequencer_client::{json::SendTxResponse, SequencerClient};
 use serde::{Deserialize, Serialize};
 use storage::sc_db_utils::DataBlobChangeVariant;
 use tokio::sync::RwLock;
 use utxo::utxo_core::UTXO;
-use zkvm::gas_calculator::GasCalculator;
 
+use clap::{Parser, Subcommand};
+
+pub const HOME_DIR_ENV_VAR: &str = "HOME_DIR";
 pub const BLOCK_GEN_DELAY_SECS: u64 = 20;
 
 pub mod chain_storage;
@@ -74,7 +77,6 @@ pub struct NodeCore {
     pub storage: Arc<RwLock<NodeChainStore>>,
     pub node_config: NodeConfig,
     pub sequencer_client: Arc<SequencerClient>,
-    pub gas_calculator: GasCalculator,
 }
 
 impl NodeCore {
@@ -92,7 +94,6 @@ impl NodeCore {
             storage: wrapped_storage,
             node_config: config.clone(),
             sequencer_client: client.clone(),
-            gas_calculator: GasCalculator::from(config.gas_config),
         })
     }
 
@@ -189,4 +190,68 @@ pub fn generate_commitments_helper(input_utxos: &[UTXO]) -> Vec<[u8; 32]> {
         .into_iter()
         .map(|comm_raw| comm_raw.try_into().unwrap())
         .collect()
+}
+
+///Represents CLI command for a wallet
+#[derive(Subcommand, Debug, Clone)]
+pub enum Command {
+    SendNativeTokenTransfer {
+        #[arg(long)]
+        from: String,
+        #[arg(long)]
+        to: String,
+        #[arg(long)]
+        amount: u64,
+    },
+}
+
+#[derive(Parser, Debug)]
+#[clap(version)]
+pub struct Args {
+    /// Wallet command
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+pub fn get_home() -> Result<PathBuf> {
+    Ok(PathBuf::from_str(&std::env::var(HOME_DIR_ENV_VAR)?)?)
+}
+
+pub fn fetch_config() -> Result<NodeConfig> {
+    let config_home = get_home()?;
+    let file = File::open(config_home.join("node_config.json"))?;
+    let reader = BufReader::new(file);
+
+    Ok(serde_json::from_reader(reader)?)
+}
+
+//ToDo: Replace with structures in future
+pub fn produce_account_addr_from_hex(hex_str: String) -> Result<[u8; 32]> {
+    hex::decode(hex_str)?
+        .try_into()
+        .map_err(|_| anyhow!("Failed conversion to 32 bytes"))
+}
+
+pub async fn execute_subcommand(command: Command) -> Result<()> {
+    //env_logger::init();
+
+    match command {
+        Command::SendNativeTokenTransfer { from, to, amount } => {
+            let node_config = fetch_config()?;
+
+            let from = produce_account_addr_from_hex(from)?;
+            let to = produce_account_addr_from_hex(to)?;
+
+            let wallet_core = NodeCore::start_from_config_update_chain(node_config).await?;
+
+            //ToDo: Nonce management
+            let res = wallet_core
+                .send_public_native_token_transfer(from, 0, to, amount)
+                .await?;
+
+            info!("Results of tx send is {res:#?}");
+        }
+    }
+
+    Ok(())
 }

@@ -4,11 +4,6 @@ use accounts::account_core::Account;
 use serde::{Deserialize, Serialize};
 use zkvm::gas_calculator::GasCalculator;
 
-use anyhow::Result;
-
-use std::fs::File;
-use std::io::BufReader;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GasConfig {
     /// Gas spent per deploying one byte of data
@@ -51,19 +46,6 @@ pub struct NodeConfig {
     pub sequencer_addr: String,
     ///Sequencer polling duration for new blocks in seconds
     pub seq_poll_timeout_secs: u64,
-    ///Port to listen
-    pub port: u16,
-    ///Gas config
-    pub gas_config: GasConfig,
-    ///Frequency of snapshots
-    pub shapshot_frequency_in_blocks: u64,
     ///Initial accounts for wallet
     pub initial_accounts: Vec<Account>,
-}
-
-pub fn from_file(config_home: PathBuf) -> Result<NodeConfig> {
-    let file = File::open(config_home)?;
-    let reader = BufReader::new(file);
-
-    Ok(serde_json::from_reader(reader)?)
 }
