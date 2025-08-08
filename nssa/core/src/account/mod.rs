@@ -1,8 +1,3 @@
-mod commitment;
-mod nullifier;
-
-pub(crate) use commitment::Commitment;
-pub(crate) use nullifier::Nullifier;
 use serde::{Deserialize, Serialize};
 
 use crate::program::ProgramId;
@@ -27,6 +22,8 @@ pub struct AccountWithMetadata {
 
 #[cfg(test)]
 mod tests {
+    use crate::program::DEFAULT_PROGRAM_ID;
+
     use super::*;
 
     #[test]
@@ -54,6 +51,6 @@ mod tests {
     fn test_default_program_owner_account_data_creation() {
         let new_acc = Account::default();
 
-        assert_eq!(new_acc.program_owner, [0; 8]);
+        assert_eq!(new_acc.program_owner, DEFAULT_PROGRAM_ID);
     }
 }

@@ -202,7 +202,7 @@ mod tests {
     }
 
     fn create_dummy_transaction() -> nssa::PublicTransaction {
-        let program_id = nssa::AuthenticatedTransferProgram::PROGRAM_ID;
+        let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
         let addresses = vec![];
         let nonces = vec![];
         let instruction_data = 0;
@@ -223,7 +223,7 @@ mod tests {
     ) -> nssa::PublicTransaction {
         let addresses = vec![nssa::Address::new(from), nssa::Address::new(to)];
         let nonces = vec![nonce];
-        let program_id = nssa::AuthenticatedTransferProgram::PROGRAM_ID;
+        let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
         let message =
             nssa::public_transaction::Message::new(program_id, addresses, nonces, balance_to_move);
         let witness_set =

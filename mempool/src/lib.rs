@@ -4,7 +4,7 @@ use mempoolitem::MemPoolItem;
 
 pub mod mempoolitem;
 
-pub struct MemPool<Item: MemPoolItem> {
+pub struct MemPool<Item> {
     items: VecDeque<Item>,
 }
 

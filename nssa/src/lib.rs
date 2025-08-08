@@ -1,6 +1,6 @@
 use nssa_core::{
     account::{Account, AccountWithMetadata},
-    program::ProgramId,
+    program::{DEFAULT_PROGRAM_ID, ProgramId},
 };
 use program_methods::{AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID};
 use risc0_zkvm::{ExecutorEnv, ExecutorEnvBuilder, default_executor};
@@ -16,17 +16,15 @@ pub use public_transaction::PublicTransaction;
 pub use signature::PrivateKey;
 pub use state::V01State;
 
-pub struct AuthenticatedTransferProgram;
-impl Program for AuthenticatedTransferProgram {
-    const PROGRAM_ID: ProgramId = AUTHENTICATED_TRANSFER_ID;
-    const PROGRAM_ELF: &[u8] = AUTHENTICATED_TRANSFER_ELF;
-    type InstructionData = u128;
-}
+pub const AUTHENTICATED_TRANSFER_PROGRAM: Program = Program {
+    id: AUTHENTICATED_TRANSFER_ID,
+    elf: AUTHENTICATED_TRANSFER_ELF,
+};
 
 /// Writes inputs to `env_builder` in the order expected by the programs
-fn write_inputs<P: Program>(
+fn write_inputs(
     pre_states: &[AccountWithMetadata],
-    instruction_data: P::InstructionData,
+    instruction_data: u128,
     env_builder: &mut ExecutorEnvBuilder,
 ) -> Result<(), ()> {
     let pre_states = pre_states.to_vec();
@@ -35,19 +33,29 @@ fn write_inputs<P: Program>(
     Ok(())
 }
 
-fn execute_public<P: Program>(
+fn execute_public(
     pre_states: &[AccountWithMetadata],
-    instruction_data: P::InstructionData,
+    instruction_data: u128,
+    program: &Program,
 ) -> Result<Vec<Account>, ()> {
     // Write inputs to the program
     let mut env_builder = ExecutorEnv::builder();
-    write_inputs::<P>(pre_states, instruction_data, &mut env_builder)?;
+    write_inputs(pre_states, instruction_data, &mut env_builder)?;
     let env = env_builder.build().unwrap();
 
     // Execute the program (without proving)
     let executor = default_executor();
-    let session_info = executor.execute(env, P::PROGRAM_ELF).map_err(|_| ())?;
+    let session_info = executor.execute(env, program.elf).map_err(|_| ())?;
 
-    // Get (inputs and) outputs
-    session_info.journal.decode().map_err(|_| ())
+    // Get outputs
+    let mut post_states: Vec<Account> = session_info.journal.decode().map_err(|_| ())?;
+
+    // Claim any output account with default program owner field
+    for account in post_states.iter_mut() {
+        if account.program_owner == DEFAULT_PROGRAM_ID {
+            account.program_owner = program.id;
+        }
+    }
+
+    Ok(post_states)
 }

@@ -1,4 +1,4 @@
-use common::{merkle_tree_public::TreeHashType, transaction::AuthenticatedTransaction};
+use common::merkle_tree_public::TreeHashType;
 use mempool::mempoolitem::MemPoolItem;
 
 pub struct MempoolTransaction {

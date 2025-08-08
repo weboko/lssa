@@ -267,7 +267,7 @@ mod tests {
 
         let addresses = vec![from, to];
         let nonces = vec![0];
-        let program_id = nssa::AuthenticatedTransferProgram::PROGRAM_ID;
+        let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
         let message =
             nssa::public_transaction::Message::new(program_id, addresses, nonces, balance_to_move);
         let witness_set =
@@ -497,7 +497,7 @@ mod tests {
                         ],
                         "instruction_data": 10,
                         "nonces": [0],
-                        "program_id": nssa::AuthenticatedTransferProgram::PROGRAM_ID,
+                        "program_id": nssa::AUTHENTICATED_TRANSFER_PROGRAM.id,
                     },
                     "witness_set": {
                         "signatures_and_public_keys": [

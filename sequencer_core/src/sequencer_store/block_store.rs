@@ -81,13 +81,15 @@ mod tests {
     use tempfile::tempdir;
 
     fn create_dummy_block_with_transaction(block_id: u64) -> (Block, nssa::PublicTransaction) {
-        let program_id = nssa::AuthenticatedTransferProgram::PROGRAM_ID;
+        let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
         let addresses = vec![];
         let nonces = vec![];
         let instruction_data = 0;
-        let message = nssa::public_transaction::Message::new(program_id, addresses, nonces, instruction_data);
+        let message =
+            nssa::public_transaction::Message::new(program_id, addresses, nonces, instruction_data);
         let private_key = nssa::PrivateKey::new(1);
-        let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[private_key]);
+        let witness_set =
+            nssa::public_transaction::WitnessSet::for_message(&message, &[private_key]);
         let tx = nssa::PublicTransaction::new(message, witness_set);
         (
             Block {
