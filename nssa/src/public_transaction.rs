@@ -39,7 +39,7 @@ impl Message {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WitnessSet {
-    pub signatures_and_public_keys: Vec<(Signature, PublicKey)>,
+    pub(crate) signatures_and_public_keys: Vec<(Signature, PublicKey)>,
 }
 
 impl WitnessSet {
@@ -52,6 +52,10 @@ impl WitnessSet {
         Self {
             signatures_and_public_keys,
         }
+    }
+
+    pub fn iter_signatures(&self) -> impl Iterator<Item = &(Signature, PublicKey)> {
+        self.signatures_and_public_keys.iter()
     }
 }
 

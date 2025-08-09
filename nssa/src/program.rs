@@ -21,6 +21,7 @@ impl Program {
     pub fn id(&self) -> ProgramId {
         self.id
     }
+
     pub(crate) fn execute(
         &self,
         pre_states: &[AccountWithMetadata],

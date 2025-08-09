@@ -64,8 +64,7 @@ impl SequencerCore {
         // Stateless checks here
         if tx
             .witness_set()
-            .signatures_and_public_keys
-            .iter()
+            .iter_signatures()
             .all(|(signature, public_key)| signature.is_valid_for(tx.message(), public_key))
         {
             Ok(tx)
