@@ -1,6 +1,6 @@
 use nssa_core::{
     account::{Account, AccountWithMetadata},
-    program::DEFAULT_PROGRAM_ID,
+    program::{DEFAULT_PROGRAM_ID, ProgramId},
 };
 use program_methods::{AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID};
 use risc0_zkvm::{ExecutorEnv, ExecutorEnvBuilder, default_executor};
@@ -12,7 +12,6 @@ mod signature;
 mod state;
 
 pub use address::Address;
-pub use nssa_core::program::Program;
 pub use public_transaction::PublicTransaction;
 pub use signature::PrivateKey;
 pub use signature::PublicKey;
@@ -25,6 +24,11 @@ pub const AUTHENTICATED_TRANSFER_PROGRAM: Program = Program {
     id: AUTHENTICATED_TRANSFER_ID,
     elf: AUTHENTICATED_TRANSFER_ELF,
 };
+
+pub struct Program {
+    id: ProgramId,
+    elf: &'static [u8],
+}
 
 /// Writes inputs to `env_builder` in the order expected by the programs
 fn write_inputs(
@@ -42,34 +46,39 @@ fn write_inputs(
     Ok(())
 }
 
-fn execute_public(
-    pre_states: &[AccountWithMetadata],
-    instruction_data: u128,
-    program: &Program,
-) -> Result<Vec<Account>, NssaError> {
-    // Write inputs to the program
-    let mut env_builder = ExecutorEnv::builder();
-    write_inputs(pre_states, instruction_data, &mut env_builder)?;
-    let env = env_builder.build().unwrap();
-
-    // Execute the program (without proving)
-    let executor = default_executor();
-    let session_info = executor
-        .execute(env, program.elf)
-        .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
-
-    // Get outputs
-    let mut post_states: Vec<Account> = session_info
-        .journal
-        .decode()
-        .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
-
-    // Claim any output account with default program owner field
-    for account in post_states.iter_mut() {
-        if account.program_owner == DEFAULT_PROGRAM_ID {
-            account.program_owner = program.id;
-        }
+impl Program {
+    pub fn id(&self) -> ProgramId {
+        self.id
     }
+    pub(crate) fn execute(
+        &self,
+        pre_states: &[AccountWithMetadata],
+        instruction_data: u128,
+    ) -> Result<Vec<Account>, NssaError> {
+        // Write inputs to the program
+        let mut env_builder = ExecutorEnv::builder();
+        write_inputs(pre_states, instruction_data, &mut env_builder)?;
+        let env = env_builder.build().unwrap();
 
-    Ok(post_states)
+        // Execute the program (without proving)
+        let executor = default_executor();
+        let session_info = executor
+            .execute(env, self.elf)
+            .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
+
+        // Get outputs
+        let mut post_states: Vec<Account> = session_info
+            .journal
+            .decode()
+            .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
+
+        // Claim any output account with default program owner field
+        for account in post_states.iter_mut() {
+            if account.program_owner == DEFAULT_PROGRAM_ID {
+                account.program_owner = self.id;
+            }
+        }
+
+        Ok(post_states)
+    }
 }

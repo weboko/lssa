@@ -31,7 +31,7 @@ pub fn produce_dummy_block(
 }
 
 pub fn produce_dummy_empty_transaction() -> nssa::PublicTransaction {
-    let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
+    let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id();
     let addresses = vec![];
     let nonces = vec![];
     let instruction_data = 0;
@@ -42,31 +42,6 @@ pub fn produce_dummy_empty_transaction() -> nssa::PublicTransaction {
     nssa::PublicTransaction::new(message, witness_set)
 }
 
-// pub fn create_dummy_private_transaction_random_signer(
-//     nullifier_created_hashes: Vec<[u8; 32]>,
-//     utxo_commitments_spent_hashes: Vec<[u8; 32]>,
-//     utxo_commitments_created_hashes: Vec<[u8; 32]>,
-// ) -> Transaction {
-//     let mut rng = rand::thread_rng();
-//
-//     let body = TransactionBody {
-//         tx_kind: TxKind::Private,
-//         execution_input: vec![],
-//         execution_output: vec![],
-//         utxo_commitments_spent_hashes,
-//         utxo_commitments_created_hashes,
-//         nullifier_created_hashes,
-//         execution_proof_private: "dummy_proof".to_string(),
-//         encoded_data: vec![],
-//         ephemeral_pub_key: vec![10, 11, 12],
-//         commitment: vec![],
-//         tweak: Tweak::new(&mut rng),
-//         secret_r: [0; 32],
-//         sc_addr: "sc_addr".to_string(),
-//     };
-//     Transaction::new(body, SignaturePrivateKey::random(&mut rng))
-// }
-
 pub fn create_dummy_transaction_native_token_transfer(
     from: [u8; 32],
     nonce: u128,
@@ -76,7 +51,7 @@ pub fn create_dummy_transaction_native_token_transfer(
 ) -> nssa::PublicTransaction {
     let addresses = vec![nssa::Address::new(from), nssa::Address::new(to)];
     let nonces = vec![nonce];
-    let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
+    let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id();
     let message =
         nssa::public_transaction::Message::new(program_id, addresses, nonces, balance_to_move);
     let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[&signing_key]);

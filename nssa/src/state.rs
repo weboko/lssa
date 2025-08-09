@@ -1,10 +1,10 @@
 use crate::{
-    AUTHENTICATED_TRANSFER_PROGRAM, address::Address, error::NssaError, execute_public,
+    AUTHENTICATED_TRANSFER_PROGRAM, Program, address::Address, error::NssaError,
     public_transaction::PublicTransaction,
 };
 use nssa_core::{
     account::{Account, AccountWithMetadata},
-    program::{Program, ProgramId, validate_constraints},
+    program::{ProgramId, validate_constraints},
 };
 use std::collections::{HashMap, HashSet};
 
@@ -129,7 +129,7 @@ impl V01State {
         };
 
         // // Execute program
-        let post_states = execute_public(&pre_states, message.instruction_data, program)?;
+        let post_states = program.execute(&pre_states, message.instruction_data)?;
 
         // Verify execution corresponds to a well-behaved program.
         // See the # Programs section for the definition of the `validate_constraints` method.

@@ -3,11 +3,6 @@ use crate::account::{Account, AccountWithMetadata};
 pub type ProgramId = [u32; 8];
 pub const DEFAULT_PROGRAM_ID: ProgramId = [0; 8];
 
-pub struct Program {
-    pub id: ProgramId,
-    pub elf: &'static [u8],
-}
-
 /// Validates well-behaved program execution
 ///
 /// # Parameters
