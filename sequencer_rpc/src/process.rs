@@ -18,8 +18,7 @@ use common::{
 
 use common::rpc_primitives::requests::{
     GetBlockDataRequest, GetBlockDataResponse, GetGenesisIdRequest, GetGenesisIdResponse,
-    GetLastBlockRequest, GetLastBlockResponse, HelloRequest, HelloResponse, RegisterAccountRequest,
-    RegisterAccountResponse, SendTxRequest, SendTxResponse,
+    GetLastBlockRequest, GetLastBlockResponse, HelloRequest, HelloResponse, SendTxRequest, SendTxResponse,
 };
 
 use super::{respond, types::err_rpc::RpcErr, JsonHandler};
@@ -203,11 +202,8 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{rpc_handler, JsonHandler};
-    use common::{
-        rpc_primitives::RpcPollingConfig,
-        transaction::{SignaturePrivateKey, Transaction, TransactionBody},
-    };
-    use nssa::Program;
+    use common::rpc_primitives::RpcPollingConfig;
+    
     use sequencer_core::{
         config::{AccountInitialData, SequencerConfig},
         SequencerCore,

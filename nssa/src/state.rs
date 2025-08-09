@@ -19,9 +19,11 @@ impl V01State {
             .to_owned()
             .into_iter()
             .map(|(address_value, balance)| {
-                let mut account = Account::default();
-                account.balance = balance;
-                account.program_owner = AUTHENTICATED_TRANSFER_PROGRAM.id;
+                let account = Account {
+                    balance: balance,
+                    program_owner: AUTHENTICATED_TRANSFER_PROGRAM.id,
+                    ..Account::default()
+                };
                 let address = Address::new(address_value);
                 (address, account)
             })
@@ -188,7 +190,6 @@ mod tests {
         let from_key = PrivateKey(99);
         let to = Address::new(initial_data[0].0);
         let balance_to_move = 8;
-        let to_previous_balance = state.get_account_by_address(&to).balance;
         let tx =
             transfer_transaction_for_tests(from.clone(), from_key, 0, to.clone(), balance_to_move);
         state.transition_from_public_transaction(&tx).unwrap();

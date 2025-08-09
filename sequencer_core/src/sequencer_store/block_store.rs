@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
-use common::{block::Block, merkle_tree_public::TreeHashType, transaction::Transaction};
+use common::{block::Block, merkle_tree_public::TreeHashType};
 use storage::RocksDBIO;
 
 pub struct SequecerBlockStore {
@@ -76,7 +76,7 @@ fn block_to_transactions_map(block: &Block) -> HashMap<TreeHashType, u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nssa::Program;
+    
     use tempfile::tempdir;
     //
     // fn create_dummy_block_with_transaction(block_id: u64) -> (Block, nssa::PublicTransaction) {

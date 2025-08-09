@@ -1,12 +1,6 @@
-use k256::ecdsa::SigningKey;
 use nssa;
-use secp256k1_zkp::Tweak;
 
-use crate::{
-    block::{Block, HashableBlockData},
-    execution_input::PublicNativeTokenSend,
-    transaction::{SignaturePrivateKey, Transaction, TransactionBody, TxKind},
-};
+use crate::block::{Block, HashableBlockData};
 
 //Dummy producers
 

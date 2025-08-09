@@ -1,14 +1,9 @@
 use std::fmt::Display;
 
-use accounts::account_core::address::{self, AccountAddress};
 use anyhow::Result;
 use common::{
     block::HashableBlockData,
-    execution_input::PublicNativeTokenSend,
     merkle_tree_public::TreeHashType,
-    nullifier::UTXONullifier,
-    transaction::{AuthenticatedTransaction, Transaction, TransactionBody, TxKind},
-    utxo_commitment::UTXOCommitment,
 };
 use config::SequencerConfig;
 use mempool::MemPool;
@@ -86,7 +81,7 @@ impl SequencerCore {
 
         let authenticated_tx = self.transaction_pre_check(transaction)?;
 
-        self.mempool.push_item(authenticated_tx.into());
+        self.mempool.push_item(authenticated_tx);
 
         Ok(())
     }
@@ -144,7 +139,7 @@ mod tests {
     use crate::config::AccountInitialData;
 
     use super::*;
-    use nssa::Program;
+    
 
     fn setup_sequencer_config_variable_initial_accounts(
         initial_accounts: Vec<AccountInitialData>,
@@ -309,8 +304,6 @@ mod tests {
         };
 
         let initial_accounts = vec![initial_acc1, initial_acc2];
-
-        let intial_accounts_len = initial_accounts.len();
 
         let config = setup_sequencer_config_variable_initial_accounts(initial_accounts);
         let sequencer = SequencerCore::start_from_config(config.clone());
@@ -507,7 +500,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(TransactionMalformationErrorKind::MempoolFullForRound { .. })
+            Err(TransactionMalformationErrorKind::MempoolFullForRound)
         ));
     }
 

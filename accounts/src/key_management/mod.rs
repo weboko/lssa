@@ -1,15 +1,15 @@
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
 use constants_types::{CipherText, Nonce};
 use elliptic_curve::point::AffineCoordinates;
-use k256::{ecdsa::SigningKey, AffinePoint, FieldBytes};
+use k256::AffinePoint;
 use log::info;
-use rand::{rngs::OsRng, Rng, RngCore};
+use rand::{rngs::OsRng, Rng};
 use secret_holders::{SeedHolder, TopSecretKeyHolder, UTXOSecretKeyHolder};
 use serde::{Deserialize, Serialize};
 
 use crate::account_core::PublicKey;
 pub type PublicAccountSigningKey = [u8; 32];
-use nssa::{self, PrivateKey};
+use nssa::{self};
 
 pub mod constants_types;
 pub mod ephemeral_key_holder;
@@ -118,7 +118,7 @@ mod tests {
     use elliptic_curve::point::AffineCoordinates;
     use k256::{AffinePoint, ProjectivePoint, Scalar};
 
-    use crate::{account_core::address, key_management::ephemeral_key_holder::EphemeralKeyHolder};
+    use crate::key_management::ephemeral_key_holder::EphemeralKeyHolder;
 
     use super::*;
 

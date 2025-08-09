@@ -1,7 +1,7 @@
 use rs_merkle::Hasher;
 use serde::{Deserialize, Serialize};
 
-use crate::{merkle_tree_public::hasher::OwnHasher, transaction::Transaction};
+use crate::merkle_tree_public::hasher::OwnHasher;
 use nssa;
 
 pub type BlockHash = [u8; 32];

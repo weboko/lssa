@@ -8,7 +8,6 @@ use reqwest::Client;
 use serde_json::Value;
 
 use crate::sequencer_client::json::AccountInitialData;
-use crate::transaction::Transaction;
 use crate::{SequencerClientError, SequencerRpcError};
 
 pub mod json;

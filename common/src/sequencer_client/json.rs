@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::Transaction;
 
 //Requests
 

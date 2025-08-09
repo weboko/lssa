@@ -1,12 +1,8 @@
-use std::{collections::HashSet, path::Path};
+use std::path::Path;
 
 use accounts::account_core::address::AccountAddress;
 use block_store::SequecerBlockStore;
-use common::{
-    block::HashableBlockData,
-    merkle_tree_public::merkle_tree::{PublicTransactionMerkleTree, UTXOCommitmentsMerkleTree},
-    nullifier::UTXONullifier,
-};
+use common::block::HashableBlockData;
 use nssa;
 use rand::{rngs::OsRng, RngCore};
 

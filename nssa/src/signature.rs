@@ -28,11 +28,11 @@ impl PublicKey {
 }
 
 impl Signature {
-    pub(crate) fn new(key: &PrivateKey, message: &[u8]) -> Self {
+    pub(crate) fn new(_key: &PrivateKey, message: &[u8]) -> Self {
         Self
     }
 
-    pub(crate) fn is_valid_for(&self, message: &Message, public_key: &PublicKey) -> bool {
+    pub(crate) fn is_valid_for(&self, _message: &Message, _public_key: &PublicKey) -> bool {
         // TODO: implement
         true
     }

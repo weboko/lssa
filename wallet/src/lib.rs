@@ -1,23 +1,18 @@
 use std::sync::Arc;
 
 use common::{
-    execution_input::PublicNativeTokenSend,
     sequencer_client::{json::SendTxResponse, SequencerClient},
-    transaction::Transaction,
     ExecutionFailureKind,
 };
 
 use accounts::account_core::{address::AccountAddress, Account};
 use anyhow::Result;
 use chain_storage::NodeChainStore;
-use common::transaction::TransactionBody;
 use config::NodeConfig;
 use log::info;
-use sc_core::proofs_circuits::pedersen_commitment_vec;
 use tokio::sync::RwLock;
 
 use clap::{Parser, Subcommand};
-use nssa;
 
 use crate::helperfunctions::{fetch_config, produce_account_addr_from_hex};
 
@@ -101,7 +96,7 @@ impl NodeCore {
 
                 let signing_key = account.key_holder.get_pub_account_signing_key();
                 let witness_set =
-                    nssa::public_transaction::WitnessSet::for_message(&message, &[&signing_key]);
+                    nssa::public_transaction::WitnessSet::for_message(&message, &[signing_key]);
 
                 let tx = nssa::PublicTransaction::new(message, witness_set);
 
