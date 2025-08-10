@@ -164,3 +164,25 @@ fn test_program_should_fail_if_transfers_balance_from_non_owned_account() {
 
     assert!(matches!(result, Err(NssaError::InvalidProgramBehavior)));
 }
+
+#[test]
+fn test_program_should_fail_if_modifies_data_of_non_owned_account() {
+    let initial_data = [];
+    let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
+    let address = Address::new([1; 32]);
+    let program_id = Program::data_changer().id();
+
+    // Consider the extreme case where the target account is the default account
+    assert_eq!(state.get_account_by_address(&address), Account::default());
+    assert_ne!(
+        state.get_account_by_address(&address).program_owner,
+        program_id
+    );
+    let message = public_transaction::Message::new(program_id, vec![address], vec![], 0);
+    let witness_set = public_transaction::WitnessSet::for_message(&message, &[]);
+    let tx = PublicTransaction::new(message, witness_set);
+
+    let result = state.transition_from_public_transaction(&tx);
+
+    assert!(matches!(result, Err(NssaError::InvalidProgramBehavior)));
+}

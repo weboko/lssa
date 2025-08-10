@@ -125,4 +125,14 @@ impl Program {
             elf: SIMPLE_BALANCE_TRANSFER_ELF,
         }
     }
+
+    /// A program that modifies the data of an account
+    pub fn data_changer() -> Self {
+        use test_program_methods::{DATA_CHANGER_ELF, DATA_CHANGER_ID};
+
+        Program {
+            id: DATA_CHANGER_ID,
+            elf: DATA_CHANGER_ELF,
+        }
+    }
 }
