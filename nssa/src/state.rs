@@ -1,8 +1,5 @@
 use crate::{
-    address::Address,
-    error::NssaError,
-    program::{AUTHENTICATED_TRANSFER_PROGRAM, Program},
-    public_transaction::PublicTransaction,
+    address::Address, error::NssaError, program::Program, public_transaction::PublicTransaction,
 };
 use nssa_core::{
     account::{Account, AccountWithMetadata},
@@ -17,13 +14,14 @@ pub struct V01State {
 
 impl V01State {
     pub fn new_with_genesis_accounts(initial_data: &[([u8; 32], u128)]) -> Self {
+        let authenticated_transfer_program = Program::authenticated_transfer_program();
         let public_state = initial_data
             .iter()
             .copied()
             .map(|(address_value, balance)| {
                 let account = Account {
                     balance,
-                    program_owner: AUTHENTICATED_TRANSFER_PROGRAM.id(),
+                    program_owner: authenticated_transfer_program.id(),
                     ..Account::default()
                 };
                 let address = Address::new(address_value);
@@ -32,8 +30,8 @@ impl V01State {
             .collect();
 
         let builtin_programs = HashMap::from([(
-            AUTHENTICATED_TRANSFER_PROGRAM.id(),
-            AUTHENTICATED_TRANSFER_PROGRAM,
+            authenticated_transfer_program.id(),
+            authenticated_transfer_program,
         )]);
 
         Self {
@@ -140,118 +138,15 @@ impl V01State {
     }
 }
 
+// Test utils
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{public_transaction, signature::PrivateKey};
-
-    fn transfer_transaction(
-        from: Address,
-        from_key: PrivateKey,
-        nonce: u128,
-        to: Address,
-        balance: u128,
-    ) -> PublicTransaction {
-        let addresses = vec![from, to];
-        let nonces = vec![nonce];
-        let program_id = AUTHENTICATED_TRANSFER_PROGRAM.id();
-        let message = public_transaction::Message::new(program_id, addresses, nonces, balance);
-        let witness_set = public_transaction::WitnessSet::for_message(&message, &[&from_key]);
-        PublicTransaction::new(message, witness_set)
-    }
-
-    #[test]
-    fn transition_from_authenticated_transfer_program_invocation_default_account_destination() {
-        let initial_data = [([1; 32], 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
-        let from = Address::new(initial_data[0].0);
-        let from_key = PrivateKey(1);
-        let to = Address::new([2; 32]);
-        assert_eq!(state.get_account_by_address(&to), Account::default());
-        let balance_to_move = 5;
-
-        let tx = transfer_transaction(from.clone(), from_key, 0, to.clone(), balance_to_move);
-        state.transition_from_public_transaction(&tx).unwrap();
-
-        assert_eq!(state.get_account_by_address(&from).balance, 95);
-        assert_eq!(state.get_account_by_address(&to).balance, 5);
-        assert_eq!(state.get_account_by_address(&from).nonce, 1);
-        assert_eq!(state.get_account_by_address(&to).nonce, 0);
-    }
-
-    #[test]
-    fn transition_from_authenticated_transfer_program_invocation_insuficient_balance() {
-        let initial_data = [([1; 32], 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
-        let from = Address::new(initial_data[0].0);
-        let from_key = PrivateKey(1);
-        let to = Address::new([2; 32]);
-        let balance_to_move = 101;
-        assert!(state.get_account_by_address(&from).balance < balance_to_move);
-
-        let tx = transfer_transaction(from.clone(), from_key, 0, to.clone(), balance_to_move);
-        let result = state.transition_from_public_transaction(&tx);
-
-        assert!(matches!(result, Err(NssaError::ProgramExecutionFailed(_))));
-        assert_eq!(state.get_account_by_address(&from).balance, 100);
-        assert_eq!(state.get_account_by_address(&to).balance, 0);
-        assert_eq!(state.get_account_by_address(&from).nonce, 0);
-        assert_eq!(state.get_account_by_address(&to).nonce, 0);
-    }
-
-    #[test]
-    fn transition_from_authenticated_transfer_program_invocation_non_default_account_destination() {
-        let initial_data = [([1; 32], 100), ([99; 32], 200)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
-        let from = Address::new(initial_data[1].0);
-        let from_key = PrivateKey(99);
-        let to = Address::new(initial_data[0].0);
-        assert_ne!(state.get_account_by_address(&to), Account::default());
-        let balance_to_move = 8;
-
-        let tx = transfer_transaction(from.clone(), from_key, 0, to.clone(), balance_to_move);
-        state.transition_from_public_transaction(&tx).unwrap();
-
-        assert_eq!(state.get_account_by_address(&from).balance, 192);
-        assert_eq!(state.get_account_by_address(&to).balance, 108);
-        assert_eq!(state.get_account_by_address(&from).nonce, 1);
-        assert_eq!(state.get_account_by_address(&to).nonce, 0);
-    }
-
-    #[test]
-    fn transition_from_chained_authenticated_transfer_program_invocations() {
-        let initial_data = [([1; 32], 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
-        let address_1 = Address::new(initial_data[0].0);
-        let key_1 = PrivateKey(1);
-        let address_2 = Address::new([2; 32]);
-        let key_2 = PrivateKey(2);
-        let address_3 = Address::new([3; 32]);
-        let balance_to_move = 5;
-
-        let tx = transfer_transaction(
-            address_1.clone(),
-            key_1,
-            0,
-            address_2.clone(),
-            balance_to_move,
+impl V01State {
+    /// Include test programs in the builtin programs map
+    pub fn with_test_programs(mut self) -> Self {
+        self.builtin_programs.insert(
+            Program::nonce_changer_program().id(),
+            Program::nonce_changer_program(),
         );
-        state.transition_from_public_transaction(&tx).unwrap();
-        let balance_to_move = 3;
-        let tx = transfer_transaction(
-            address_2.clone(),
-            key_2,
-            0,
-            address_3.clone(),
-            balance_to_move,
-        );
-        state.transition_from_public_transaction(&tx).unwrap();
-
-        assert_eq!(state.get_account_by_address(&address_1).balance, 95);
-        assert_eq!(state.get_account_by_address(&address_2).balance, 2);
-        assert_eq!(state.get_account_by_address(&address_3).balance, 3);
-        assert_eq!(state.get_account_by_address(&address_1).nonce, 1);
-        assert_eq!(state.get_account_by_address(&address_2).nonce, 1);
-        assert_eq!(state.get_account_by_address(&address_3).nonce, 0);
+        self
     }
 }

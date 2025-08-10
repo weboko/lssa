@@ -12,7 +12,7 @@ fn main() {
     // Continue only if input_accounts is an array of two elements
     let [sender, receiver] = match input_accounts.try_into() {
         Ok(array) => array,
-        Err(_) => return, // silently return on bad input
+        Err(_) => return,
     };
 
     // Continue only if the sender has authorized this operation

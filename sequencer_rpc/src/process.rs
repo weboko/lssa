@@ -498,7 +498,7 @@ mod tests {
                         ],
                         "instruction_data": 10,
                         "nonces": [0],
-                        "program_id": nssa::program::AUTHENTICATED_TRANSFER_PROGRAM.id(),
+                        "program_id": nssa::program::Program::authenticated_transfer_program().id(),
                     },
                     "witness_set": {
                         "signatures_and_public_keys": [

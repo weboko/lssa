@@ -31,7 +31,7 @@ pub fn produce_dummy_block(
 }
 
 pub fn produce_dummy_empty_transaction() -> nssa::PublicTransaction {
-    let program_id = nssa::program::AUTHENTICATED_TRANSFER_PROGRAM.id();
+    let program_id = nssa::program::Program::authenticated_transfer_program().id();
     let addresses = vec![];
     let nonces = vec![];
     let instruction_data = 0;
@@ -51,7 +51,7 @@ pub fn create_transaction_native_token_transfer(
 ) -> nssa::PublicTransaction {
     let addresses = vec![nssa::Address::new(from), nssa::Address::new(to)];
     let nonces = vec![nonce];
-    let program_id = nssa::program::AUTHENTICATED_TRANSFER_PROGRAM.id();
+    let program_id = nssa::program::Program::authenticated_transfer_program().id();
     let message =
         nssa::public_transaction::Message::new(program_id, addresses, nonces, balance_to_move);
     let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[&signing_key]);

@@ -8,14 +8,9 @@ use risc0_zkvm::{ExecutorEnv, ExecutorEnvBuilder, default_executor};
 use crate::error::NssaError;
 
 pub struct Program {
-    id: ProgramId,
-    elf: &'static [u8],
+    pub(crate) id: ProgramId,
+    pub(crate) elf: &'static [u8],
 }
-
-pub const AUTHENTICATED_TRANSFER_PROGRAM: Program = Program {
-    id: AUTHENTICATED_TRANSFER_ID,
-    elf: AUTHENTICATED_TRANSFER_ELF,
-};
 
 impl Program {
     pub fn id(&self) -> ProgramId {
@@ -68,5 +63,26 @@ impl Program {
             .write(&instruction_data)
             .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
         Ok(())
+    }
+
+    pub fn authenticated_transfer_program() -> Self {
+        Self {
+            id: AUTHENTICATED_TRANSFER_ID,
+            elf: AUTHENTICATED_TRANSFER_ELF,
+        }
+    }
+}
+
+// Test utils
+#[cfg(test)]
+impl Program {
+    /// A program that changes the nonce of an account
+    pub fn nonce_changer_program() -> Self {
+        use test_program_methods::{NONCE_CHANGER_ELF, NONCE_CHANGER_ID};
+
+        Program {
+            id: NONCE_CHANGER_ID,
+            elf: NONCE_CHANGER_ELF,
+        }
     }
 }

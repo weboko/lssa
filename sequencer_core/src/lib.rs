@@ -188,55 +188,11 @@ mod tests {
         setup_sequencer_config_variable_initial_accounts(initial_accounts)
     }
 
-    // fn create_dummy_transaction() -> nssa::PublicTransaction {
-    //     let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
-    //     let addresses = vec![];
-    //     let nonces = vec![];
-    //     let instruction_data = 0;
-    //     let message =
-    //         nssa::public_transaction::Message::new(program_id, addresses, nonces, instruction_data);
-    //     let private_key = nssa::PrivateKey::new(1);
-    //     let witness_set =
-    //         nssa::public_transaction::WitnessSet::for_message(&message, &[&private_key]);
-    //     nssa::PublicTransaction::new(message, witness_set)
-    // }
-    //
-    // fn create_dummy_transaction_native_token_transfer(
-    //     from: [u8; 32],
-    //     nonce: u128,
-    //     to: [u8; 32],
-    //     balance_to_move: u128,
-    //     signing_key: nssa::PrivateKey,
-    // ) -> nssa::PublicTransaction {
-    //     let addresses = vec![nssa::Address::new(from), nssa::Address::new(to)];
-    //     let nonces = vec![nonce];
-    //     let program_id = nssa::AUTHENTICATED_TRANSFER_PROGRAM.id;
-    //     let message =
-    //         nssa::public_transaction::Message::new(program_id, addresses, nonces, balance_to_move);
-    //     let witness_set =
-    //         nssa::public_transaction::WitnessSet::for_message(&message, &[&signing_key]);
-    //     nssa::PublicTransaction::new(message, witness_set)
-    // }
-
     fn create_signing_key_for_account1() -> nssa::PrivateKey {
-        // let pub_sign_key_acc1 = [
-        //     133, 143, 177, 187, 252, 66, 237, 236, 234, 252, 244, 138, 5, 151, 3, 99, 217, 231,
-        //     112, 217, 77, 211, 58, 218, 176, 68, 99, 53, 152, 228, 198, 190,
-        // ];
-        //
-        // let field_bytes = FieldBytes::from_slice(&pub_sign_key_acc1);
-        // SigningKey::from_bytes(field_bytes).unwrap()
         nssa::PrivateKey::new(1)
     }
 
     fn create_signing_key_for_account2() -> nssa::PrivateKey {
-        // let pub_sign_key_acc2 = [
-        //     54, 90, 62, 225, 71, 225, 228, 148, 143, 53, 210, 23, 137, 158, 171, 156, 48, 7, 139,
-        //     52, 117, 242, 214, 7, 99, 29, 122, 184, 59, 116, 144, 107,
-        // ];
-        //
-        // let field_bytes = FieldBytes::from_slice(&pub_sign_key_acc2);
-        // SigningKey::from_bytes(field_bytes).unwrap()
         nssa::PrivateKey::new(2)
     }
 
