@@ -147,7 +147,8 @@ impl V01State {
     /// Include test programs in the builtin programs map
     pub fn with_test_programs(mut self) -> Self {
         self.insert_program(Program::nonce_changer_program());
-        self.insert_program(Program::extra_outputs_program());
+        self.insert_program(Program::extra_output_program());
+        self.insert_program(Program::missing_output_program());
         self
     }
 }

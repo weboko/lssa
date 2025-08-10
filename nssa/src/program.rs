@@ -87,12 +87,22 @@ impl Program {
     }
 
     /// A program that produces more output accounts than the inputs it received
-    pub fn extra_outputs_program() -> Self {
-        use test_program_methods::{EXTRA_OUTPUTS_ELF, EXTRA_OUTPUTS_ID};
+    pub fn extra_output_program() -> Self {
+        use test_program_methods::{EXTRA_OUTPUT_ELF, EXTRA_OUTPUT_ID};
 
         Program {
-            id: EXTRA_OUTPUTS_ID,
-            elf: EXTRA_OUTPUTS_ELF,
+            id: EXTRA_OUTPUT_ID,
+            elf: EXTRA_OUTPUT_ELF,
+        }
+    }
+
+    /// A program that produces less output accounts than the inputs it received
+    pub fn missing_output_program() -> Self {
+        use test_program_methods::{MISSING_OUTPUT_ELF, MISSING_OUTPUT_ID};
+
+        Program {
+            id: MISSING_OUTPUT_ID,
+            elf: MISSING_OUTPUT_ELF,
         }
     }
 }
