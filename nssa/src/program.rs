@@ -135,4 +135,24 @@ impl Program {
             elf: DATA_CHANGER_ELF,
         }
     }
+
+    /// A program that mints balance
+    pub fn minter() -> Self {
+        use test_program_methods::{MINTER_ELF, MINTER_ID};
+
+        Program {
+            id: MINTER_ID,
+            elf: MINTER_ELF,
+        }
+    }
+
+    /// A program that mints balance
+    pub fn burner() -> Self {
+        use test_program_methods::{BURNER_ELF, BURNER_ID};
+
+        Program {
+            id: BURNER_ID,
+            elf: BURNER_ELF,
+        }
+    }
 }

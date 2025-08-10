@@ -152,6 +152,8 @@ impl V01State {
         self.insert_program(Program::program_owner_changer());
         self.insert_program(Program::simple_balance_transfer());
         self.insert_program(Program::data_changer());
+        self.insert_program(Program::minter());
+        self.insert_program(Program::burner());
         self
     }
 
@@ -180,6 +182,16 @@ impl V01State {
             Address::new([253; 32]),
             account_with_default_values_except_data,
         );
+        self
+    }
+
+    pub fn with_account_owned_by_burner_program(mut self) -> Self {
+        let account = Account {
+            program_owner: Program::burner().id(),
+            balance: 100,
+            ..Default::default()
+        };
+        self.public_state.insert(Address::new([252; 32]), account);
         self
     }
 }

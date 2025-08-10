@@ -4,7 +4,6 @@ use crate::{
 };
 use nssa_core::account::Account;
 
-
 fn transfer_transaction(
     from: Address,
     from_key: PrivateKey,
