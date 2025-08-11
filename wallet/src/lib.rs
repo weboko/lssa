@@ -29,7 +29,7 @@ pub mod config;
 pub mod helperfunctions;
 
 pub struct WalletCore {
-    pub storage: Arc<RwLock<WalletChainStore>>,
+    pub storage: WalletChainStore,
     pub wallet_config: WalletConfig,
     pub sequencer_client: Arc<SequencerClient>,
 }
@@ -50,7 +50,7 @@ impl WalletCore {
         }
 
         Ok(Self {
-            storage: wrapped_storage,
+            storage,
             wallet_config: config.clone(),
             sequencer_client: client.clone(),
         })
@@ -74,11 +74,7 @@ impl WalletCore {
         to: AccountAddress,
         balance_to_move: u64,
     ) -> Result<SendTxResponse, ExecutionFailureKind> {
-        let public_context = {
-            let read_guard = self.storage.read().await;
-
-            read_guard.produce_context(from)
-        };
+        let public_context = self.storage.produce_context(from);
 
         let (tweak, secret_r, commitment) = pedersen_commitment_vec(
             //Will not panic, as public context is serializable
@@ -110,12 +106,9 @@ impl WalletCore {
 
             let signed_transaction = Transaction::new(tx, key_to_sign_transaction);
 
-                let signed_transaction = Transaction::new(tx, key_to_sign_transaction);
-
-                Ok(self.sequencer_client.send_tx(signed_transaction).await?)
-            } else {
-                Err(ExecutionFailureKind::AmountMismatchError)
-            }
+            Ok(self.sequencer_client.send_tx(signed_transaction).await?)
+        } else {
+            Err(ExecutionFailureKind::AmountMismatchError)
         }
     }
 
@@ -207,7 +200,7 @@ pub async fn execute_subcommand(command: Command) -> Result<()> {
         Command::DumpAccountsOnDisc { dump_path } => {
             let node_config = fetch_config()?;
 
-            let wallet_core = NodeCore::start_from_config_update_chain(node_config).await?;
+            let wallet_core = WalletCore::start_from_config_update_chain(node_config).await?;
 
             wallet_core.store_present_accounts_at_path(dump_path.clone())?;
 
