@@ -19,7 +19,7 @@ impl WitnessSet {
         }
     }
 
-    pub(crate) fn is_valid_for(&self, message: &Message) -> bool {
+    pub fn is_valid_for(&self, message: &Message) -> bool {
         let message_bytes = message.message_to_bytes();
         for (signature, public_key) in self.iter_signatures() {
             if !signature.is_valid_for(&message_bytes, &public_key) {

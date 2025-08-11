@@ -37,7 +37,7 @@ pub fn produce_dummy_empty_transaction() -> nssa::PublicTransaction {
     let instruction_data = 0;
     let message =
         nssa::public_transaction::Message::try_new(program_id, addresses, nonces, instruction_data).unwrap();
-    let private_key = nssa::PrivateKey::new(1);
+    let private_key = nssa::PrivateKey::try_new([1; 32]).unwrap();
     let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[&private_key]);
     nssa::PublicTransaction::new(message, witness_set)
 }

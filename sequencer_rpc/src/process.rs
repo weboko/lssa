@@ -261,7 +261,7 @@ mod tests {
         let mut sequencer_core = SequencerCore::start_from_config(config);
         let initial_accounts = sequencer_core.sequencer_config.initial_accounts.clone();
 
-        let signing_key = nssa::PrivateKey::new(1);
+        let signing_key = nssa::PrivateKey::try_new([1; 32]).unwrap();
         let balance_to_move = 10;
         let tx = common::test_utils::create_transaction_native_token_transfer(
             [1; 32],

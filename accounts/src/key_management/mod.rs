@@ -37,9 +37,12 @@ impl AddressKeyHolder {
         let nullifer_public_key = utxo_secret_key_holder.generate_nullifier_public_key();
         let viewing_public_key = utxo_secret_key_holder.generate_viewing_public_key();
 
-        let pub_account_signing_key = {
-            let mut rng = OsRng;
-            nssa::PrivateKey::new(rng.gen())
+        let mut rng = OsRng;
+        let pub_account_signing_key = loop {
+            match nssa::PrivateKey::try_new(rng.gen()) {
+                Ok(key) => break key,
+                Err(_) => continue,
+            }
         };
 
         Self {
@@ -330,9 +333,12 @@ mod tests {
         let nullifer_public_key = utxo_secret_key_holder.generate_nullifier_public_key();
         let viewing_public_key = utxo_secret_key_holder.generate_viewing_public_key();
 
-        let pub_account_signing_key = {
-            let mut rng = OsRng;
-            nssa::PrivateKey::new(rng.gen())
+        let mut rng = OsRng;
+        let pub_account_signing_key = loop {
+            match nssa::PrivateKey::try_new(rng.gen()) {
+                Ok(key) => break key,
+                Err(_) => continue,
+            }
         };
 
         let public_key = nssa::PublicKey::new(&pub_account_signing_key);

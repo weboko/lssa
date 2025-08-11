@@ -62,11 +62,7 @@ impl SequencerCore {
         tx: nssa::PublicTransaction,
     ) -> Result<nssa::PublicTransaction, TransactionMalformationErrorKind> {
         // Stateless checks here
-        if tx
-            .witness_set()
-            .iter_signatures()
-            .all(|(signature, public_key)| signature.is_valid_for(tx.message(), public_key))
-        {
+        if tx.witness_set().is_valid_for(tx.message()) {
             Ok(tx)
         } else {
             Err(TransactionMalformationErrorKind::InvalidSignature)
@@ -188,11 +184,11 @@ mod tests {
     }
 
     fn create_signing_key_for_account1() -> nssa::PrivateKey {
-        nssa::PrivateKey::new(1)
+        nssa::PrivateKey::try_new([1; 32]).unwrap()
     }
 
     fn create_signing_key_for_account2() -> nssa::PrivateKey {
-        nssa::PrivateKey::new(2)
+        nssa::PrivateKey::try_new([2; 32]).unwrap()
     }
 
     fn common_setup(sequencer: &mut SequencerCore) {
