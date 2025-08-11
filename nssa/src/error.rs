@@ -13,4 +13,7 @@ pub enum NssaError {
 
     #[error("Serialization error: {0}")]
     InstructionSerializationError(String),
+
+    #[error("Invalid private key")]
+    InvalidPrivateKey,
 }

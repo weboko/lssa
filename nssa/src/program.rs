@@ -21,8 +21,7 @@ impl Program {
     pub fn serialize_instruction<T: Serialize>(
         instruction: T,
     ) -> Result<InstructionData, NssaError> {
-        to_vec(&instruction)
-            .map_err(|e| NssaError::InstructionSerializationError(e.to_string()))
+        to_vec(&instruction).map_err(|e| NssaError::InstructionSerializationError(e.to_string()))
     }
 
     pub(crate) fn execute(
