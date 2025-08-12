@@ -1,4 +1,3 @@
-use crate::block::Block;
 use crate::parse_request;
 
 use super::errors::RpcParseError;

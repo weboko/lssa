@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::Cursor,
-};
+use std::collections::{HashMap, HashSet};
 
 use nssa_core::{
     account::{Account, AccountWithMetadata},

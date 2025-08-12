@@ -1,8 +1,6 @@
-use std::io::{Cursor, Read};
 
-use serde::{Deserialize, Serialize};
 
-use crate::{PrivateKey, PublicKey, Signature, error::NssaError, public_transaction::Message};
+use crate::{PrivateKey, PublicKey, Signature, public_transaction::Message};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WitnessSet {
@@ -24,7 +22,7 @@ impl WitnessSet {
     pub fn is_valid_for(&self, message: &Message) -> bool {
         let message_bytes = message.to_bytes();
         for (signature, public_key) in self.iter_signatures() {
-            if !signature.is_valid_for(&message_bytes, &public_key) {
+            if !signature.is_valid_for(&message_bytes, public_key) {
                 return false;
             }
         }

@@ -1,8 +1,7 @@
-use std::io::{Cursor, Read};
 
 use rand::{RngCore, rngs::OsRng};
 
-use crate::{PrivateKey, PublicKey, error::NssaError, public_transaction::Message};
+use crate::{PrivateKey, PublicKey};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Signature {
@@ -31,7 +30,7 @@ impl Signature {
         let pk = secp256k1::XOnlyPublicKey::from_byte_array(public_key.0).unwrap();
         let secp = secp256k1::Secp256k1::new();
         let sig = secp256k1::schnorr::Signature::from_byte_array(self.value);
-        secp.verify_schnorr(&sig, &bytes, &pk).is_ok()
+        secp.verify_schnorr(&sig, bytes, &pk).is_ok()
     }
 }
 

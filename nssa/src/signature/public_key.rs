@@ -1,6 +1,5 @@
-use std::io::{Cursor, Read};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::PrivateKey;
 
@@ -23,7 +22,7 @@ impl PublicKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::{PrivateKey, PublicKey, signature::tests::test_vectors};
+    use crate::{PublicKey, signature::tests::test_vectors};
 
     #[test]
     fn test_public_key_generation_from_bip340_test_vectors() {

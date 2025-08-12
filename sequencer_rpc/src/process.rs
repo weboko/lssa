@@ -1,4 +1,3 @@
-use std::io::Cursor;
 
 use actix_web::Error as HttpError;
 use base64::{engine::general_purpose, Engine};

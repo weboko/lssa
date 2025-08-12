@@ -8,7 +8,6 @@ use common::{
 use accounts::account_core::{address::AccountAddress, Account};
 use anyhow::Result;
 use chain_storage::WalletChainStore;
-use common::transaction::TransactionBody;
 use config::WalletConfig;
 use log::info;
 use tokio::sync::RwLock;
