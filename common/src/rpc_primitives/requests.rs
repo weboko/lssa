@@ -17,7 +17,7 @@ pub struct RegisterAccountRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SendTxRequest {
-    pub transaction: Vec<u8>
+    pub transaction: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

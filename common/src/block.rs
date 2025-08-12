@@ -103,8 +103,6 @@ fn u64_from_cursor(cursor: &mut Cursor<&[u8]>) -> u64 {
     u64::from_le_bytes(word_buf)
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use crate::{block::HashableBlockData, test_utils};

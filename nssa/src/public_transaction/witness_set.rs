@@ -34,5 +34,4 @@ impl WitnessSet {
     pub fn iter_signatures(&self) -> impl Iterator<Item = &(Signature, PublicKey)> {
         self.signatures_and_public_keys.iter()
     }
-
 }

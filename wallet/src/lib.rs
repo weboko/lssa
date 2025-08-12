@@ -84,7 +84,8 @@ impl WalletCore {
                     addresses,
                     nonces,
                     balance_to_move,
-                ).unwrap();
+                )
+                .unwrap();
 
                 let signing_key = account.key_holder.get_pub_account_signing_key();
                 let witness_set =

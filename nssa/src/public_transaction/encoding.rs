@@ -3,7 +3,8 @@ use std::io::{Cursor, Read};
 use nssa_core::program::ProgramId;
 
 use crate::{
-    public_transaction::{Message, WitnessSet}, Address, PublicKey, PublicTransaction, Signature
+    Address, PublicKey, PublicTransaction, Signature,
+    public_transaction::{Message, WitnessSet},
 };
 
 const MESSAGE_ENCODING_PREFIX_LEN: usize = 19;
@@ -86,7 +87,6 @@ impl Message {
         }
     }
 }
-
 
 impl WitnessSet {
     pub(crate) fn to_bytes(&self) -> Vec<u8> {

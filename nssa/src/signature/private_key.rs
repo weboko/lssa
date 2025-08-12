@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::NssaError;
 
-
 // TODO: Dummy impl. Replace by actual private key.
 // TODO: Remove Debug, Clone, Serialize, Deserialize, PartialEq and Eq for security reasons
 // TODO: Implement Zeroize
@@ -22,4 +21,3 @@ impl PrivateKey {
         }
     }
 }
-

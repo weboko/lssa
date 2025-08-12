@@ -48,7 +48,6 @@ impl PublicTransaction {
         }
     }
 
-
     pub fn hash(&self) -> [u8; 32] {
         let bytes = self.to_bytes();
         let mut hasher = sha2::Sha256::new();
@@ -126,7 +125,7 @@ mod tests {
     use std::io::Cursor;
 
     use crate::{
-        Address, PrivateKey, PublicTransaction, PublicKey,
+        Address, PrivateKey, PublicKey, PublicTransaction,
         program::Program,
         public_transaction::{Message, WitnessSet},
     };

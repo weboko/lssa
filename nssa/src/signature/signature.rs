@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read};
 
-use rand::{rngs::OsRng, RngCore};
+use rand::{RngCore, rngs::OsRng};
 
 use crate::{PrivateKey, PublicKey, error::NssaError, public_transaction::Message};
 
