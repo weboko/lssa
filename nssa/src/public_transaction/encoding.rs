@@ -108,7 +108,7 @@ impl WitnessSet {
             u32::from_le_bytes(buf)
         };
         let mut signatures_and_public_keys = Vec::with_capacity(num_signatures as usize);
-        for i in 0..num_signatures {
+        for _i in 0..num_signatures {
             let signature = Signature::from_cursor(cursor);
             let public_key = PublicKey::from_cursor(cursor);
             signatures_and_public_keys.push((signature, public_key))

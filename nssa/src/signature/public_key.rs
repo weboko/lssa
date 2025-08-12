@@ -1,6 +1,3 @@
-
-use serde::Serialize;
-
 use crate::PrivateKey;
 
 // TODO: Dummy impl. Replace by actual public key.

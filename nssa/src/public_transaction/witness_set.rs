@@ -1,5 +1,3 @@
-
-
 use crate::{PrivateKey, PublicKey, Signature, public_transaction::Message};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

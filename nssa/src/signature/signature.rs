@@ -1,4 +1,3 @@
-
 use rand::{RngCore, rngs::OsRng};
 
 use crate::{PrivateKey, PublicKey};
