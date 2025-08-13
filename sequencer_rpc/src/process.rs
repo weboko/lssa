@@ -1,4 +1,3 @@
-
 use actix_web::Error as HttpError;
 use base64::{engine::general_purpose, Engine};
 use nssa;
@@ -71,7 +70,8 @@ impl JsonHandler {
 
     async fn process_send_tx(&self, request: Request) -> Result<Value, RpcErr> {
         let send_tx_req = SendTxRequest::parse(Some(request.params))?;
-        let tx = nssa::PublicTransaction::from_bytes(&send_tx_req.transaction);
+        let tx = nssa::PublicTransaction::from_bytes(&send_tx_req.transaction)
+            .map_err(|e| RpcError::serialization_error(&e.to_string()))?;
 
         {
             let mut state = self.sequencer_state.lock().await;

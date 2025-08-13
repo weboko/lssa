@@ -78,7 +78,7 @@ impl HashableBlockData {
 
         let mut transactions = Vec::with_capacity(num_transactions);
         for _ in 0..num_transactions {
-            let tx = nssa::PublicTransaction::from_cursor(&mut cursor);
+            let tx = nssa::PublicTransaction::from_cursor(&mut cursor).unwrap();
             transactions.push(tx);
         }
 

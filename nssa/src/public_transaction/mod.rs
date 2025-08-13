@@ -128,7 +128,7 @@ mod tests {
     };
 
     #[test]
-    fn test_to_bytes() {
+    fn test_public_transaction_encoding_bytes_roundtrip() {
         let key1 = PrivateKey::try_new([1; 32]).unwrap();
         let key2 = PrivateKey::try_new([2; 32]).unwrap();
         let addr1 = Address::from_public_key(&PublicKey::new(&key1));
@@ -147,8 +147,7 @@ mod tests {
         let tx = PublicTransaction::new(message, witness_set);
 
         let bytes = tx.to_bytes();
-        let mut cursor: Cursor<&[u8]> = Cursor::new(&bytes);
-        let recov_tx = PublicTransaction::from_cursor(&mut cursor);
-        assert_eq!(tx, recov_tx);
+        let tx_from_bytes = PublicTransaction::from_bytes(&bytes).unwrap();
+        assert_eq!(tx, tx_from_bytes);
     }
 }

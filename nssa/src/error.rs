@@ -1,3 +1,5 @@
+use std::io;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -16,4 +18,7 @@ pub enum NssaError {
 
     #[error("Invalid private key")]
     InvalidPrivateKey,
+
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
 }

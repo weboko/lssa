@@ -102,13 +102,10 @@ impl SequencerCore {
             .mempool
             .pop_size(self.sequencer_config.max_num_tx_in_block);
 
-        println!("##");
-        println!("{:?}", transactions.len());
         let valid_transactions: Vec<_> = transactions
             .into_iter()
             .filter_map(|tx| self.execute_check_transaction_on_state(tx).ok())
             .collect();
-        println!("{:?}", valid_transactions.len());
 
         let prev_block_hash = self
             .store
