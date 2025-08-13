@@ -10,7 +10,12 @@ impl WitnessSet {
         let message_bytes = message.to_bytes();
         let signatures_and_public_keys = private_keys
             .iter()
-            .map(|&key| (Signature::new(key, &message_bytes), PublicKey::new_from_private_key(key)))
+            .map(|&key| {
+                (
+                    Signature::new(key, &message_bytes),
+                    PublicKey::new_from_private_key(key),
+                )
+            })
             .collect();
         Self {
             signatures_and_public_keys,

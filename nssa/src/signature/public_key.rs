@@ -43,6 +43,7 @@ mod test {
         assert!(matches!(result, Err(NssaError::InvalidPublicKey)));
     }
 
+    #[test]
     fn test_try_new_invalid_public_key_from_bip340_test_vector_14() {
         let value_invalid_key = [
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
@@ -54,11 +55,12 @@ mod test {
         assert!(matches!(result, Err(NssaError::InvalidPublicKey)));
     }
 
+    #[test]
     fn test_try_new_valid_public_keys() {
         for (i, test_vector) in bip340_test_vectors::test_vectors().into_iter().enumerate() {
             let expected_public_key = test_vector.pubkey;
             let public_key = PublicKey::try_new(*expected_public_key.value()).unwrap();
-            assert_eq!(public_key, expected_public_key);
+            assert_eq!(public_key, expected_public_key, "Failed on test vector {i}");
         }
     }
 

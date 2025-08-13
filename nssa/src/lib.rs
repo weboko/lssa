@@ -11,4 +11,3 @@ pub use signature::PrivateKey;
 pub use signature::PublicKey;
 pub use signature::Signature;
 pub use state::V01State;
-

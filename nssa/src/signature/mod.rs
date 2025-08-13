@@ -48,7 +48,7 @@ mod bip340_test_vectors;
 #[cfg(test)]
 mod tests {
 
-    use crate::{PublicKey, Signature, signature::bip340_test_vectors};
+    use crate::{Signature, signature::bip340_test_vectors};
 
     impl Signature {
         pub(crate) fn new_for_tests(value: [u8; 64]) -> Self {
