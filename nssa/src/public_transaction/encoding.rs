@@ -121,8 +121,8 @@ impl WitnessSet {
 
 impl PublicTransaction {
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = self.message.to_bytes();
-        bytes.extend_from_slice(&self.witness_set.to_bytes());
+        let mut bytes = self.message().to_bytes();
+        bytes.extend_from_slice(&self.witness_set().to_bytes());
         bytes
     }
 
@@ -134,10 +134,7 @@ impl PublicTransaction {
     pub fn from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<Self, NssaError> {
         let message = Message::from_cursor(cursor)?;
         let witness_set = WitnessSet::from_cursor(cursor)?;
-        Ok(Self {
-            message,
-            witness_set,
-        })
+        Ok(PublicTransaction::new(message, witness_set))
     }
 }
 

@@ -65,6 +65,7 @@ impl HashableBlockData {
         bytes
     }
 
+    // TODO: Improve error handling. Remove unwraps.
     pub fn from_bytes(data: &[u8]) -> Self {
         let mut cursor = Cursor::new(data);
 
@@ -91,12 +92,14 @@ impl HashableBlockData {
     }
 }
 
+// TODO: Improve error handling. Remove unwraps.
 fn u32_from_cursor(cursor: &mut Cursor<&[u8]>) -> u32 {
     let mut word_buf = [0u8; 4];
     cursor.read_exact(&mut word_buf).unwrap();
     u32::from_le_bytes(word_buf)
 }
 
+// TODO: Improve error handling. Remove unwraps.
 fn u64_from_cursor(cursor: &mut Cursor<&[u8]>) -> u64 {
     let mut word_buf = [0u8; 8];
     cursor.read_exact(&mut word_buf).unwrap();
@@ -108,12 +111,12 @@ mod tests {
     use crate::{block::HashableBlockData, test_utils};
 
     #[test]
-    fn test() {
+    fn test_encoding_roundtrip() {
         let transactions = vec![test_utils::produce_dummy_empty_transaction()];
         let block = test_utils::produce_dummy_block(1, Some([1; 32]), transactions);
         let hashable = HashableBlockData::from(block);
         let bytes = hashable.to_bytes();
-        let recov = HashableBlockData::from_bytes(&bytes);
-        assert_eq!(hashable, recov);
+        let block_from_bytes = HashableBlockData::from_bytes(&bytes);
+        assert_eq!(hashable, block_from_bytes);
     }
 }
