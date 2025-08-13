@@ -270,7 +270,7 @@ mod tests {
         .unwrap();
 
         let mut witness_set = WitnessSet::for_message(&message, &[&key1, &key2]);
-        witness_set.signatures_and_public_keys[0].0 = Signature { value: [1; 64] };
+        witness_set.signatures_and_public_keys[0].0 = Signature::new_for_tests([1; 64]);
         let tx = PublicTransaction::new(message, witness_set);
         let result = tx.validate_and_compute_post_states(&state);
         assert!(matches!(result, Err(NssaError::InvalidInput(_))))

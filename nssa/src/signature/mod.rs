@@ -9,7 +9,7 @@ use rand::{RngCore, rngs::OsRng};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Signature {
-    pub(crate) value: [u8; 64],
+    value: [u8; 64],
 }
 
 impl Signature {
@@ -49,6 +49,12 @@ mod bip340_test_vectors;
 mod tests {
 
     use crate::{PublicKey, Signature, signature::bip340_test_vectors};
+
+    impl Signature {
+        pub(crate) fn new_for_tests(value: [u8; 64]) -> Self {
+            Self { value }
+        }
+    }
 
     #[test]
     fn test_signature_generation_from_bip340_test_vectors() {
