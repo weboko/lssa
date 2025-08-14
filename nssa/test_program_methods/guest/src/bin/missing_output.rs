@@ -1,5 +1,4 @@
-use nssa_core::program::read_nssa_inputs;
-use risc0_zkvm::guest::env;
+use nssa_core::program::{read_nssa_inputs, write_nssa_outputs};
 
 type Instruction = ();
 
@@ -11,7 +10,7 @@ fn main() {
         Err(_) => return,
     };
 
-    let account_pre1 = pre1.account;
+    let account_pre1 = pre1.account.clone();
 
-    env::commit(&vec![account_pre1]);
+    write_nssa_outputs(vec![pre1], vec![account_pre1]);
 }

@@ -1,5 +1,4 @@
-use nssa_core::program::read_nssa_inputs;
-use risc0_zkvm::guest::env;
+use nssa_core::program::{read_nssa_inputs, write_nssa_outputs};
 
 type Instruction = u128;
 
@@ -32,5 +31,5 @@ fn main() {
     sender_post.balance -= balance_to_move;
     receiver_post.balance += balance_to_move;
 
-    env::commit(&vec![sender_post, receiver_post]);
+    write_nssa_outputs(vec![sender, receiver], vec![sender_post, receiver_post]);
 }

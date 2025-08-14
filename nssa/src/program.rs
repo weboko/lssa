@@ -1,6 +1,6 @@
 use nssa_core::{
     account::{Account, AccountWithMetadata},
-    program::{DEFAULT_PROGRAM_ID, InstructionData, ProgramId},
+    program::{DEFAULT_PROGRAM_ID, InstructionData, ProgramId, ProgramOutput},
 };
 use program_methods::{AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID};
 use risc0_zkvm::{
@@ -44,7 +44,10 @@ impl Program {
             .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
 
         // Get outputs
-        let mut post_states: Vec<Account> = session_info
+        let ProgramOutput {
+            post_states: mut post_states,
+            ..
+        } = session_info
             .journal
             .decode()
             .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
@@ -107,7 +110,10 @@ impl Program {
 
 #[cfg(test)]
 mod tests {
-    use nssa_core::account::{Account, AccountWithMetadata};
+    use nssa_core::{
+        account::{Account, AccountWithMetadata},
+        program::ProgramOutput,
+    };
 
     use crate::program::Program;
 
@@ -256,15 +262,12 @@ mod tests {
             balance: balance_to_move,
             ..Account::default()
         };
+
         let receipt = program
             .execute_and_prove(&[sender, recipient], &instruction_data)
             .unwrap();
-        let [sender_post, recipient_post] = receipt
-            .journal
-            .decode::<Vec<Account>>()
-            .unwrap()
-            .try_into()
-            .unwrap();
+        let ProgramOutput { post_states, .. } = receipt.journal.decode().unwrap();
+        let [sender_post, recipient_post] = post_states.try_into().unwrap();
 
         let output = assert_eq!(sender_post, expected_sender_post);
 
