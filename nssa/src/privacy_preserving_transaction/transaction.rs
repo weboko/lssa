@@ -1,8 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use nssa_core::account::Account;
+use nssa_core::account::{Account, AccountWithMetadata};
 
 use crate::error::NssaError;
+use crate::privacy_preserving_transaction::message::EncryptedAccountData;
+use crate::state::CommitmentSetDigest;
 use crate::{Address, V01State};
 
 use super::message::Message;
@@ -15,11 +17,100 @@ pub struct PrivacyPreservingTransaction {
 }
 
 impl PrivacyPreservingTransaction {
-    pub(crate) fn validate(
+    pub(crate) fn validate_and_produce_public_state_diff(
         &self,
-        arg: &mut V01State,
+        state: &mut V01State,
     ) -> Result<HashMap<Address, Account>, NssaError> {
-        todo!()
+        let message = &self.message;
+        let witness_set = &self.witness_set;
+
+        // 1. Commitments or nullifiers are non empty
+        if message.new_commitments.is_empty() && message.new_nullifiers.is_empty() {
+            return Err(NssaError::InvalidInput(
+                "Empty commitments and empty nullifiers found in message".into(),
+            ));
+        }
+
+        // 2. Check there are no duplicate addresses in the public_addresses list.
+        if n_unique(&message.public_addresses) != message.public_addresses.len() {
+            return Err(NssaError::InvalidInput(
+                "Duplicate addresses found in message".into(),
+            ));
+        }
+
+        // Check there are no duplicate nullifiers in the new_nullifiers list
+        if n_unique(&message.new_nullifiers) != message.new_nullifiers.len() {
+            return Err(NssaError::InvalidInput(
+                "Duplicate nullifiers found in message".into(),
+            ));
+        }
+
+        // Check there are no duplicate commitments in the new_nullifiers list
+        if n_unique(&message.new_commitments) != message.new_commitments.len() {
+            return Err(NssaError::InvalidInput(
+                "Duplicate commitments found in message".into(),
+            ));
+        }
+
+        // 3. Nonce checks and Valid signatures
+        // Check exactly one nonce is provided for each signature
+        if message.nonces.len() != witness_set.signatures_and_public_keys.len() {
+            return Err(NssaError::InvalidInput(
+                "Mismatch between number of nonces and signatures/public keys".into(),
+            ));
+        }
+
+        // Check the signatures are valid
+        if !witness_set.is_valid_for(message) {
+            return Err(NssaError::InvalidInput(
+                "Invalid signature for given message and public key".into(),
+            ));
+        }
+
+        let signer_addresses = self.signer_addresses();
+        // Check nonces corresponds to the current nonces on the public state.
+        for (address, nonce) in signer_addresses.iter().zip(&message.nonces) {
+            let current_nonce = state.get_account_by_address(address).nonce;
+            if current_nonce != *nonce {
+                return Err(NssaError::InvalidInput("Nonce mismatch".into()));
+            }
+        }
+
+        // Build pre_states for proof verification
+        let public_pre_states: Vec<_> = message
+            .public_addresses
+            .iter()
+            .map(|address| AccountWithMetadata {
+                account: state.get_account_by_address(address),
+                is_authorized: signer_addresses.contains(address),
+            })
+            .collect();
+
+        let set_commitment = state.commitment_set_digest();
+
+        // 4. Proof verification
+        check_privacy_preserving_circuit_execution_proof_is_valid(
+            witness_set.proof,
+            &public_pre_states,
+            &message.public_post_states,
+            &message.encrypted_private_post_states,
+            &message.new_commitments,
+            &message.new_nullifiers,
+            set_commitment,
+        )?;
+
+        // 5. Commitment freshness
+        state.check_commitments_are_new(&message.new_commitments)?;
+
+        // 6. Nullifier uniqueness
+        state.check_nullifiers_are_new(&message.new_nullifiers)?;
+
+        Ok(message
+            .public_addresses
+            .iter()
+            .cloned()
+            .zip(message.public_post_states.clone())
+            .collect())
     }
 
     pub fn message(&self) -> &Message {
@@ -37,4 +128,22 @@ impl PrivacyPreservingTransaction {
             .map(|(_, public_key)| Address::from_public_key(public_key))
             .collect()
     }
+}
+
+fn check_privacy_preserving_circuit_execution_proof_is_valid(
+    proof: (),
+    public_pre_states: &[AccountWithMetadata],
+    public_post_states: &[Account],
+    encrypted_private_post_states: &EncryptedAccountData,
+    new_commitments: &[nssa_core::account::Commitment],
+    new_nullifiers: &[nssa_core::account::Nullifier],
+    commitment_set_digest: CommitmentSetDigest,
+) -> Result<(), NssaError> {
+    todo!()
+}
+
+use std::hash::Hash;
+fn n_unique<T: Eq + Hash>(data: &[T]) -> usize {
+    let set: HashSet<&T> = data.iter().collect();
+    set.len()
 }

@@ -10,15 +10,16 @@ use nssa_core::{
 use std::collections::{HashMap, HashSet};
 
 struct CommitmentSet(HashSet<Commitment>);
+pub type CommitmentSetDigest = [u32; 8];
 
 impl CommitmentSet {
-    fn extend(&mut self, commitments: &[Commitment]) {
+    fn extend(&mut self, commitments: Vec<Commitment>) {
         self.0.extend(commitments)
     }
 
-    fn set_commitment(&self) -> [u8; 32] {
+    fn digest(&self) -> CommitmentSetDigest {
         // TODO: implement
-        [0; 32]
+        [0; 8]
     }
 }
 type NullifierSet = HashSet<Nullifier>;
@@ -65,7 +66,7 @@ impl V01State {
         &mut self,
         tx: &PublicTransaction,
     ) -> Result<(), NssaError> {
-        let state_diff = tx.validate_and_compute_post_states(self)?;
+        let state_diff = tx.validate_and_produce_public_state_diff(self)?;
 
         for (address, post) in state_diff.into_iter() {
             let current_account = self.get_account_by_address_mut(address);
@@ -90,14 +91,15 @@ impl V01State {
         tx: &PrivacyPreservingTransaction,
     ) -> Result<(), NssaError> {
         // 1. Verify the transaction satisfies acceptance criteria
-        let public_state_diff = tx.validate(self)?;
+        let public_state_diff = tx.validate_and_produce_public_state_diff(self)?;
+
         let message = tx.message();
 
         // 2. Add new commitments
-        self.private_state.0.extend(message.new_commitments);
+        self.private_state.0.extend(message.new_commitments.clone());
 
         // 3. Add new nullifiers
-        self.private_state.1.extend(message.new_nullifiers);
+        self.private_state.1.extend(message.new_nullifiers.clone());
 
         // 4. Update public accounts
         for (address, post) in public_state_diff.into_iter() {
@@ -126,6 +128,24 @@ impl V01State {
 
     pub(crate) fn builtin_programs(&self) -> &HashMap<ProgramId, Program> {
         &self.builtin_programs
+    }
+
+    pub fn commitment_set_digest(&self) -> CommitmentSetDigest {
+        self.private_state.0.digest()
+    }
+
+    pub(crate) fn check_commitments_are_new(
+        &self,
+        new_commitments: &[Commitment],
+    ) -> Result<(), NssaError> {
+        todo!()
+    }
+
+    pub(crate) fn check_nullifiers_are_new(
+        &self,
+        new_nullifiers: &[Nullifier],
+    ) -> Result<(), NssaError> {
+        todo!()
     }
 }
 
