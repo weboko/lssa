@@ -23,9 +23,6 @@ hex.workspace = true
 actix-rt.workspace = true
 clap.workspace = true
 
-[dependencies.sc_core]
-path = "../sc_core"
-
 [dependencies.accounts]
 path = "../accounts"
 

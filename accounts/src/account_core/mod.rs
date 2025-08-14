@@ -106,7 +106,7 @@ impl AccountPublicMask {
     }
 
     pub fn make_tag(&self) -> Tag {
-        self.address.tag()
+        self.address.value()[0]
     }
 }
 
@@ -199,7 +199,7 @@ impl Account {
     }
 
     pub fn make_tag(&self) -> Tag {
-        self.address.tag()
+        self.address.value()[0]
     }
 
     ///Produce account public mask

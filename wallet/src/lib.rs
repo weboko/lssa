@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use common::{
     sequencer_client::{json::SendTxResponse, SequencerClient},
@@ -15,7 +15,7 @@ use nssa::Address;
 use clap::{Parser, Subcommand};
 
 use crate::helperfunctions::{
-    fetch_config, fetch_persistent_accounts, get_home, produce_account_addr_from_hex,
+    fetch_config, fetch_persistent_accounts, produce_account_addr_from_hex,
 };
 
 pub const HOME_DIR_ENV_VAR: &str = "NSSA_WALLET_HOME_DIR";
@@ -96,33 +96,6 @@ impl WalletCore {
             Err(ExecutionFailureKind::AmountMismatchError)
         }
     }
-
-    ///Dumps all accounts from acc_map at `path`
-    ///
-    ///Currently storing everything in one file
-    ///
-    ///ToDo: extend storage
-    pub fn store_present_accounts_at_path(&self, path: PathBuf) -> Result<PathBuf> {
-        let dump_path = path.join("curr_accounts.json");
-
-        let curr_accs: Vec<Account> = self.storage.acc_map.values().cloned().collect();
-        let accs_serialized = serde_json::to_vec_pretty(&curr_accs)?;
-
-        let mut acc_file = File::create(&dump_path).unwrap();
-        acc_file.write_all(&accs_serialized).unwrap();
-
-        Ok(dump_path)
-    }
-
-    ///Dumps all accounts from acc_map at `NSSA_WALLET_HOME_DIR`
-    ///
-    ///Currently storing everything in one file
-    ///
-    ///ToDo: extend storage
-    pub fn store_present_accounts_at_home(&self) -> Result<PathBuf> {
-        let home = get_home()?;
-        self.store_present_accounts_at_path(home)
-    }
 }
 
 ///Represents CLI command for a wallet
@@ -143,12 +116,6 @@ pub enum Command {
         ///amount - amount of balance to move
         #[arg(long)]
         amount: u128,
-    },
-    ///Dump accounts at destination
-    DumpAccountsOnDisc {
-        ///Dump path for accounts
-        #[arg(short, long)]
-        dump_path: PathBuf,
     },
 }
 
@@ -183,19 +150,6 @@ pub async fn execute_subcommand(command: Command) -> Result<()> {
             info!("Results of tx send is {res:#?}");
 
             //ToDo: Insert transaction polling logic here
-
-            let acc_storage_path = wallet_core.store_present_accounts_at_home()?;
-
-            info!("Accounts stored at {acc_storage_path:#?}");
-        }
-        Command::DumpAccountsOnDisc { dump_path } => {
-            let node_config = fetch_config()?;
-
-            let wallet_core = WalletCore::start_from_config_update_chain(node_config).await?;
-
-            wallet_core.store_present_accounts_at_path(dump_path.clone())?;
-
-            info!("Accounts stored at path {dump_path:#?}");
         }
     }
 

@@ -1,10 +1,9 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use accounts::account_core::Account;
 use anyhow::Result;
 use common::merkle_tree_public::merkle_tree::UTXOCommitmentsMerkleTree;
 use nssa::Address;
-use sc_core::public_context::PublicSCContext;
 use serde::{Deserialize, Serialize};
 
 use crate::config::WalletConfig;
@@ -53,22 +52,6 @@ impl WalletChainStore {
             utxo_commitments_store,
             wallet_config: config,
         })
-    }
-
-    pub fn produce_context(&self, caller: Address) -> PublicSCContext {
-        let mut account_masks = BTreeMap::new();
-
-        for (acc_addr, acc) in &self.acc_map {
-            account_masks.insert(*acc_addr, acc.make_account_public_mask());
-        }
-
-        PublicSCContext {
-            caller_address: caller,
-            caller_balance: self.acc_map.get(&caller).unwrap().balance,
-            account_masks,
-            comitment_store_root: self.utxo_commitments_store.get_root().unwrap_or([0; 32]),
-            commitments_tree: self.utxo_commitments_store.clone(),
-        }
     }
 }
 

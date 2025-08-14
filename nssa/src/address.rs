@@ -1,5 +1,7 @@
+use std::{fmt::Display, str::FromStr};
+
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize, de::Visitor};
+use serde::{Deserialize, Serialize};
 
 use crate::signature::PublicKey;
 
@@ -13,10 +15,6 @@ pub struct Address {
 impl Address {
     pub fn new(value: [u8; 32]) -> Self {
         Self { value }
-    }
-
-    pub fn tag(&self) -> u8 {
-        self.value[0]
     }
 
     pub fn value(&self) -> &[u8; 32] {
@@ -49,90 +47,30 @@ impl From<&PublicKey> for Address {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HexString(String);
-
-impl HexString {
-    pub fn inner(&self) -> &str {
-        &self.0
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
-pub enum HexStringConsistencyError {
-    #[error("Hex decode error")]
-    HexError(#[from] hex::FromHexError),
-    #[error("Decode slice does not fit 32 bytes")]
-    SizeError(#[from] anyhow::Error),
+pub enum AddressError {
+    #[error("invalid hex")]
+    InvalidHex(#[from] hex::FromHexError),
+    #[error("invalid length: expected 32 bytes, got {0}")]
+    InvalidLength(usize),
 }
 
-impl TryFrom<&str> for HexString {
-    type Error = HexStringConsistencyError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let decoded_str = hex::decode(value)?;
-        let _: Address = decoded_str.try_into()?;
-
-        Ok(Self(value.to_string()))
-    }
-}
-
-impl Serialize for HexString {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.0)
+impl FromStr for Address {
+    type Err = AddressError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = hex::decode(s)?;
+        if bytes.len() != 32 {
+            return Err(AddressError::InvalidLength(bytes.len()));
+        }
+        let mut value = [0u8; 32];
+        value.copy_from_slice(&bytes);
+        Ok(Address { value })
     }
 }
 
-struct HexStringVisitor;
-
-impl<'de> Visitor<'de> for HexStringVisitor {
-    type Value = String;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("expected a valid string")
-    }
-
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(v)
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(v.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for HexString {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let str_cand = deserializer.deserialize_string(HexStringVisitor)?;
-
-        let hex_string =
-            HexString::try_from(str_cand.as_str()).map_err(serde::de::Error::custom)?;
-
-        Ok(hex_string)
-    }
-}
-
-impl From<HexString> for Address {
-    fn from(value: HexString) -> Self {
-        Address::try_from(hex::decode(value.inner()).unwrap()).unwrap()
-    }
-}
-
-impl From<Address> for HexString {
-    fn from(value: Address) -> Self {
-        HexString::try_from(hex::encode(value).as_str()).unwrap()
+impl Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self.value))
     }
 }
 
@@ -141,7 +79,7 @@ impl Serialize for Address {
     where
         S: serde::Serializer,
     {
-        let hex_string: HexString = (*self).into();
+        let hex_string = self.to_string();
 
         hex_string.serialize(serializer)
     }
@@ -152,82 +90,41 @@ impl<'de> Deserialize<'de> for Address {
     where
         D: serde::Deserializer<'de>,
     {
-        let hex_sring = HexString::deserialize(deserializer)?;
+        let hex_string = String::deserialize(deserializer)?;
 
-        Ok(hex_sring.into())
+        Address::from_str(&hex_string).map_err(serde::de::Error::custom)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::{Address, address::AddressError};
 
-    #[derive(Debug, Serialize, Deserialize)]
-    struct Ser1 {
-        f1: String,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, PartialEq)]
-    struct Ser2 {
-        f1: HexString,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, PartialEq)]
-    struct Ser3 {
-        f1: Address,
+    #[test]
+    fn parse_valid_address() {
+        let hex_str = "00".repeat(32); // 64 hex chars = 32 bytes
+        let addr: Address = hex_str.parse().unwrap();
+        assert_eq!(addr.value, [0u8; 32]);
     }
 
     #[test]
-    fn test_hex_ser() {
-        let str_for_tests = hex::encode([42; 32]);
-
-        let hex_str_for_tests = HexString::try_from(str_for_tests.as_str()).unwrap();
-
-        let ser1_str = Ser1 { f1: str_for_tests };
-
-        let ser2_str = Ser2 {
-            f1: hex_str_for_tests,
-        };
-
-        let ser1_str_ser = serde_json::to_string(&ser1_str).unwrap();
-        let ser2_str_ser = serde_json::to_string(&ser2_str).unwrap();
-
-        println!("{ser2_str_ser:#?}");
-
-        assert_eq!(ser1_str_ser, ser2_str_ser);
+    fn parse_invalid_hex() {
+        let hex_str = "zz".repeat(32); // invalid hex chars
+        let result = hex_str.parse::<Address>().unwrap_err();
+        assert!(matches!(result, AddressError::InvalidHex(_)));
     }
 
     #[test]
-    fn test_hex_deser() {
-        let raw_json = r#"{
-            "f1": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
-        }"#;
-
-        let str_for_tests = hex::encode([42; 32]);
-
-        let hex_str_for_tests = HexString::try_from(str_for_tests.as_str()).unwrap();
-
-        let ser2_str = Ser2 {
-            f1: hex_str_for_tests,
-        };
-
-        let ser1_str: Ser2 = serde_json::from_str(raw_json).unwrap();
-
-        assert_eq!(ser1_str, ser2_str);
+    fn parse_wrong_length_short() {
+        let hex_str = "00".repeat(31); // 62 chars = 31 bytes
+        let result = hex_str.parse::<Address>().unwrap_err();
+        assert!(matches!(result, AddressError::InvalidLength(_)));
     }
 
     #[test]
-    fn test_addr_deser() {
-        let raw_json = r#"{
-            "f1": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
-        }"#;
-
-        let addr_for_tests = Address::new([42; 32]);
-
-        let ser2_str = Ser3 { f1: addr_for_tests };
-
-        let ser1_str: Ser3 = serde_json::from_str(raw_json).unwrap();
-
-        assert_eq!(ser1_str, ser2_str);
+    fn parse_wrong_length_long() {
+        let hex_str = "00".repeat(33); // 66 chars = 33 bytes
+        let result = hex_str.parse::<Address>().unwrap_err();
+        assert!(matches!(result, AddressError::InvalidLength(_)));
     }
 }
