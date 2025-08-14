@@ -2,6 +2,7 @@ mod address;
 pub mod error;
 pub mod program;
 pub mod public_transaction;
+mod privacy_preserving_transaction;
 mod signature;
 mod state;
 

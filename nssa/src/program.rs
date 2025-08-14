@@ -57,6 +57,13 @@ impl Program {
         Ok(post_states)
     }
 
+    pub fn prove(
+        &self,
+        pre_states: &[AccountWithMetadata],
+        instruction_data: &InstructionData,
+    ) {
+    }
+
     /// Writes inputs to `env_builder` in the order expected by the programs
     fn write_inputs(
         pre_states: &[AccountWithMetadata],
