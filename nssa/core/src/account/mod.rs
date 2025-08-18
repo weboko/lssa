@@ -4,11 +4,13 @@ use crate::program::ProgramId;
 
 mod commitment;
 mod nullifier;
+mod encoding;
 
 pub use commitment::Commitment;
 pub use nullifier::{Nullifier, NullifierPublicKey, NullifierSecretKey};
 
 pub type Nonce = u128;
+// TODO: Consider changing `Data` to `Vec<u32>` for r0 friendlinenss
 type Data = Vec<u8>;
 
 /// Account to be used both in public and private contexts

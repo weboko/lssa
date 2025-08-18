@@ -5,6 +5,12 @@ use crate::account::Commitment;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NullifierPublicKey([u8; 32]);
 
+impl NullifierPublicKey {
+    pub(crate) fn to_bytes(&self) -> [u8; 32] {
+        self.0
+    }
+}
+
 impl From<&NullifierSecretKey> for NullifierPublicKey {
     fn from(_value: &NullifierSecretKey) -> Self {
         todo!()

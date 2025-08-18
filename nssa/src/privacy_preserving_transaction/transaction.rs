@@ -133,7 +133,7 @@ fn check_privacy_preserving_circuit_proof_is_valid(
     proof: (),
     public_pre_states: &[AccountWithMetadata],
     public_post_states: &[Account],
-    encrypted_private_post_states: &EncryptedAccountData,
+    encrypted_private_post_states: &[EncryptedAccountData],
     new_commitments: &[nssa_core::account::Commitment],
     new_nullifiers: &[nssa_core::account::Nullifier],
     commitment_set_digest: CommitmentSetDigest,
