@@ -156,7 +156,9 @@ pub async fn test_failure() {
 
     let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
-    wallet::execute_subcommand(command).await.unwrap();
+    let failed_send = wallet::execute_subcommand(command).await;
+
+    assert!(failed_send.is_err());
 
     info!("Waiting for next block creation");
     tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;

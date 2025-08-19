@@ -69,14 +69,26 @@ impl NSSAUserData {
 
     pub fn generate_new_account(&mut self) -> nssa::Address {
         let address = self.key_holder.generate_new_private_key();
-        self.accounts.insert(address, nssa_core::account::Account::default());
+        self.accounts
+            .insert(address, nssa_core::account::Account::default());
 
         address
     }
 
     pub fn get_account_balance(&self, address: &nssa::Address) -> u128 {
-        self.accounts.get(address).map(|acc| acc.balance).unwrap_or(0)
-    } 
+        self.accounts
+            .get(address)
+            .map(|acc| acc.balance)
+            .unwrap_or(0)
+    }
+
+    pub fn get_account(&self, address: &nssa::Address) -> Option<&nssa_core::account::Account> {
+        self.accounts.get(address)
+    }
+
+    pub fn get_account_signing_key(&self, address: &nssa::Address) -> Option<&nssa::PrivateKey> {
+        self.key_holder.get_pub_account_signing_key(address)
+    }
 
     pub fn encrypt_data(
         ephemeral_key_holder: &EphemeralKeyHolder,
@@ -100,7 +112,7 @@ impl NSSAUserData {
         self.accounts
             .entry(address)
             .and_modify(|acc| acc.balance = new_balance)
-            .or_insert(nssa_core::account::Account::default());
+            .or_default();
     }
 
     //ToDo: Part of a private keys update

@@ -8,7 +8,6 @@ use common::{
 use anyhow::Result;
 use chain_storage::WalletChainStore;
 use config::WalletConfig;
-use key_protocol::key_protocol_core::NSSAUserData;
 use log::info;
 use nssa::Address;
 
@@ -27,7 +26,6 @@ pub mod helperfunctions;
 
 pub struct WalletCore {
     pub storage: WalletChainStore,
-    pub wallet_config: WalletConfig,
     pub sequencer_client: Arc<SequencerClient>,
 }
 
@@ -35,32 +33,23 @@ impl WalletCore {
     pub async fn start_from_config_update_chain(config: WalletConfig) -> Result<Self> {
         let client = Arc::new(SequencerClient::new(config.sequencer_addr.clone())?);
 
-        let mut storage = WalletChainStore::new(config.clone())?;
-        for acc in config.clone().initial_accounts {
-            storage.acc_map.insert(acc.address, acc);
-        }
+        let mut storage = WalletChainStore::new(config)?;
 
-        //Persistent accounts take precedence for initial accounts
         let persistent_accounts = fetch_persistent_accounts()?;
         for acc in persistent_accounts {
-            storage.acc_map.insert(acc.address, acc);
+            storage
+                .user_data
+                .update_account_balance(acc.address, acc.account.balance);
         }
 
         Ok(Self {
             storage,
-            wallet_config: config.clone(),
             sequencer_client: client.clone(),
         })
     }
 
     pub async fn create_new_account(&mut self) -> Address {
-        let account = NSSAUserData::new();
-
-        let addr = account.address;
-
-        self.storage.acc_map.insert(account.address, account);
-
-        addr
+        self.storage.user_data.generate_new_account()
     }
 
     pub async fn send_public_native_token_transfer(
@@ -70,27 +59,36 @@ impl WalletCore {
         to: Address,
         balance_to_move: u128,
     ) -> Result<SendTxResponse, ExecutionFailureKind> {
-        let account = self.storage.acc_map.get(&from);
+        let account = self.storage.user_data.get_account(&from);
 
         if let Some(account) = account {
-            let addresses = vec![from, to];
-            let nonces = vec![nonce];
-            let program_id = nssa::program::Program::authenticated_transfer_program().id();
-            let message = nssa::public_transaction::Message::try_new(
-                program_id,
-                addresses,
-                nonces,
-                balance_to_move,
-            )
-            .unwrap();
+            if account.balance >= balance_to_move {
+                let addresses = vec![from, to];
+                let nonces = vec![nonce];
+                let program_id = nssa::program::Program::authenticated_transfer_program().id();
+                let message = nssa::public_transaction::Message::try_new(
+                    program_id,
+                    addresses,
+                    nonces,
+                    balance_to_move,
+                )
+                .unwrap();
 
-            let signing_key = account.key_holder.get_pub_account_signing_key();
-            let witness_set =
-                nssa::public_transaction::WitnessSet::for_message(&message, &[signing_key]);
+                let signing_key = self.storage.user_data.get_account_signing_key(&from);
 
-            let tx = nssa::PublicTransaction::new(message, witness_set);
+                if let Some(signing_key) = signing_key {
+                    let witness_set =
+                        nssa::public_transaction::WitnessSet::for_message(&message, &[signing_key]);
 
-            Ok(self.sequencer_client.send_tx(tx).await?)
+                    let tx = nssa::PublicTransaction::new(message, witness_set);
+
+                    Ok(self.sequencer_client.send_tx(tx).await?)
+                } else {
+                    Err(ExecutionFailureKind::KeyNotFoundError)
+                }
+            } else {
+                Err(ExecutionFailureKind::InsufficientFundsError)
+            }
         } else {
             Err(ExecutionFailureKind::AmountMismatchError)
         }
