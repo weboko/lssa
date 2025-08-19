@@ -3,6 +3,7 @@ mod message;
 mod transaction;
 mod witness_set;
 
+pub use message::Message;
 pub use transaction::PrivacyPreservingTransaction;
 
 pub mod circuit {
@@ -12,6 +13,7 @@ pub mod circuit {
         account::{Account, AccountWithMetadata, Nonce, NullifierPublicKey, NullifierSecretKey},
         program::{InstructionData, ProgramOutput},
     };
+    use rand::{Rng, RngCore, rngs::OsRng};
     use risc0_zkvm::{ExecutorEnv, Receipt, default_prover};
 
     use crate::{error::NssaError, program::Program};
@@ -48,7 +50,7 @@ pub mod circuit {
             IncomingViewingPublicKey,
             EphemeralSecretKey,
         )],
-        private_account_auth: Vec<(NullifierSecretKey, MembershipProof)>,
+        private_account_auth: &[(NullifierSecretKey, MembershipProof)],
         visibility_mask: &[u8],
         commitment_set_digest: CommitmentSetDigest,
         program: &Program,
@@ -93,13 +95,83 @@ pub mod circuit {
         Ok((proof, circuit_output))
     }
 
-    fn new_random_nonce() -> Nonce {
-        todo!()
+    fn new_random_nonce() -> u128 {
+        let mut u128_bytes = [0u8; 16];
+        OsRng.fill_bytes(&mut u128_bytes);
+        u128::from_le_bytes(u128_bytes)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::program::Program;
+    use nssa_core::{
+        EncryptedAccountData,
+        account::{Account, AccountWithMetadata, NullifierPublicKey, NullifierSecretKey},
+    };
+    use program_methods::PRIVACY_PRESERVING_CIRCUIT_ID;
+    use risc0_zkvm::{InnerReceipt, Journal, Receipt};
 
+    use crate::{
+        Address, V01State,
+        privacy_preserving_transaction::circuit::prove_privacy_preserving_execution_circuit,
+        program::Program,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test() {
+        let sender = AccountWithMetadata {
+            account: Account {
+                balance: 100,
+                ..Account::default()
+            },
+            is_authorized: false,
+        };
+        let recipient = AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: false,
+        };
+
+        let balance_to_move: u128 = 37;
+
+        let expected_sender_post = Account {
+            balance: 100 - balance_to_move,
+            ..Default::default()
+        };
+
+        let expected_sender_pre = sender.clone();
+        let pre_states = vec![sender, recipient];
+        let instruction_data = Program::serialize_instruction(balance_to_move).unwrap();
+        let private_account_keys = vec![(NullifierPublicKey::from(&[1; 32]), [2; 32], [3; 32])];
+        let private_account_auth = vec![];
+        let visibility_mask = vec![0, 2];
+        let commitment_set_digest = [99; 8];
+        let program = Program::simple_balance_transfer();
+        let (proof, output) = prove_privacy_preserving_execution_circuit(
+            &pre_states,
+            &instruction_data,
+            &private_account_keys,
+            &private_account_auth,
+            &visibility_mask,
+            commitment_set_digest,
+            &program,
+        )
+        .unwrap();
+
+        let inner: InnerReceipt = borsh::from_slice(&proof).unwrap();
+        let receipt = Receipt::new(inner, output.to_bytes());
+        receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID).unwrap();
+
+        let [sender_pre] = output.public_pre_states.try_into().unwrap();
+        let [sender_post] = output.public_post_states.try_into().unwrap();
+        assert_eq!(sender_pre, expected_sender_pre);
+        assert_eq!(sender_post, expected_sender_post);
+        assert_eq!(output.new_commitments.len(), 1);
+        assert_eq!(output.new_nullifiers.len(), 0);
+        assert_eq!(output.commitment_set_digest, commitment_set_digest);
+        assert_eq!(output.encrypted_private_post_states.len(), 1);
+        // TODO: replace with real assert when encryption is implemented
+        assert_eq!(output.encrypted_private_post_states[0].to_bytes(), vec![0]);
+    }
 }

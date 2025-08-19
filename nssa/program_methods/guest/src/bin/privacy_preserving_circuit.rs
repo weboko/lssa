@@ -34,14 +34,22 @@ fn main() {
     validate_execution(&pre_states, &post_states, program_id);
 
     let n_accounts = pre_states.len();
-    assert_eq!(visibility_mask.len(), n_accounts);
+    if visibility_mask.len() != n_accounts {
+        panic!();
+    }
 
     let n_private_accounts = visibility_mask.iter().filter(|&&flag| flag != 0).count();
-    assert_eq!(private_account_nonces.len(), n_private_accounts);
-    assert_eq!(private_account_keys.len(), n_private_accounts);
+    if private_account_nonces.len() != n_private_accounts {
+        panic!();
+    }
+    if private_account_keys.len() != n_private_accounts {
+        panic!();
+    }
 
     let n_auth_private_accounts = visibility_mask.iter().filter(|&&flag| flag == 1).count();
-    assert_eq!(private_account_auth.len(), n_auth_private_accounts);
+    if private_account_auth.len() != n_auth_private_accounts {
+        panic!();
+    }
 
     // These lists will be the public outputs of this circuit
     // and will be populated next.
@@ -51,60 +59,71 @@ fn main() {
     let mut new_commitments: Vec<Commitment> = Vec::new();
     let mut new_nullifiers: Vec<Nullifier> = Vec::new();
 
+    let mut private_nonces_iter = private_account_nonces.iter();
+    let mut private_keys_iter = private_account_keys.iter();
+    let mut private_auth_iter = private_account_auth.iter();
+
     for i in 0..n_accounts {
-        // visibility_mask[i] equal to 0 means public
-        if visibility_mask[i] == 0 {
-            // If the account is marked as public, add the pre and post
-            // states to the corresponding lists.
-            public_pre_states.push(pre_states[i].clone());
-            public_post_states.push(post_states[i].clone());
-        } else {
-            let new_nonce = &private_account_nonces[i];
-            let (Npk, Ipk, esk) = &private_account_keys[i];
-
-            // Verify authentication
-            if visibility_mask[i] == 1 {
-                let (nsk, membership_proof) = &private_account_auth[i];
-
-                // 1. Compute Npk from the provided nsk and assert it is equal to the provided Npk
-                let expected_Npk = NullifierPublicKey::from(nsk);
-                assert_eq!(&expected_Npk, Npk);
-                // 2. Compute the commitment of the pre_state account using the provided Npk
-                let commitment_pre = Commitment::new(Npk, &pre_states[i].account);
-                // 3. Verify that the commitment belongs to the global commitment set
-                assert!(verify_membership_proof(
-                    &commitment_pre,
-                    membership_proof,
-                    &commitment_set_digest,
-                ));
-                // At this point the account is correctly authenticated as a private account.
-                // Assert that `pre_states` marked this account as authenticated.
-                assert!(pre_states[i].is_authorized);
-                // Compute the nullifier of the pre state version of this private account
-                // and include it in the `new_nullifiers` list.
-                let nullifier = Nullifier::new(&commitment_pre, nsk);
-                new_nullifiers.push(nullifier);
-            } else if visibility_mask[i] == 2 {
-                assert_eq!(pre_states[i].account, Account::default());
-                assert!(!pre_states[i].is_authorized);
-            } else {
-                panic!();
+        match visibility_mask[i] {
+            0 => {
+                // Public account
+                public_pre_states.push(pre_states[i].clone());
+                public_post_states.push(post_states[i].clone());
             }
+            1 | 2 => {
+                let new_nonce = private_nonces_iter.next().expect("Missing private nonce");
+                let (Npk, Ipk, esk) = private_keys_iter.next().expect("Missing private keys");
 
-            // Update the nonce for the post state of this private account.
-            let mut post_with_updated_nonce = post_states[i].clone();
-            post_with_updated_nonce.nonce = *new_nonce;
+                if visibility_mask[i] == 1 {
+                    // Private account with authentication
+                    let (nsk, membership_proof) =
+                        private_auth_iter.next().expect("Missing private auth");
 
-            // Compute the commitment of the post state of the private account,
-            // with the updated nonce, and include it in the `new_commitments` list.
-            let commitment_post = Commitment::new(Npk, &post_with_updated_nonce);
-            new_commitments.push(commitment_post);
+                    // Verify Npk
+                    let expected_Npk = NullifierPublicKey::from(nsk);
+                    if &expected_Npk != Npk {
+                        panic!("Npk mismatch");
+                    }
 
-            // Encrypt the post state of the private account with the updated
-            // nonce and include it in the `encrypted_private_post_states` list.
-            //
-            let encrypted_account = EncryptedAccountData::new(&post_with_updated_nonce, esk, Npk, Ipk);
-            encrypted_private_post_states.push(encrypted_account);
+                    // Verify pre-state commitment membership
+                    let commitment_pre = Commitment::new(Npk, &pre_states[i].account);
+                    if !verify_membership_proof(
+                        &commitment_pre,
+                        membership_proof,
+                        &commitment_set_digest,
+                    ) {
+                        panic!("Membership proof invalid");
+                    }
+
+                    // Check pre_state authorization
+                    if !pre_states[i].is_authorized {
+                        panic!("Pre-state not authorized");
+                    }
+
+                    // Compute nullifier
+                    let nullifier = Nullifier::new(&commitment_pre, nsk);
+                    new_nullifiers.push(nullifier);
+                } else {
+                    // Private account marked as empty
+                    if pre_states[i].account != Account::default() || pre_states[i].is_authorized {
+                        panic!("Invalid empty private account pre-state");
+                    }
+                }
+
+                // Update post-state with new nonce
+                let mut post_with_updated_nonce = post_states[i].clone();
+                post_with_updated_nonce.nonce = *new_nonce;
+
+                // Compute commitment and push
+                let commitment_post = Commitment::new(Npk, &post_with_updated_nonce);
+                new_commitments.push(commitment_post);
+
+                // Encrypt and push post state
+                let encrypted_account =
+                    EncryptedAccountData::new(&post_with_updated_nonce, esk, Npk, Ipk);
+                encrypted_private_post_states.push(encrypted_account);
+            }
+            _ => panic!("Invalid visibility mask value"),
         }
     }
 

@@ -48,7 +48,8 @@ impl Tag {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(any(feature = "host", test), derive(Debug, Clone, PartialEq, Eq))]
 pub struct EncryptedAccountData(u8);
 
 impl EncryptedAccountData {
@@ -99,4 +100,16 @@ pub struct PrivacyPreservingCircuitOutput {
     pub new_commitments: Vec<Commitment>,
     pub new_nullifiers: Vec<Nullifier>,
     pub commitment_set_digest: CommitmentSetDigest,
+}
+
+#[cfg(feature = "host")]
+impl PrivacyPreservingCircuitOutput {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let words = to_vec(&self).unwrap();
+        let mut result = Vec::with_capacity(4 * words.len());
+        for word in &words {
+            result.extend_from_slice(&word.to_le_bytes());
+        }
+        result
+    }
 }

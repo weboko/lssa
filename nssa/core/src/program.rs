@@ -15,7 +15,8 @@ pub struct ProgramInput<T> {
     pub instruction: T,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct ProgramOutput {
     pub pre_states: Vec<AccountWithMetadata>,
     pub post_states: Vec<Account>,

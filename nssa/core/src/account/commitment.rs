@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::account::{Account, NullifierPublicKey};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(any(feature = "host", test), derive(Debug, Clone, PartialEq, Eq, Hash))]
 pub struct Commitment(pub(super) [u8; 32]);
 
 impl Commitment {

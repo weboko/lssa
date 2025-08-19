@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::account::Commitment;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(any(feature = "host", test), derive(Debug, Clone, Hash))]
 pub struct NullifierPublicKey(pub(super) [u8; 32]);
 
 impl From<&NullifierSecretKey> for NullifierPublicKey {
@@ -22,7 +23,8 @@ impl From<&NullifierSecretKey> for NullifierPublicKey {
 
 pub type NullifierSecretKey = [u8; 32];
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(any(feature = "host", test), derive(Debug, Clone, PartialEq, Eq, Hash))]
 pub struct Nullifier(pub(super) [u8; 32]);
 
 impl Nullifier {
