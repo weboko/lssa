@@ -14,13 +14,22 @@ pub mod circuit {
         program::{InstructionData, ProgramOutput},
     };
     use rand::{Rng, RngCore, rngs::OsRng};
-    use risc0_zkvm::{ExecutorEnv, Receipt, default_prover};
+    use risc0_zkvm::{ExecutorEnv, InnerReceipt, Receipt, default_prover};
 
     use crate::{error::NssaError, program::Program};
 
-    use program_methods::PRIVACY_PRESERVING_CIRCUIT_ELF;
+    use program_methods::{PRIVACY_PRESERVING_CIRCUIT_ELF, PRIVACY_PRESERVING_CIRCUIT_ID};
 
-    pub type Proof = Vec<u8>;
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Proof(Vec<u8>);
+
+    impl Proof {
+        pub(crate) fn is_valid_for(&self, circuit_output: &PrivacyPreservingCircuitOutput) -> bool {
+            let inner: InnerReceipt = borsh::from_slice(&self.0).unwrap();
+            let receipt = Receipt::new(inner, circuit_output.to_bytes());
+            receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID).is_ok()
+        }
+    }
 
     /// Executes and proves the program `P`.
     /// Returns the proof
@@ -84,7 +93,7 @@ pub mod circuit {
         let prover = default_prover();
         let prove_info = prover.prove(env, PRIVACY_PRESERVING_CIRCUIT_ELF).unwrap();
 
-        let proof = borsh::to_vec(&prove_info.receipt.inner)?;
+        let proof = Proof(borsh::to_vec(&prove_info.receipt.inner)?);
 
         let circuit_output: PrivacyPreservingCircuitOutput = prove_info
             .receipt
@@ -108,7 +117,6 @@ mod tests {
         EncryptedAccountData,
         account::{Account, AccountWithMetadata, NullifierPublicKey, NullifierSecretKey},
     };
-    use program_methods::PRIVACY_PRESERVING_CIRCUIT_ID;
     use risc0_zkvm::{InnerReceipt, Journal, Receipt};
 
     use crate::{
@@ -159,9 +167,7 @@ mod tests {
         )
         .unwrap();
 
-        let inner: InnerReceipt = borsh::from_slice(&proof).unwrap();
-        let receipt = Receipt::new(inner, output.to_bytes());
-        receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID).unwrap();
+        assert!(proof.is_valid_for(&output));
 
         let [sender_pre] = output.public_pre_states.try_into().unwrap();
         let [sender_post] = output.public_post_states.try_into().unwrap();
