@@ -12,7 +12,8 @@ serde = "1.0.219"
 sha2 = "0.10.9"
 secp256k1 = "0.31.1"
 rand = "0.8"
+hex = "0.4.3"
+anyhow.workspace = true
 
 [dev-dependencies]
 test-program-methods = { path = "test_program_methods" }
-hex = "0.4.3"

@@ -1,4 +1,4 @@
-mod address;
+pub mod address;
 pub mod error;
 pub mod program;
 pub mod public_transaction;
