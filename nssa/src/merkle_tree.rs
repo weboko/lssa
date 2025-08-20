@@ -21,7 +21,6 @@ fn hash_value(value: &Value) -> Node {
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 pub struct MerkleTree {
-    values: Vec<Value>,
     index_map: HashMap<Value, usize>,
     node_map: HashMap<usize, Node>,
     capacity: usize,
@@ -40,7 +39,7 @@ impl MerkleTree {
     }
 
     fn depth(&self) -> usize {
-        self.values.len().next_power_of_two().trailing_zeros() as usize
+        self.index_map.len().next_power_of_two().trailing_zeros() as usize
     }
 
     fn get_node(&self, index: &usize) -> &Node {
@@ -63,7 +62,6 @@ impl MerkleTree {
     pub fn with_capacity(capacity: usize) -> Self {
         let capacity = capacity.next_power_of_two();
         Self {
-            values: Vec::with_capacity(capacity),
             index_map: HashMap::with_capacity(capacity),
             node_map: HashMap::with_capacity(capacity << 1),
             capacity,
@@ -72,7 +70,9 @@ impl MerkleTree {
 
     fn reallocate_to_double_capacity(&mut self) {
         let mut this = Self::with_capacity(self.capacity << 1);
-        for value in self.values.iter() {
+        let mut pairs: Vec<_> = self.index_map.iter().collect();
+        pairs.sort_by_key(|&(_, index)| index);
+        for (value, _) in pairs {
             this.insert(*value);
         }
         *self = this;
@@ -83,12 +83,11 @@ impl MerkleTree {
             return false;
         }
 
-        if self.capacity == self.values.len() {
+        if self.capacity == self.index_map.len() {
             self.reallocate_to_double_capacity();
         }
 
-        let new_index = self.values.len();
-        self.values.push(value);
+        let new_index = self.index_map.len();
         self.index_map.insert(value, new_index);
 
         let base_length = self.capacity;
@@ -178,7 +177,6 @@ mod tests {
         ];
 
         assert_eq!(tree.root(), expected_root);
-        assert_eq!(tree.values, values);
         assert_eq!(*tree.index_map.get(&[1; 32]).unwrap(), 0);
         assert_eq!(*tree.index_map.get(&[2; 32]).unwrap(), 1);
         assert_eq!(*tree.index_map.get(&[3; 32]).unwrap(), 2);
@@ -196,7 +194,6 @@ mod tests {
         ];
 
         assert_eq!(tree.root(), expected_root);
-        assert_eq!(tree.values, values);
         assert_eq!(*tree.index_map.get(&[1; 32]).unwrap(), 0);
         assert_eq!(*tree.index_map.get(&[2; 32]).unwrap(), 1);
         assert_eq!(*tree.index_map.get(&[3; 32]).unwrap(), 2);
@@ -214,7 +211,6 @@ mod tests {
         ];
 
         assert_eq!(tree.root(), expected_root);
-        assert_eq!(tree.values, values);
         assert_eq!(*tree.index_map.get(&[1; 32]).unwrap(), 0);
         assert_eq!(*tree.index_map.get(&[2; 32]).unwrap(), 1);
         assert_eq!(*tree.index_map.get(&[3; 32]).unwrap(), 2);
@@ -232,7 +228,6 @@ mod tests {
         ];
 
         assert_eq!(tree.root(), expected_root);
-        assert_eq!(tree.values, values);
         assert_eq!(*tree.index_map.get(&[11; 32]).unwrap(), 0);
         assert_eq!(*tree.index_map.get(&[12; 32]).unwrap(), 1);
         assert_eq!(*tree.index_map.get(&[13; 32]).unwrap(), 2);
@@ -254,10 +249,6 @@ mod tests {
         ];
 
         assert_eq!(tree.root(), expected_root);
-        assert_eq!(
-            tree.values,
-            vec![[11; 32], [12; 32], [13; 32], [14; 32], [15; 32]]
-        );
         assert_eq!(*tree.index_map.get(&[11; 32]).unwrap(), 0);
         assert_eq!(*tree.index_map.get(&[12; 32]).unwrap(), 1);
         assert_eq!(*tree.index_map.get(&[13; 32]).unwrap(), 2);
