@@ -7,6 +7,7 @@ use json::{SendTxRequest, SendTxResponse, SequencerRpcRequest, SequencerRpcRespo
 use reqwest::Client;
 use serde_json::Value;
 
+use crate::rpc_primitives::requests::{GetTransactionByHashRequest, GetTransactionByHashResponse};
 use crate::sequencer_client::json::AccountInitialData;
 use crate::{SequencerClientError, SequencerRpcError};
 
@@ -134,6 +135,24 @@ impl SequencerClient {
             .unwrap();
 
         let resp_deser = serde_json::from_value(resp).unwrap();
+
+        Ok(resp_deser)
+    }
+
+    ///Get tx data for `tx_hash` from sequencer
+    pub async fn get_transaction_by_hash(
+        &self,
+        tx_hash: String,
+    ) -> Result<GetTransactionByHashResponse, SequencerClientError> {
+        let block_req = GetTransactionByHashRequest { hash: tx_hash };
+
+        let req = serde_json::to_value(block_req)?;
+
+        let resp = self
+            .call_method_with_payload("get_transaction_by_hash", req)
+            .await?;
+
+        let resp_deser = serde_json::from_value(resp)?;
 
         Ok(resp_deser)
     }

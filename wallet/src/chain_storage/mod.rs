@@ -14,24 +14,23 @@ pub struct WalletChainStore {
 
 impl WalletChainStore {
     pub fn new(config: WalletConfig) -> Result<Self> {
-        let accounts: HashMap<nssa::Address, nssa_core::account::Account> = config
-            .initial_accounts
-            .clone()
-            .into_iter()
-            .map(|init_acc_data| (init_acc_data.address, init_acc_data.account))
-            .collect();
-
-        let accounts_keys: HashMap<nssa::Address, nssa::PrivateKey> = config
-            .initial_accounts
-            .clone()
-            .into_iter()
-            .map(|init_acc_data| (init_acc_data.address, init_acc_data.pub_sign_key))
-            .collect();
+        let accounts_data: HashMap<nssa::Address, (nssa::PrivateKey, nssa_core::account::Account)> =
+            config
+                .initial_accounts
+                .clone()
+                .into_iter()
+                .map(|init_acc_data| {
+                    (
+                        init_acc_data.address,
+                        (init_acc_data.pub_sign_key, init_acc_data.account),
+                    )
+                })
+                .collect();
 
         let utxo_commitments_store = UTXOCommitmentsMerkleTree::new(vec![]);
 
         Ok(Self {
-            user_data: NSSAUserData::new_with_accounts(accounts_keys, accounts),
+            user_data: NSSAUserData::new_with_accounts(accounts_data),
             utxo_commitments_store,
             wallet_config: config,
         })

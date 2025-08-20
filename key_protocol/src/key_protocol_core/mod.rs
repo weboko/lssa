@@ -15,7 +15,8 @@ pub type PublicKey = AffinePoint;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NSSAUserData {
     pub key_holder: KeyChain,
-    pub accounts: HashMap<nssa::Address, nssa_core::account::Account>,
+    ///Map for all users accounts
+    pub accounts: HashMap<nssa::Address, (nssa::PrivateKey, nssa_core::account::Account)>,
 }
 
 ///A strucure, which represents all the visible(public) information
@@ -56,21 +57,22 @@ impl NSSAUserData {
     }
 
     pub fn new_with_accounts(
-        accounts_keys: HashMap<nssa::Address, nssa::PrivateKey>,
-        accounts: HashMap<nssa::Address, nssa_core::account::Account>,
+        accounts_data: HashMap<nssa::Address, (nssa::PrivateKey, nssa_core::account::Account)>,
     ) -> Self {
-        let key_holder = KeyChain::new_os_random_with_accounts(accounts_keys);
+        let key_holder = KeyChain::new_os_random();
 
         Self {
             key_holder,
-            accounts,
+            accounts: accounts_data,
         }
     }
 
     pub fn generate_new_account(&mut self) -> nssa::Address {
-        let address = self.key_holder.generate_new_private_key();
-        self.accounts
-            .insert(address, nssa_core::account::Account::default());
+        let private_key = nssa::PrivateKey::new_os_random();
+        let address = nssa::Address::from(&nssa::PublicKey::new_from_private_key(&private_key));
+        let account = nssa_core::account::Account::default();
+
+        self.accounts.insert(address, (private_key, account));
 
         address
     }
@@ -78,16 +80,16 @@ impl NSSAUserData {
     pub fn get_account_balance(&self, address: &nssa::Address) -> u128 {
         self.accounts
             .get(address)
-            .map(|acc| acc.balance)
+            .map(|(_, acc)| acc.balance)
             .unwrap_or(0)
     }
 
     pub fn get_account(&self, address: &nssa::Address) -> Option<&nssa_core::account::Account> {
-        self.accounts.get(address)
+        self.accounts.get(address).map(|(_, acc)| acc)
     }
 
     pub fn get_account_signing_key(&self, address: &nssa::Address) -> Option<&nssa::PrivateKey> {
-        self.key_holder.get_pub_account_signing_key(address)
+        self.accounts.get(address).map(|(key, _)| key)
     }
 
     pub fn encrypt_data(
@@ -111,8 +113,7 @@ impl NSSAUserData {
     pub fn update_account_balance(&mut self, address: nssa::Address, new_balance: u128) {
         self.accounts
             .entry(address)
-            .and_modify(|acc| acc.balance = new_balance)
-            .or_default();
+            .and_modify(|(_, acc)| acc.balance = new_balance);
     }
 
     //ToDo: Part of a private keys update

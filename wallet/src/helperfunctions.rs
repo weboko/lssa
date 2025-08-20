@@ -1,6 +1,7 @@
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
 use anyhow::Result;
+use key_protocol::key_protocol_core::NSSAUserData;
 use nssa::Address;
 
 use crate::{
@@ -46,4 +47,18 @@ pub fn fetch_persistent_accounts() -> Result<Vec<InitialAccountData>> {
             }
         },
     }
+}
+
+pub fn produce_data_for_storage(user_data: &NSSAUserData) -> Vec<InitialAccountData> {
+    let mut vec_for_storage = vec![];
+
+    for (addr, (key, account)) in &user_data.accounts {
+        vec_for_storage.push(InitialAccountData {
+            address: *addr,
+            account: account.clone(),
+            pub_sign_key: key.clone(),
+        });
+    }
+
+    vec_for_storage
 }

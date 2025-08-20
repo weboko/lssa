@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
 
 use common::{
     sequencer_client::{json::SendTxResponse, SequencerClient},
@@ -14,7 +14,8 @@ use nssa::Address;
 use clap::{Parser, Subcommand};
 
 use crate::helperfunctions::{
-    fetch_config, fetch_persistent_accounts, produce_account_addr_from_hex,
+    fetch_config, fetch_persistent_accounts, get_home, produce_account_addr_from_hex,
+    produce_data_for_storage,
 };
 
 pub const HOME_DIR_ENV_VAR: &str = "NSSA_WALLET_HOME_DIR";
@@ -35,6 +36,9 @@ impl WalletCore {
 
         let mut storage = WalletChainStore::new(config)?;
 
+        //Updating user data with stored accounts
+        //We do not store/update any key data connected to private executions
+        //ToDo: Add this into persistent data
         let persistent_accounts = fetch_persistent_accounts()?;
         for acc in persistent_accounts {
             storage
@@ -48,7 +52,20 @@ impl WalletCore {
         })
     }
 
-    pub async fn create_new_account(&mut self) -> Address {
+    pub fn store_persistent_accounts(&self) -> Result<PathBuf> {
+        let home = get_home()?;
+        let accs_path = home.join("curr_accounts.json");
+        let accs = serde_json::to_vec(&produce_data_for_storage(&self.storage.user_data))?;
+
+        let mut accs_file = File::create(accs_path.as_path())?;
+        accs_file.write_all(&accs)?;
+
+        info!("Stored accounts data at {accs_path:#?}");
+
+        Ok(accs_path)
+    }
+
+    pub fn create_new_account(&mut self) -> Address {
         self.storage.user_data.generate_new_account()
     }
 
@@ -114,6 +131,13 @@ pub enum Command {
         #[arg(long)]
         amount: u128,
     },
+    ///Register new account
+    RegisterAccount {},
+    ///Fetch transaction by `hash`
+    FetchTx {
+        #[arg(short, long)]
+        tx_hash: String,
+    },
 }
 
 ///To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
@@ -126,6 +150,9 @@ pub struct Args {
 }
 
 pub async fn execute_subcommand(command: Command) -> Result<()> {
+    let wallet_config = fetch_config()?;
+    let mut wallet_core = WalletCore::start_from_config_update_chain(wallet_config).await?;
+
     match command {
         Command::SendNativeTokenTransfer {
             from,
@@ -133,12 +160,8 @@ pub async fn execute_subcommand(command: Command) -> Result<()> {
             to,
             amount,
         } => {
-            let wallet_config = fetch_config()?;
-
             let from = produce_account_addr_from_hex(from)?;
             let to = produce_account_addr_from_hex(to)?;
-
-            let wallet_core = WalletCore::start_from_config_update_chain(wallet_config).await?;
 
             let res = wallet_core
                 .send_public_native_token_transfer(from, nonce, to, amount)
@@ -148,7 +171,25 @@ pub async fn execute_subcommand(command: Command) -> Result<()> {
 
             //ToDo: Insert transaction polling logic here
         }
+        Command::RegisterAccount {} => {
+            let addr = wallet_core.create_new_account();
+
+            let key = wallet_core.storage.user_data.get_account_signing_key(&addr);
+
+            info!("Generated new account with addr {addr:#?}");
+            info!("With key {key:#?}");
+        }
+        Command::FetchTx { tx_hash } => {
+            let tx_obj = wallet_core
+                .sequencer_client
+                .get_transaction_by_hash(tx_hash)
+                .await?;
+
+            info!("Transaction object {tx_obj:#?}");
+        }
     }
+
+    wallet_core.store_persistent_accounts()?;
 
     Ok(())
 }
