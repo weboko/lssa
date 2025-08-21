@@ -4,7 +4,9 @@ use crate::{
     public_transaction::PublicTransaction,
 };
 use nssa_core::{
-    account::{Account, Commitment, Nullifier}, program::{ProgramId, DEFAULT_PROGRAM_ID}, CommitmentSetDigest, MembershipProof
+    CommitmentSetDigest, MembershipProof,
+    account::{Account, Commitment, Nullifier},
+    program::{DEFAULT_PROGRAM_ID, ProgramId},
 };
 use std::collections::{HashMap, HashSet};
 
@@ -22,7 +24,8 @@ impl CommitmentSet {
     }
 
     pub fn get_proof_for(&self, commitment: &Commitment) -> Option<MembershipProof> {
-        self.0.get_authentication_path_for(&commitment.to_byte_array())
+        self.0
+            .get_authentication_path_for(&commitment.to_byte_array())
     }
 
     fn contains(&self, commitment: &Commitment) -> bool {
@@ -123,6 +126,7 @@ impl V01State {
             let current_account = self.get_account_by_address_mut(address);
             current_account.nonce += 1;
         }
+
         Ok(())
     }
 
@@ -180,10 +184,16 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::{
-        Address, PublicKey, PublicTransaction, V01State, error::NssaError, program::Program,
-        public_transaction, signature::PrivateKey,
+        Address, PublicKey, PublicTransaction, V01State,
+        error::NssaError,
+        privacy_preserving_transaction::{
+            Message, PrivacyPreservingTransaction, WitnessSet, circuit::execute_and_prove,
+        },
+        program::Program,
+        public_transaction,
+        signature::PrivateKey,
     };
-    use nssa_core::account::Account;
+    use nssa_core::account::{Account, AccountWithMetadata, NullifierPublicKey};
 
     fn transfer_transaction(
         from: Address,
@@ -669,5 +679,71 @@ mod tests {
         let result = state.transition_from_public_transaction(&tx);
 
         assert!(matches!(result, Err(NssaError::InvalidProgramBehavior)));
+    }
+
+    #[test]
+    fn test_transition_from_privacy_preserving_transaction() {
+        let sender = AccountWithMetadata {
+            account: Account {
+                balance: 200,
+                program_owner: Program::authenticated_transfer_program().id(),
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+        let sender_signing_key = PrivateKey::try_new([1; 32]).unwrap();
+        let sender_address =
+            Address::from_public_key(&PublicKey::new_from_private_key(&sender_signing_key));
+
+        let recipient = AccountWithMetadata {
+            account: Account {
+                ..Account::default()
+            },
+            is_authorized: false,
+        };
+
+        let recipient_npk = NullifierPublicKey::from(&[1; 32]);
+        let recipient_ivk = [2; 32];
+        let esk = [3; 32];
+
+        let balance_to_move: u128 = 37;
+
+        let mut state = V01State::new_with_genesis_accounts(&[(*sender_address.value(), 200)]);
+
+        let (output, proof) = execute_and_prove(
+            &[sender, recipient],
+            &Program::serialize_instruction(balance_to_move).unwrap(),
+            &[0, 2],
+            &[0xdeadbeef],
+            &[(recipient_npk, recipient_ivk, esk)],
+            &[],
+            &Program::authenticated_transfer_program(),
+            &state.commitment_set_digest(),
+        )
+        .unwrap();
+
+        let message = Message::new(
+            vec![sender_address.clone()],
+            vec![0],
+            output.public_post_states,
+            output.encrypted_private_post_states,
+            output.new_commitments.clone(),
+            output.new_nullifiers,
+        );
+
+        let witness_set = WitnessSet::for_message(&message, proof, &[&sender_signing_key]);
+        let tx = PrivacyPreservingTransaction::new(message, witness_set);
+
+        assert!(!state.private_state.0.contains(&output.new_commitments[0]));
+
+        state
+            .transition_from_privacy_preserving_transaction(&tx)
+            .unwrap();
+
+        assert!(state.private_state.0.contains(&output.new_commitments[0]));
+        assert_eq!(
+            state.get_account_by_address(&sender_address).balance,
+            200 - 37
+        );
     }
 }

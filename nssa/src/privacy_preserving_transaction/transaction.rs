@@ -165,8 +165,3 @@ fn n_unique<T: Eq + Hash>(data: &[T]) -> usize {
     let set: HashSet<&T> = data.iter().collect();
     set.len()
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::privacy_preserving_transaction::message::tests::message_for_tests;
-}

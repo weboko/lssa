@@ -2,7 +2,7 @@ use risc0_zkvm::{guest::env, serde::to_vec};
 
 use nssa_core::{
     account::{Account, AccountWithMetadata, Commitment, Nullifier, NullifierPublicKey},
-    program::{validate_execution, ProgramOutput},
+    program::{validate_execution, ProgramOutput, DEFAULT_PROGRAM_ID},
     verify_membership_proof, EncryptedAccountData, EphemeralPublicKey, EphemeralSecretKey,
     IncomingViewingPublicKey, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput, Tag,
 };
@@ -101,16 +101,20 @@ fn main() {
                 }
 
                 // Update post-state with new nonce
-                let mut post_with_updated_nonce = post_states[i].clone();
-                post_with_updated_nonce.nonce = *new_nonce;
+                let mut post_with_updated_values = post_states[i].clone();
+                post_with_updated_values.nonce = *new_nonce;
+
+                if post_with_updated_values.program_owner == DEFAULT_PROGRAM_ID {
+                    post_with_updated_values.program_owner = program_id;
+                }
 
                 // Compute commitment and push
-                let commitment_post = Commitment::new(Npk, &post_with_updated_nonce);
+                let commitment_post = Commitment::new(Npk, &post_with_updated_values);
                 new_commitments.push(commitment_post);
 
                 // Encrypt and push post state
                 let encrypted_account =
-                    EncryptedAccountData::new(&post_with_updated_nonce, esk, Npk, Ipk);
+                    EncryptedAccountData::new(&post_with_updated_values, esk, Npk, Ipk);
                 encrypted_private_post_states.push(encrypted_account);
             }
             _ => panic!("Invalid visibility mask value"),

@@ -4,6 +4,7 @@ mod transaction;
 mod witness_set;
 
 pub use message::Message;
+pub use witness_set::WitnessSet;
 pub use transaction::PrivacyPreservingTransaction;
 
 pub mod circuit {
@@ -11,7 +12,7 @@ pub mod circuit {
         CommitmentSetDigest, EphemeralSecretKey, IncomingViewingPublicKey, MembershipProof,
         PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
         account::{Account, AccountWithMetadata, Nonce, NullifierPublicKey, NullifierSecretKey},
-        program::{InstructionData, ProgramOutput},
+        program::{InstructionData, ProgramId, ProgramOutput},
     };
     use risc0_zkvm::{ExecutorEnv, InnerReceipt, Receipt, default_prover};
 
@@ -28,6 +29,56 @@ pub mod circuit {
             let receipt = Receipt::new(inner, circuit_output.to_bytes());
             receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID).is_ok()
         }
+    }
+
+    pub fn execute_and_prove(
+        pre_states: &[AccountWithMetadata],
+        instruction_data: &InstructionData,
+        visibility_mask: &[u8],
+        private_account_nonces: &[u128],
+        private_account_keys: &[(
+            NullifierPublicKey,
+            IncomingViewingPublicKey,
+            EphemeralSecretKey,
+        )],
+        private_account_auth: &[(NullifierSecretKey, MembershipProof)],
+        program: &Program,
+        commitment_set_digest: &CommitmentSetDigest,
+    ) -> Result<(PrivacyPreservingCircuitOutput, Proof), NssaError> {
+        let inner_receipt = execute_and_prove_program(program, pre_states, instruction_data)?;
+
+        let program_output: ProgramOutput = inner_receipt
+            .journal
+            .decode()
+            .map_err(|e| NssaError::ProgramOutputDeserializationError(e.to_string()))?;
+
+        let circuit_input = PrivacyPreservingCircuitInput {
+            program_output,
+            visibility_mask: visibility_mask.to_vec(),
+            private_account_nonces: private_account_nonces.to_vec(),
+            private_account_keys: private_account_keys.to_vec(),
+            private_account_auth: private_account_auth.to_vec(),
+            program_id: program.id(),
+            commitment_set_digest: *commitment_set_digest,
+        };
+
+        // Prove circuit.
+        let mut env_builder = ExecutorEnv::builder();
+        env_builder.add_assumption(inner_receipt);
+        env_builder.write(&circuit_input).unwrap();
+        let env = env_builder.build().unwrap();
+        let prover = default_prover();
+        let prove_info = prover.prove(env, PRIVACY_PRESERVING_CIRCUIT_ELF).unwrap();
+
+        let proof = Proof(borsh::to_vec(&prove_info.receipt.inner)?);
+
+        let circuit_output: PrivacyPreservingCircuitOutput = prove_info
+            .receipt
+            .journal
+            .decode()
+            .map_err(|e| NssaError::CircuitOutputDeserializationError(e.to_string()))?;
+
+        Ok((circuit_output, proof))
     }
 
     fn execute_and_prove_program(
@@ -47,56 +98,6 @@ pub mod circuit {
             .map_err(|e| NssaError::ProgramProveFailed(e.to_string()))?
             .receipt)
     }
-
-    pub fn prove_privacy_preserving_execution_circuit(
-        pre_states: &[AccountWithMetadata],
-        instruction_data: &InstructionData,
-        private_account_keys: &[(
-            NullifierPublicKey,
-            IncomingViewingPublicKey,
-            EphemeralSecretKey,
-        )],
-        private_account_auth: &[(NullifierSecretKey, MembershipProof)],
-        visibility_mask: &[u8],
-        private_account_nonces: &[u128],
-        commitment_set_digest: CommitmentSetDigest,
-        program: &Program,
-    ) -> Result<(Proof, PrivacyPreservingCircuitOutput), NssaError> {
-        let inner_receipt = execute_and_prove_program(program, pre_states, instruction_data)?;
-
-        let program_output: ProgramOutput = inner_receipt
-            .journal
-            .decode()
-            .map_err(|e| NssaError::ProgramOutputDeserializationError(e.to_string()))?;
-
-        let circuit_input = PrivacyPreservingCircuitInput {
-            program_output,
-            visibility_mask: visibility_mask.to_vec(),
-            private_account_nonces: private_account_nonces.to_vec(),
-            private_account_keys: private_account_keys.to_vec(),
-            private_account_auth: private_account_auth.to_vec(),
-            program_id: program.id(),
-            commitment_set_digest,
-        };
-
-        // Prove circuit.
-        let mut env_builder = ExecutorEnv::builder();
-        env_builder.add_assumption(inner_receipt);
-        env_builder.write(&circuit_input).unwrap();
-        let env = env_builder.build().unwrap();
-        let prover = default_prover();
-        let prove_info = prover.prove(env, PRIVACY_PRESERVING_CIRCUIT_ELF).unwrap();
-
-        let proof = Proof(borsh::to_vec(&prove_info.receipt.inner)?);
-
-        let circuit_output: PrivacyPreservingCircuitOutput = prove_info
-            .receipt
-            .journal
-            .decode()
-            .map_err(|e| NssaError::CircuitOutputDeserializationError(e.to_string()))?;
-
-        Ok((proof, circuit_output))
-    }
 }
 
 #[cfg(test)]
@@ -111,9 +112,11 @@ mod tests {
     use risc0_zkvm::{InnerReceipt, Journal, Receipt};
 
     use crate::{
-        Address, V01State, merkle_tree::MerkleTree,
-        privacy_preserving_transaction::circuit::prove_privacy_preserving_execution_circuit,
-        program::Program, state::CommitmentSet,
+        Address, V01State,
+        merkle_tree::MerkleTree,
+        privacy_preserving_transaction::circuit::{Proof, execute_and_prove},
+        program::Program,
+        state::CommitmentSet,
     };
 
     use rand::{Rng, RngCore, rngs::OsRng};
@@ -143,24 +146,15 @@ mod tests {
         };
 
         let expected_sender_pre = sender.clone();
-        let pre_states = vec![sender, recipient];
-        let instruction_data = Program::serialize_instruction(balance_to_move).unwrap();
-        let private_account_keys = vec![(NullifierPublicKey::from(&[1; 32]), [2; 32], [3; 32])];
-        let private_account_nonces = vec![0xdeadbeef];
-
-        let private_account_auth = vec![];
-        let visibility_mask = vec![0, 2];
-        let commitment_set_digest = [99; 32];
-        let program = Program::authenticated_transfer_program();
-        let (proof, output) = prove_privacy_preserving_execution_circuit(
-            &pre_states,
-            &instruction_data,
-            &private_account_keys,
-            &private_account_auth,
-            &visibility_mask,
-            &private_account_nonces,
-            commitment_set_digest,
-            &program,
+        let (output, proof) = execute_and_prove(
+            &[sender, recipient],
+            &Program::serialize_instruction(balance_to_move).unwrap(),
+            &[0, 2],
+            &[0xdeadbeef],
+            &[(NullifierPublicKey::from(&[1; 32]), [2; 32], [3; 32])],
+            &[],
+            &Program::authenticated_transfer_program(),
+            &[99; 32],
         )
         .unwrap();
 
@@ -172,7 +166,7 @@ mod tests {
         assert_eq!(sender_post, expected_sender_post);
         assert_eq!(output.new_commitments.len(), 1);
         assert_eq!(output.new_nullifiers.len(), 0);
-        assert_eq!(output.commitment_set_digest, commitment_set_digest);
+        assert_eq!(output.commitment_set_digest, [99; 32]);
         assert_eq!(output.encrypted_private_post_states.len(), 1);
         // TODO: replace with real assertion when encryption is implemented
         assert_eq!(output.encrypted_private_post_states[0].to_bytes(), vec![0]);
@@ -195,34 +189,19 @@ mod tests {
             account: Account::default(),
             is_authorized: false,
         };
-        let private_key_2 = [2; 32];
-        let Npk2 = NullifierPublicKey::from(&private_key_2);
+        let Npk2 = NullifierPublicKey::from(&[99; 32]);
         let balance_to_move: u128 = 37;
-        let private_account_nonces = vec![0xdeadbeef1, 0xdeadbeef2];
         let commitment_set =
             CommitmentSet(MerkleTree::new(vec![commitment_sender.to_byte_array()]));
-        let pre_states = vec![sender.clone(), recipient];
-        let instruction_data = Program::serialize_instruction(balance_to_move).unwrap();
-        let private_account_keys = vec![
-            (Npk1.clone(), [2; 32], [3; 32]),
-            (Npk2.clone(), [4; 32], [5; 32]),
-        ];
-        let private_account_auth = vec![(
-            private_key_1,
-            commitment_set.get_proof_for(&commitment_sender).unwrap(),
-        )];
-        let visibility_mask = vec![1, 2];
-        let program = Program::authenticated_transfer_program();
-        let mut commitment_set_digest = commitment_set.digest();
 
         let expected_private_account_1 = Account {
             balance: 100 - balance_to_move,
-            nonce: private_account_nonces[0],
+            nonce: 0xdeadbeef1,
             ..Default::default()
         };
         let expected_private_account_2 = Account {
             balance: balance_to_move,
-            nonce: private_account_nonces[1],
+            nonce: 0xdeadbeef2,
             ..Default::default()
         };
         let expected_new_commitments = vec![
@@ -231,15 +210,21 @@ mod tests {
         ];
         let expected_new_nullifiers = vec![Nullifier::new(&commitment_sender, &private_key_1)];
 
-        let (proof, output) = prove_privacy_preserving_execution_circuit(
-            &pre_states,
-            &instruction_data,
-            &private_account_keys,
-            &private_account_auth,
-            &visibility_mask,
-            &private_account_nonces,
-            commitment_set_digest,
-            &program,
+        let (output, proof) = execute_and_prove(
+            &[sender.clone(), recipient],
+            &Program::serialize_instruction(balance_to_move).unwrap(),
+            &[1, 2],
+            &[0xdeadbeef1, 0xdeadbeef2],
+            &[
+                (Npk1.clone(), [2; 32], [3; 32]),
+                (Npk2.clone(), [4; 32], [5; 32]),
+            ],
+            &[(
+                private_key_1,
+                commitment_set.get_proof_for(&commitment_sender).unwrap(),
+            )],
+            &Program::authenticated_transfer_program(),
+            &commitment_set.digest(),
         )
         .unwrap();
 
@@ -248,7 +233,7 @@ mod tests {
         assert!(output.public_post_states.is_empty());
         assert_eq!(output.new_commitments, expected_new_commitments);
         assert_eq!(output.new_nullifiers, expected_new_nullifiers);
-        assert_eq!(output.commitment_set_digest, commitment_set_digest);
+        assert_eq!(output.commitment_set_digest, commitment_set.digest());
         // TODO: replace with real assertion when encryption is implemented
         assert_eq!(output.encrypted_private_post_states.len(), 2);
         assert_eq!(output.encrypted_private_post_states[0].to_bytes(), vec![0]);
