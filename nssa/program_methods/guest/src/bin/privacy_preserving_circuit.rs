@@ -4,7 +4,7 @@ use nssa_core::{
     account::{Account, AccountWithMetadata, Commitment, Nullifier, NullifierPublicKey},
     program::{validate_execution, ProgramOutput, DEFAULT_PROGRAM_ID},
     verify_membership_proof, EncryptedAccountData, EphemeralPublicKey, EphemeralSecretKey,
-    IncomingViewingPublicKey, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput, Tag,
+    IncomingViewingPublicKey, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
 };
 
 fn main() {
@@ -50,12 +50,18 @@ fn main() {
     let mut private_keys_iter = private_account_keys.iter();
     let mut private_auth_iter = private_account_auth.iter();
 
+    let mut output_index = 0;
     for i in 0..n_accounts {
         match visibility_mask[i] {
             0 => {
+                let mut post = post_states[i].clone();
+                if post.program_owner == DEFAULT_PROGRAM_ID {
+                    // Claim account
+                    post.program_owner = program_id;
+                }
                 // Public account
                 public_pre_states.push(pre_states[i].clone());
-                public_post_states.push(post_states[i].clone());
+                public_post_states.push(post);
             }
             1 | 2 => {
                 let new_nonce = private_nonces_iter.next().expect("Missing private nonce");
@@ -111,12 +117,20 @@ fn main() {
 
                 // Compute commitment
                 let commitment_post = Commitment::new(Npk, &post_with_updated_values);
-                new_commitments.push(commitment_post);
 
                 // Encrypt and push post state
-                let encrypted_account =
-                    EncryptedAccountData::new(&post_with_updated_values, esk, Npk, Ipk);
+                let encrypted_account = EncryptedAccountData::new(
+                    &post_with_updated_values,
+                    // &commitment_post,
+                    esk,
+                    Npk,
+                    Ipk,
+                    output_index,
+                );
+
+                new_commitments.push(commitment_post);
                 encrypted_private_post_states.push(encrypted_account);
+                output_index += 1;
             }
             _ => panic!("Invalid visibility mask value"),
         }

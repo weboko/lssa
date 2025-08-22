@@ -711,26 +711,30 @@ pub mod tests {
 
     pub struct TestPrivateKeys {
         pub nsk: NullifierSecretKey,
-        pub ivk: IncomingViewingPublicKey,
+        pub isk: [u8; 32],
     }
 
     impl TestPrivateKeys {
         pub fn npk(&self) -> NullifierPublicKey {
             NullifierPublicKey::from(&self.nsk)
         }
+
+        pub fn ivk(&self) -> IncomingViewingPublicKey {
+            IncomingViewingPublicKey::from_scalar(self.isk)
+        }
     }
 
     pub fn test_private_account_keys_1() -> TestPrivateKeys {
         TestPrivateKeys {
             nsk: [13; 32],
-            ivk: [31; 32],
+            isk: [31; 32],
         }
     }
 
     pub fn test_private_account_keys_2() -> TestPrivateKeys {
         TestPrivateKeys {
             nsk: [38; 32],
-            ivk: [83; 32],
+            isk: [83; 32],
         }
     }
 
@@ -757,7 +761,7 @@ pub mod tests {
             &Program::serialize_instruction(balance_to_move).unwrap(),
             &[0, 2],
             &[0xdeadbeef],
-            &[(recipient_keys.npk(), recipient_keys.ivk, esk)],
+            &[(recipient_keys.npk(), recipient_keys.ivk(), esk)],
             &[],
             &Program::authenticated_transfer_program(),
             &state.commitment_set_digest(),
@@ -802,8 +806,8 @@ pub mod tests {
             &[1, 2],
             &new_nonces,
             &[
-                (sender_keys.npk(), sender_keys.ivk, [3; 32]),
-                (recipient_keys.npk(), recipient_keys.ivk, [4; 32]),
+                (sender_keys.npk(), sender_keys.ivk(), [3; 32]),
+                (recipient_keys.npk(), recipient_keys.ivk(), [4; 32]),
             ],
             &[(
                 sender_keys.nsk,
@@ -856,7 +860,7 @@ pub mod tests {
             &Program::serialize_instruction(balance_to_move).unwrap(),
             &[1, 0],
             &[new_nonce],
-            &[(sender_keys.npk(), sender_keys.ivk, [3; 32])],
+            &[(sender_keys.npk(), sender_keys.ivk(), [3; 32])],
             &[(
                 sender_keys.nsk,
                 state

@@ -117,6 +117,7 @@ mod tests {
 
     #[test]
     fn prove_privacy_preserving_execution_circuit_public_and_private_pre_accounts() {
+        let program = Program::authenticated_transfer_program();
         let sender = AccountWithMetadata {
             account: Account {
                 balance: 100,
@@ -133,17 +134,26 @@ mod tests {
         let balance_to_move: u128 = 37;
 
         let expected_sender_post = Account {
+            program_owner: program.id(),
             balance: 100 - balance_to_move,
-            ..Default::default()
+            ..Account::default()
+        };
+
+        let expected_recipient_post = Account {
+            program_owner: program.id(),
+            balance: balance_to_move,
+            nonce: 0xdeadbeef,
+            data: vec![],
         };
 
         let expected_sender_pre = sender.clone();
+        let recipient_keys = test_private_account_keys_1();
         let (output, proof) = execute_and_prove(
             &[sender, recipient],
             &Program::serialize_instruction(balance_to_move).unwrap(),
             &[0, 2],
             &[0xdeadbeef],
-            &[(NullifierPublicKey::from(&[1; 32]), [2; 32], [3; 32])],
+            &[(recipient_keys.npk(), recipient_keys.ivk(), [3; 32])],
             &[],
             &Program::authenticated_transfer_program(),
             &[99; 32],
@@ -160,8 +170,12 @@ mod tests {
         assert_eq!(output.new_nullifiers.len(), 0);
         assert_eq!(output.commitment_set_digest, [99; 32]);
         assert_eq!(output.encrypted_private_post_states.len(), 1);
-        // TODO: replace with real assertion when encryption is implemented
-        assert_eq!(output.encrypted_private_post_states[0].to_bytes(), vec![0]);
+
+        let recipient_post = output.encrypted_private_post_states[0]
+            .clone()
+            .decrypt(&recipient_keys.isk, 0)
+            .unwrap();
+        assert_eq!(recipient_post, expected_recipient_post);
     }
 
     #[test]
@@ -210,8 +224,8 @@ mod tests {
             &[1, 2],
             &[0xdeadbeef1, 0xdeadbeef2],
             &[
-                (sender_keys.npk(), sender_keys.ivk, [3; 32]),
-                (recipient_keys.npk(), recipient_keys.ivk, [5; 32]),
+                (sender_keys.npk(), sender_keys.ivk(), [3; 32]),
+                (recipient_keys.npk(), recipient_keys.ivk(), [5; 32]),
             ],
             &[(
                 sender_keys.nsk,
@@ -228,9 +242,18 @@ mod tests {
         assert_eq!(output.new_commitments, expected_new_commitments);
         assert_eq!(output.new_nullifiers, expected_new_nullifiers);
         assert_eq!(output.commitment_set_digest, commitment_set.digest());
-        // TODO: replace with real assertion when encryption is implemented
         assert_eq!(output.encrypted_private_post_states.len(), 2);
-        assert_eq!(output.encrypted_private_post_states[0].to_bytes(), vec![0]);
-        assert_eq!(output.encrypted_private_post_states[1].to_bytes(), vec![0]);
+
+        let recipient_post_1 = output.encrypted_private_post_states[0]
+            .clone()
+            .decrypt(&sender_keys.isk, 0)
+            .unwrap();
+        assert_eq!(recipient_post_1, expected_private_account_1);
+
+        let recipient_post_2 = output.encrypted_private_post_states[1]
+            .clone()
+            .decrypt(&recipient_keys.isk, 1)
+            .unwrap();
+        assert_eq!(recipient_post_2, expected_private_account_2);
     }
 }
