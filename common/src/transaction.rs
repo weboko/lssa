@@ -25,39 +25,49 @@ pub type Tag = u8;
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum TxKind {
     Public,
-    Private,
-    Shielded,
-    Deshielded,
+    PrivacyPreserving,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 ///General transaction object
 pub struct TransactionBody {
     pub tx_kind: TxKind,
-    ///Tx input data (public part)
-    pub execution_input: Vec<u8>,
-    ///Tx output data (public_part)
-    pub execution_output: Vec<u8>,
-    ///Tx input utxo commitments
-    pub utxo_commitments_spent_hashes: Vec<TreeHashType>,
-    ///Tx output utxo commitments
-    pub utxo_commitments_created_hashes: Vec<TreeHashType>,
-    ///Tx output nullifiers
-    pub nullifier_created_hashes: Vec<TreeHashType>,
-    ///Execution proof (private part)
-    pub execution_proof_private: String,
     ///Encoded blobs of data
-    pub encoded_data: Vec<(CipherText, Vec<u8>, Tag)>,
-    ///Transaction senders ephemeral pub key
-    pub ephemeral_pub_key: Vec<u8>,
-    ///Public (Pedersen) commitment
-    pub commitment: Vec<PedersenCommitment>,
-    ///tweak
-    pub tweak: Tweak,
-    ///secret_r
-    pub secret_r: [u8; 32],
-    ///Hex-encoded address of a smart contract account called
-    pub sc_addr: String,
+    pub encoded_transaction_data: Vec<u8>,
+}
+
+impl From<nssa::NSSATransaction> for TransactionBody {
+    fn from(value: nssa::NSSATransaction) -> Self {
+        match value {
+            nssa::NSSATransaction::Public(tx) => {
+                Self {
+                    tx_kind: TxKind::Public,
+                    encoded_transaction_data: tx.to_bytes(),
+                }
+            },
+            nssa::NSSATransaction::PrivacyPreserving(tx) => {
+                Self {
+                    tx_kind: TxKind::PrivacyPreserving,
+                    encoded_transaction_data: tx.to_bytes(),
+                }
+            }
+        }
+    }
+}
+
+impl TryFrom<TransactionBody> for nssa::NSSATransaction {
+    type Error = nssa::error::NssaError;
+
+    fn try_from(value: TransactionBody) -> Result<Self, Self::Error> {
+        match value.tx_kind {
+            TxKind::Public => {
+                nssa::PublicTransaction::from_bytes(&value.encoded_transaction_data).map(|tx| tx.into())
+            },
+            TxKind::PrivacyPreserving => {
+                nssa::PrivacyPreservingTransaction::from_bytes(&value.encoded_transaction_data).map(|tx| tx.into())
+            },
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -172,51 +182,12 @@ impl TransactionBody {
     pub fn log(&self) {
         info!("Transaction hash is {:?}", hex::encode(self.hash()));
         info!("Transaction tx_kind is {:?}", self.tx_kind);
-        info!("Transaction execution_input is {:?}", {
-            if let Ok(action) = serde_json::from_slice::<ActionData>(&self.execution_input) {
-                action.into_hexed_print()
-            } else {
-                "".to_string()
-            }
-        });
-        info!("Transaction execution_output is {:?}", {
-            if let Ok(action) = serde_json::from_slice::<ActionData>(&self.execution_output) {
-                action.into_hexed_print()
-            } else {
-                "".to_string()
-            }
-        });
-        info!(
-            "Transaction utxo_commitments_spent_hashes is {:?}",
-            self.utxo_commitments_spent_hashes
-                .iter()
-                .map(|val| hex::encode(*val))
-                .collect::<Vec<_>>()
-        );
-        info!(
-            "Transaction utxo_commitments_created_hashes is {:?}",
-            self.utxo_commitments_created_hashes
-                .iter()
-                .map(|val| hex::encode(*val))
-                .collect::<Vec<_>>()
-        );
-        info!(
-            "Transaction nullifier_created_hashes is {:?}",
-            self.nullifier_created_hashes
-                .iter()
-                .map(|val| hex::encode(*val))
-                .collect::<Vec<_>>()
-        );
         info!(
             "Transaction encoded_data is {:?}",
             self.encoded_data
                 .iter()
                 .map(|val| (hex::encode(val.0.clone()), hex::encode(val.1.clone())))
                 .collect::<Vec<_>>()
-        );
-        info!(
-            "Transaction ephemeral_pub_key is {:?}",
-            hex::encode(self.ephemeral_pub_key.clone())
         );
     }
 }
@@ -309,18 +280,7 @@ mod tests {
     fn test_transaction_body() -> TransactionBody {
         TransactionBody {
             tx_kind: TxKind::Public,
-            execution_input: vec![1, 2, 3, 4],
-            execution_output: vec![5, 6, 7, 8],
-            utxo_commitments_spent_hashes: vec![[9; 32], [10; 32], [11; 32], [12; 32]],
-            utxo_commitments_created_hashes: vec![[13; 32]],
-            nullifier_created_hashes: vec![[0; 32], [1; 32], [2; 32], [3; 32]],
-            execution_proof_private: "loremipsum".to_string(),
-            encoded_data: vec![(vec![255, 255, 255], vec![254, 254, 254], 1)],
-            ephemeral_pub_key: vec![5; 32],
-            commitment: vec![],
-            tweak: Tweak::from_slice(&[7; SECRET_KEY_SIZE]).unwrap(),
-            secret_r: [8; 32],
-            sc_addr: "someAddress".to_string(),
+            encoded_transaction_data: vec![1,2,3,4],
         }
     }
 

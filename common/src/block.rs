@@ -1,20 +1,34 @@
 use std::io::{Cursor, Read};
 
+use k256::ecdsa::Signature;
 use rs_merkle::Hasher;
 
-use crate::merkle_tree_public::hasher::OwnHasher;
+use crate::{merkle_tree_public::hasher::OwnHasher, transaction::AuthenticatedTransaction};
 use nssa;
 
 pub type BlockHash = [u8; 32];
 pub type BlockId = u64;
+pub type TimeStamp = u64;
 
 #[derive(Debug, Clone)]
-pub struct Block {
+pub struct BlockHeader {
     pub block_id: BlockId,
     pub prev_block_id: BlockId,
     pub prev_block_hash: BlockHash,
     pub hash: BlockHash,
-    pub transactions: Vec<nssa::PublicTransaction>,
+    pub timestamp: TimeStamp,
+    pub signature: Signature,
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockBody {
+    pub transactions: Vec<AuthenticatedTransaction>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Block {
+    pub header: BlockHeader,
+    pub body: BlockBody,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -22,7 +36,9 @@ pub struct HashableBlockData {
     pub block_id: BlockId,
     pub prev_block_id: BlockId,
     pub prev_block_hash: BlockHash,
-    pub transactions: Vec<nssa::PublicTransaction>,
+    pub timestamp: TimeStamp,
+    pub signature: Signature,
+    pub transactions: Vec<AuthenticatedTransaction>,
 }
 
 impl From<HashableBlockData> for Block {
@@ -31,11 +47,17 @@ impl From<HashableBlockData> for Block {
         let hash = OwnHasher::hash(&data);
 
         Self {
-            block_id: value.block_id,
-            prev_block_id: value.prev_block_id,
-            hash,
-            transactions: value.transactions,
-            prev_block_hash: value.prev_block_hash,
+            header: BlockHeader {
+                block_id: value.block_id,
+                prev_block_id: value.prev_block_id,
+                prev_block_hash: value.prev_block_hash,
+                hash,
+                timestamp: value.timestamp,
+                signature: value.signature,
+            },
+            body: BlockBody {
+                transactions: value.transactions,
+            },
         }
     }
 }
@@ -46,6 +68,8 @@ impl From<Block> for HashableBlockData {
             block_id: value.block_id,
             prev_block_id: value.prev_block_id,
             prev_block_hash: value.prev_block_hash,
+            timestamp: value.timestamp,
+            signature: value.signature,
             transactions: value.transactions,
         }
     }

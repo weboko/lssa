@@ -77,18 +77,33 @@ fn block_to_transactions_map(block: &Block) -> HashMap<TreeHashType, u64> {
 mod tests {
     use super::*;
 
+    use common::block::{BlockBody, BlockHeader};
+    use k256::{
+        ecdsa::{signature::SignerMut, Signature, SigningKey},
+        FieldBytes,
+    };
     use tempfile::tempdir;
 
     #[test]
     fn test_get_transaction_by_hash() {
         let temp_dir = tempdir().unwrap();
         let path = temp_dir.path();
+
+        let key_bytes = FieldBytes::from_slice(&[37; 32]);
+        let mut private_key: SigningKey = SigningKey::from_bytes(key_bytes).unwrap();
+
         let genesis_block = Block {
-            block_id: 0,
-            prev_block_id: 0,
-            prev_block_hash: [0; 32],
-            hash: [1; 32],
-            transactions: vec![],
+            header: BlockHeader {
+                block_id: 0,
+                prev_block_id: 0,
+                prev_block_hash: [0; 32],
+                hash: [1; 32],
+                timestamp: 0,
+                signature: private_key.sign(&[42; 32]),
+            },
+            body: BlockBody {
+                transactions: vec![],
+            },
         };
         // Start an empty node store
         let mut node_store =
