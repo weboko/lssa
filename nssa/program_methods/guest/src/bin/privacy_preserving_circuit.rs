@@ -33,12 +33,12 @@ fn main() {
     // Check that the program is well behaved.
     // See the # Programs section for the definition of the `validate_execution` method.
     if !validate_execution(&pre_states, &post_states, program_id) {
-        panic!();
+        panic!("Bad behaved program");
     }
 
     let n_accounts = pre_states.len();
     if visibility_mask.len() != n_accounts {
-        panic!();
+        panic!("Invalid visibility mask length");
     }
 
     // These lists will be the public outputs of this circuit

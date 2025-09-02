@@ -111,6 +111,7 @@ mod tests {
         let program = Program::authenticated_transfer_program();
         let sender = AccountWithMetadata {
             account: Account {
+                program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
@@ -177,11 +178,13 @@ mod tests {
 
     #[test]
     fn prove_privacy_preserving_execution_circuit_fully_private() {
+        let program = Program::authenticated_transfer_program();
         let sender_pre = AccountWithMetadata {
             account: Account {
                 balance: 100,
                 nonce: 0xdeadbeef,
-                ..Account::default()
+                program_owner: program.id(),
+                data: vec![],
             },
             is_authorized: true,
         };
