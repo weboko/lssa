@@ -4,7 +4,7 @@ use anyhow::Result;
 use common::merkle_tree_public::merkle_tree::UTXOCommitmentsMerkleTree;
 use key_protocol::key_protocol_core::NSSAUserData;
 
-use crate::config::{InitialAccountData, WalletConfig};
+use crate::config::{PersistentAccountData, WalletConfig};
 
 pub struct WalletChainStore {
     pub user_data: NSSAUserData,
@@ -14,32 +14,27 @@ pub struct WalletChainStore {
 
 impl WalletChainStore {
     pub fn new(config: WalletConfig) -> Result<Self> {
-        let accounts_data: HashMap<nssa::Address, (nssa::PrivateKey, nssa_core::account::Account)> =
-            config
-                .initial_accounts
-                .clone()
-                .into_iter()
-                .map(|init_acc_data| {
-                    (
-                        init_acc_data.address,
-                        (init_acc_data.pub_sign_key, init_acc_data.account),
-                    )
-                })
-                .collect();
+        let accounts_keys: HashMap<nssa::Address, nssa::PrivateKey> = config
+            .initial_accounts
+            .clone()
+            .into_iter()
+            .map(|init_acc_data| (init_acc_data.address, init_acc_data.pub_sign_key))
+            .collect();
 
         let utxo_commitments_store = UTXOCommitmentsMerkleTree::new(vec![]);
 
         Ok(Self {
-            user_data: NSSAUserData::new_with_accounts(accounts_data),
+            user_data: NSSAUserData::new_with_accounts(accounts_keys)?,
             utxo_commitments_store,
             wallet_config: config,
         })
     }
 
-    pub(crate) fn insert_account_data(&mut self, acc_data: InitialAccountData) {
+    pub(crate) fn insert_account_data(&mut self, acc_data: PersistentAccountData) {
         self.user_data
-            .accounts
-            .insert(acc_data.address, (acc_data.pub_sign_key, acc_data.account));
+            .key_holder
+            .pub_account_signing_keys
+            .insert(acc_data.address, acc_data.pub_sign_key);
     }
 }
 
@@ -101,7 +96,6 @@ mod tests {
 
         let store = WalletChainStore::new(config.clone()).unwrap();
 
-        assert_eq!(store.user_data.accounts.len(), 2);
         assert_eq!(
             store.utxo_commitments_store.get_root().unwrap_or([0; 32]),
             [0; 32]
