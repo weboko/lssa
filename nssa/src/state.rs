@@ -1067,29 +1067,214 @@ pub mod tests {
 
     #[test]
     fn test_burner_program_should_fail_in_privacy_preserving_circuit() {
-        let keys = test_private_account_keys_1();
-        let private_account = AccountWithMetadata {
+        let program = Program::burner();
+        let public_account = AccountWithMetadata {
             account: Account {
+                program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
             is_authorized: true,
         };
-        let state = V01State::new_with_genesis_accounts(&[])
-            .with_private_account(&keys, &private_account.account);
 
-        let membership_proof = state
-            .get_proof_for_commitment(&Commitment::new(&keys.npk(), &private_account.account))
-            .unwrap();
-
-        let program = Program::burner();
         let result = execute_and_prove(
-            &[private_account],
+            &[public_account],
             &Program::serialize_instruction(10u128).unwrap(),
-            &[1],
-            &[0xdeadbeef],
-            &[(keys.npk(), SharedSecretKey::new(&[0xca; 32], &keys.ivk()))],
-            &[(keys.nsk, membership_proof)],
+            &[0],
+            &[],
+            &[],
+            &[],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_minter_program_should_fail_in_privacy_preserving_circuit() {
+        let program = Program::minter();
+        let public_account = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+
+        let result = execute_and_prove(
+            &[public_account],
+            &Program::serialize_instruction(10u128).unwrap(),
+            &[0],
+            &[],
+            &[],
+            &[],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_nonce_changer_program_should_fail_in_privacy_preserving_circuit() {
+        let program = Program::nonce_changer_program();
+        let public_account = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+
+        let result = execute_and_prove(
+            &[public_account],
+            &Program::serialize_instruction(()).unwrap(),
+            &[0],
+            &[],
+            &[],
+            &[],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_data_changer_program_should_fail_for_non_owned_account_in_privacy_preserving_circuit() {
+        let program = Program::data_changer();
+        let public_account = AccountWithMetadata {
+            account: Account {
+                program_owner: [0, 1, 2, 3, 4, 5, 6, 7],
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+
+        let result = execute_and_prove(
+            &[public_account],
+            &Program::serialize_instruction(()).unwrap(),
+            &[0],
+            &[],
+            &[],
+            &[],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_extra_output_program_should_fail_in_privacy_preserving_circuit() {
+        let program = Program::extra_output_program();
+        let public_account = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+
+        let result = execute_and_prove(
+            &[public_account],
+            &Program::serialize_instruction(()).unwrap(),
+            &[0],
+            &[],
+            &[],
+            &[],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_missing_output_program_should_fail_in_privacy_preserving_circuit() {
+        let program = Program::missing_output_program();
+        let public_account_1 = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+        let public_account_2 = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+
+        let result = execute_and_prove(
+            &[public_account_1, public_account_2],
+            &Program::serialize_instruction(()).unwrap(),
+            &[0, 0],
+            &[],
+            &[],
+            &[],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_program_owner_changer_should_fail_in_privacy_preserving_circuit() {
+        let program = Program::program_owner_changer();
+        let public_account = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+
+        let result = execute_and_prove(
+            &[public_account],
+            &Program::serialize_instruction(()).unwrap(),
+            &[0],
+            &[],
+            &[],
+            &[],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_transfer_from_non_owned_account_should_fail_in_privacy_preserving_circuit() {
+        let program = Program::simple_balance_transfer();
+        let public_account_1 = AccountWithMetadata {
+            account: Account {
+                program_owner: [0, 1, 2, 3, 4, 5, 6, 7],
+                balance: 100,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+        let public_account_2 = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+
+        let result = execute_and_prove(
+            &[public_account_1, public_account_2],
+            &Program::serialize_instruction(10u128).unwrap(),
+            &[0, 0],
+            &[],
+            &[],
+            &[],
             &program,
         );
 
