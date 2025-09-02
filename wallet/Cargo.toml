@@ -22,12 +22,10 @@ risc0-zkvm = "3.0.3"
 hex.workspace = true
 actix-rt.workspace = true
 clap.workspace = true
+nssa-core = { path = "../nssa/core" }
 
-[dependencies.accounts]
-path = "../accounts"
-
-[dependencies.utxo]
-path = "../utxo"
+[dependencies.key_protocol]
+path = "../key_protocol"
 
 [dependencies.nssa]
 path = "../nssa"

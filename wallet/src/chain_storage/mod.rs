@@ -1,54 +1,30 @@
 use std::collections::HashMap;
 
-use accounts::account_core::Account;
 use anyhow::Result;
 use common::merkle_tree_public::merkle_tree::UTXOCommitmentsMerkleTree;
-use nssa::Address;
-use serde::{Deserialize, Serialize};
+use key_protocol::key_protocol_core::NSSAUserData;
 
 use crate::config::WalletConfig;
 
-pub mod accounts_store;
-
-#[derive(Deserialize, Serialize)]
-pub struct AccMap {
-    pub acc_map: HashMap<String, Account>,
-}
-
-impl From<HashMap<[u8; 32], Account>> for AccMap {
-    fn from(value: HashMap<[u8; 32], Account>) -> Self {
-        AccMap {
-            acc_map: value
-                .into_iter()
-                .map(|(key, val)| (hex::encode(key), val))
-                .collect(),
-        }
-    }
-}
-
-impl From<AccMap> for HashMap<[u8; 32], Account> {
-    fn from(value: AccMap) -> Self {
-        value
-            .acc_map
-            .into_iter()
-            .map(|(key, val)| (hex::decode(key).unwrap().try_into().unwrap(), val))
-            .collect()
-    }
-}
-
 pub struct WalletChainStore {
-    pub acc_map: HashMap<Address, Account>,
+    pub user_data: NSSAUserData,
     pub utxo_commitments_store: UTXOCommitmentsMerkleTree,
     pub wallet_config: WalletConfig,
 }
 
 impl WalletChainStore {
     pub fn new(config: WalletConfig) -> Result<Self> {
-        let acc_map = HashMap::new();
+        let accounts_keys: HashMap<nssa::Address, nssa::PrivateKey> = config
+            .initial_accounts
+            .clone()
+            .into_iter()
+            .map(|init_acc_data| (init_acc_data.address, init_acc_data.pub_sign_key))
+            .collect();
+
         let utxo_commitments_store = UTXOCommitmentsMerkleTree::new(vec![]);
 
         Ok(Self {
-            acc_map,
+            user_data: NSSAUserData::new_with_accounts(accounts_keys)?,
             utxo_commitments_store,
             wallet_config: config,
         })
@@ -57,48 +33,33 @@ impl WalletChainStore {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::InitialAccountData;
+
     use super::*;
-    use accounts::account_core::Account;
     use std::path::PathBuf;
     use tempfile::tempdir;
 
-    fn create_initial_accounts() -> Vec<Account> {
+    fn create_initial_accounts() -> Vec<InitialAccountData> {
         let initial_acc1 = serde_json::from_str(r#"{
             "address": "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
-            "balance": 100,
-            "nonce": 0,
-            "key_holder": {
-                "nullifer_public_key": "03A340BECA9FAAB444CED0140681D72EA1318B5C611704FEE017DA9836B17DB718",
-                "pub_account_signing_key": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                "top_secret_key_holder": {
-                    "secret_spending_key": "7BC46784DB1BC67825D8F029436846712BFDF9B5D79EA3AB11D39A52B9B229D4"
-                },
-                "utxo_secret_key_holder": {
-                    "nullifier_secret_key": "BB54A8D3C9C51B82C431082D1845A74677B0EF829A11B517E1D9885DE3139506",
-                    "viewing_secret_key": "AD923E92F6A5683E30140CEAB2702AFB665330C1EE4EFA70FAF29767B6B52BAF"
-                },
-                "viewing_public_key": "0361220C5D277E7A1709340FD31A52600C1432B9C45B9BCF88A43581D58824A8B6"
-            },
-            "utxos": {}
+            "pub_sign_key": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            "account": {
+                "program_owner": [0,0,0,0,0,0,0,0],
+                "balance": 100,
+                "nonce": 0,
+                "data": []
+            }
         }"#).unwrap();
 
         let initial_acc2 = serde_json::from_str(r#"{
             "address": "4d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766",
-            "balance": 200,
-            "nonce": 0,
-            "key_holder": {
-                "nullifer_public_key": "02172F50274DE67C4087C344F5D58E11DF761D90285B095060E0994FAA6BCDE271",
-                "pub_account_signing_key": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                "top_secret_key_holder": {
-                    "secret_spending_key": "80A186737C8D38B4288A03F0F589957D9C040D79C19F3E0CC4BA80F8494E5179"
-                },
-                "utxo_secret_key_holder": {
-                    "nullifier_secret_key": "746928E63F0984F6F4818933493CE9C067562D9CB932FDC06D82C86CDF6D7122",
-                    "viewing_secret_key": "89176CF4BC9E673807643FD52110EF99D4894335AFB10D881AC0B5041FE1FCB7"
-                },
-                "viewing_public_key": "026072A8F83FEC3472E30CDD4767683F30B91661D25B1040AD9A5FC2E01D659F99"
-            },
-            "utxos": {}
+            "pub_sign_key": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+            "account": {
+                "program_owner": [0,0,0,0,0,0,0,0],
+                "balance": 100,
+                "nonce": 0,
+                "data": []
+            }
         }"#).unwrap();
 
         let initial_accounts = vec![initial_acc1, initial_acc2];
@@ -125,7 +86,6 @@ mod tests {
 
         let store = WalletChainStore::new(config.clone()).unwrap();
 
-        assert!(store.acc_map.is_empty());
         assert_eq!(
             store.utxo_commitments_store.get_root().unwrap_or([0; 32]),
             [0; 32]

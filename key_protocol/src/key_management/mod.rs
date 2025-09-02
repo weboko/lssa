@@ -1,15 +1,15 @@
+use std::collections::HashMap;
+
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
 use constants_types::{CipherText, Nonce};
 use elliptic_curve::point::AffineCoordinates;
 use k256::AffinePoint;
 use log::info;
-use rand::{rngs::OsRng, Rng};
 use secret_holders::{SeedHolder, TopSecretKeyHolder, UTXOSecretKeyHolder};
 use serde::{Deserialize, Serialize};
 
-use crate::account_core::PublicKey;
+use crate::key_protocol_core::PublicKey;
 pub type PublicAccountSigningKey = [u8; 32];
-use nssa::{self};
 
 pub mod constants_types;
 pub mod ephemeral_key_holder;
@@ -17,15 +17,16 @@ pub mod secret_holders;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 ///Entrypoint to key management
-pub struct AddressKeyHolder {
+pub struct KeyChain {
     top_secret_key_holder: TopSecretKeyHolder,
     pub utxo_secret_key_holder: UTXOSecretKeyHolder,
-    pub_account_signing_key: nssa::PrivateKey,
+    ///Map for all users accounts
+    pub_account_signing_keys: HashMap<nssa::Address, nssa::PrivateKey>,
     pub nullifer_public_key: PublicKey,
     pub viewing_public_key: PublicKey,
 }
 
-impl AddressKeyHolder {
+impl KeyChain {
     pub fn new_os_random() -> Self {
         //Currently dropping SeedHolder at the end of initialization.
         //Now entirely sure if we need it in the future.
@@ -37,26 +38,50 @@ impl AddressKeyHolder {
         let nullifer_public_key = utxo_secret_key_holder.generate_nullifier_public_key();
         let viewing_public_key = utxo_secret_key_holder.generate_viewing_public_key();
 
-        let mut rng = OsRng;
-        let pub_account_signing_key = loop {
-            match nssa::PrivateKey::try_new(rng.gen()) {
-                Ok(key) => break key,
-                Err(_) => continue,
-            }
-        };
+        Self {
+            top_secret_key_holder,
+            utxo_secret_key_holder,
+            nullifer_public_key,
+            viewing_public_key,
+            pub_account_signing_keys: HashMap::new(),
+        }
+    }
+
+    pub fn new_os_random_with_accounts(accounts: HashMap<nssa::Address, nssa::PrivateKey>) -> Self {
+        //Currently dropping SeedHolder at the end of initialization.
+        //Now entirely sure if we need it in the future.
+        let seed_holder = SeedHolder::new_os_random();
+        let top_secret_key_holder = seed_holder.produce_top_secret_key_holder();
+
+        let utxo_secret_key_holder = top_secret_key_holder.produce_utxo_secret_holder();
+
+        let nullifer_public_key = utxo_secret_key_holder.generate_nullifier_public_key();
+        let viewing_public_key = utxo_secret_key_holder.generate_viewing_public_key();
 
         Self {
             top_secret_key_holder,
             utxo_secret_key_holder,
             nullifer_public_key,
             viewing_public_key,
-            pub_account_signing_key,
+            pub_account_signing_keys: accounts,
         }
     }
 
+    pub fn generate_new_private_key(&mut self) -> nssa::Address {
+        let private_key = nssa::PrivateKey::new_os_random();
+        let address = nssa::Address::from(&nssa::PublicKey::new_from_private_key(&private_key));
+
+        self.pub_account_signing_keys.insert(address, private_key);
+
+        address
+    }
+
     /// Returns the signing key for public transaction signatures
-    pub fn get_pub_account_signing_key(&self) -> &nssa::PrivateKey {
-        &self.pub_account_signing_key
+    pub fn get_pub_account_signing_key(
+        &self,
+        address: &nssa::Address,
+    ) -> Option<&nssa::PrivateKey> {
+        self.pub_account_signing_keys.get(address)
     }
 
     pub fn calculate_shared_secret_receiver(
@@ -127,8 +152,8 @@ mod tests {
 
     #[test]
     fn test_new_os_random() {
-        // Ensure that a new AddressKeyHolder instance can be created without errors.
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        // Ensure that a new KeyChain instance can be created without errors.
+        let address_key_holder = KeyChain::new_os_random();
 
         // Check that key holder fields are initialized with expected types
         assert!(!Into::<bool>::into(
@@ -141,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_calculate_shared_secret_receiver() {
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        let address_key_holder = KeyChain::new_os_random();
 
         // Generate a random ephemeral public key sender
         let scalar = Scalar::random(&mut OsRng);
@@ -157,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_decrypt_data() {
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        let address_key_holder = KeyChain::new_os_random();
 
         // Generate an ephemeral key and shared secret
         let ephemeral_public_key_sender =
@@ -188,8 +213,8 @@ mod tests {
 
     #[test]
     fn test_new_os_random_initialization() {
-        // Ensure that AddressKeyHolder is initialized correctly
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        // Ensure that KeyChain is initialized correctly
+        let address_key_holder = KeyChain::new_os_random();
 
         // Check that key holder fields are initialized with expected types and values
         assert!(!Into::<bool>::into(
@@ -202,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_calculate_shared_secret_with_identity_point() {
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        let address_key_holder = KeyChain::new_os_random();
 
         // Use identity point as ephemeral public key
         let identity_point = AffinePoint::identity();
@@ -217,7 +242,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_decrypt_data_with_incorrect_nonce() {
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        let address_key_holder = KeyChain::new_os_random();
 
         // Generate ephemeral public key and shared secret
         let scalar = Scalar::random(OsRng);
@@ -250,7 +275,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_decrypt_data_with_incorrect_ciphertext() {
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        let address_key_holder = KeyChain::new_os_random();
 
         // Generate ephemeral public key and shared secret
         let scalar = Scalar::random(OsRng);
@@ -285,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_round_trip() {
-        let address_key_holder = AddressKeyHolder::new_os_random();
+        let address_key_holder = KeyChain::new_os_random();
 
         // Generate ephemeral key and shared secret
         let scalar = Scalar::random(OsRng);
@@ -303,7 +328,7 @@ mod tests {
             .encrypt(nonce, plaintext.as_ref())
             .expect("encryption failure");
 
-        // Decrypt the data using the `AddressKeyHolder` instance
+        // Decrypt the data using the `KeyChain` instance
         let decrypted_data = address_key_holder
             .decrypt_data(
                 ephemeral_public_key_sender,
@@ -318,9 +343,15 @@ mod tests {
 
     #[test]
     fn test_get_public_account_signing_key() {
-        let address_key_holder = AddressKeyHolder::new_os_random();
-        let signing_key = address_key_holder.get_pub_account_signing_key();
-        assert_eq!(signing_key, &address_key_holder.pub_account_signing_key);
+        let mut address_key_holder = KeyChain::new_os_random();
+
+        let address = address_key_holder.generate_new_private_key();
+
+        let is_private_key_generated = address_key_holder
+            .get_pub_account_signing_key(&address)
+            .is_some();
+
+        assert!(is_private_key_generated);
     }
 
     #[test]
@@ -333,13 +364,7 @@ mod tests {
         let nullifer_public_key = utxo_secret_key_holder.generate_nullifier_public_key();
         let viewing_public_key = utxo_secret_key_holder.generate_viewing_public_key();
 
-        let mut rng = OsRng;
-        let pub_account_signing_key = loop {
-            match nssa::PrivateKey::try_new(rng.gen()) {
-                Ok(key) => break key,
-                Err(_) => continue,
-            }
-        };
+        let pub_account_signing_key = nssa::PrivateKey::new_os_random();
 
         let public_key = nssa::PublicKey::new_from_private_key(&pub_account_signing_key);
 

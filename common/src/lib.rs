@@ -68,6 +68,8 @@ pub enum ExecutionFailureKind {
     DecodeError(String),
     #[error("Inputs amounts does not match outputs")]
     AmountMismatchError,
+    #[error("Accounts key not found")]
+    KeyNotFoundError,
     #[error("Sequencer client error: {0:?}")]
     SequencerClientError(#[from] SequencerClientError),
     #[error("Insufficient gas for operation")]
