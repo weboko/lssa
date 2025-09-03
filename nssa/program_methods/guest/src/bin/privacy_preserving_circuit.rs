@@ -140,7 +140,7 @@ fn main() {
     }
 
     if private_keys_iter.next().is_some() {
-        panic!("Too many private accounts keys.");
+        panic!("Too many private account keys.");
     }
 
     if private_auth_iter.next().is_some() {

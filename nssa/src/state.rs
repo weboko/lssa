@@ -1743,4 +1743,141 @@ pub mod tests {
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
     }
+
+    #[test]
+    fn test_circuit_should_fail_with_too_many_nonces() {
+        let program = Program::simple_balance_transfer();
+        let sender_keys = test_private_account_keys_1();
+        let recipient_keys = test_private_account_keys_2();
+        let private_account_1 = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 100,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+        let private_account_2 = AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: false,
+        };
+
+        // Setting three new private account nonces for a circuit execution with only two private
+        // accounts.
+        let private_account_nonces = [0xdeadbeef1, 0xdeadbeef2, 0xdeadbeef3];
+        let result = execute_and_prove(
+            &[private_account_1, private_account_2],
+            &Program::serialize_instruction(10u128).unwrap(),
+            &[1, 2],
+            &private_account_nonces,
+            &[
+                (
+                    sender_keys.npk(),
+                    SharedSecretKey::new(&[55; 32], &sender_keys.ivk()),
+                ),
+                (
+                    recipient_keys.npk(),
+                    SharedSecretKey::new(&[56; 32], &recipient_keys.ivk()),
+                ),
+            ],
+            &[(sender_keys.nsk, (0, vec![]))],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_circuit_should_fail_with_too_many_private_account_keys() {
+        let program = Program::simple_balance_transfer();
+        let sender_keys = test_private_account_keys_1();
+        let recipient_keys = test_private_account_keys_2();
+        let private_account_1 = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 100,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+        let private_account_2 = AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: false,
+        };
+
+        // Setting three private account keys for a circuit execution with only two private
+        // accounts.
+        let private_account_keys = [
+            (
+                sender_keys.npk(),
+                SharedSecretKey::new(&[55; 32], &sender_keys.ivk()),
+            ),
+            (
+                recipient_keys.npk(),
+                SharedSecretKey::new(&[56; 32], &recipient_keys.ivk()),
+            ),
+            (
+                sender_keys.npk(),
+                SharedSecretKey::new(&[57; 32], &sender_keys.ivk()),
+            ),
+        ];
+        let result = execute_and_prove(
+            &[private_account_1, private_account_2],
+            &Program::serialize_instruction(10u128).unwrap(),
+            &[1, 2],
+            &[0xdeadbeef1, 0xdeadbeef2],
+            &private_account_keys,
+            &[(sender_keys.nsk, (0, vec![]))],
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_circuit_should_fail_with_too_many_private_account_auth_keys() {
+        let program = Program::simple_balance_transfer();
+        let sender_keys = test_private_account_keys_1();
+        let recipient_keys = test_private_account_keys_2();
+        let private_account_1 = AccountWithMetadata {
+            account: Account {
+                program_owner: program.id(),
+                balance: 100,
+                ..Account::default()
+            },
+            is_authorized: true,
+        };
+        let private_account_2 = AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: false,
+        };
+
+        // Setting two private account keys for a circuit execution with only one non default
+        // private account (visibility mask equal to 1 means that auth keys are expected).
+        let visibility_mask = [1, 2];
+        let private_account_auth = [
+            (sender_keys.nsk, (0, vec![])),
+            (recipient_keys.nsk, (1, vec![])),
+        ];
+        let result = execute_and_prove(
+            &[private_account_1, private_account_2],
+            &Program::serialize_instruction(10u128).unwrap(),
+            &visibility_mask,
+            &[0xdeadbeef1, 0xdeadbeef2],
+            &[
+                (
+                    sender_keys.npk(),
+                    SharedSecretKey::new(&[55; 32], &sender_keys.ivk()),
+                ),
+                (
+                    recipient_keys.npk(),
+                    SharedSecretKey::new(&[56; 32], &recipient_keys.ivk()),
+                ),
+            ],
+            &private_account_auth,
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
 }
