@@ -8,6 +8,7 @@ use nssa_core::{
     account::Account,
     program::{DEFAULT_PROGRAM_ID, ProgramId},
 };
+use rand::{Rng, RngCore, rngs::OsRng};
 use std::collections::{HashMap, HashSet};
 
 pub(crate) struct CommitmentSet {
@@ -83,6 +84,41 @@ impl V01State {
         this.insert_program(Program::authenticated_transfer_program());
 
         this
+    }
+
+    pub fn add_pinata_accounts(&mut self) {
+        self.insert_program(Program::pinata());
+
+        let mut rng = OsRng;
+        let mut seed = [0; 32];
+
+        rng.fill_bytes(&mut seed);
+        self.public_state.insert(
+            "6a79aee868a1c641ea895582af7ddd6f2da339e3091a67eddcbfdaa1b9010001"
+                .parse()
+                .unwrap(),
+            Account {
+                program_owner: Program::pinata().id(),
+                balance: 1500,
+                // Difficulty: 3
+                data: std::iter::once(3).chain(seed).collect(),
+                nonce: 0,
+            },
+        );
+
+        rng.fill_bytes(&mut seed);
+        self.public_state.insert(
+            "6a79aee868a1c641ea895582af7ddd6f2da339e3091a67eddcbfdaa1b9010002"
+                .parse()
+                .unwrap(),
+            Account {
+                program_owner: Program::pinata().id(),
+                balance: 1500,
+                // Difficulty: 4
+                data: std::iter::once(4).chain(seed).collect(),
+                nonce: 0,
+            },
+        );
     }
 
     pub(crate) fn insert_program(&mut self, program: Program) {
