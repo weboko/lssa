@@ -134,7 +134,7 @@ impl MerkleTree {
 
         while node_index != root_index {
             let parent_index = (node_index - 1) >> 1;
-            //left children have odd indices, and right children have even indices
+            // Left children have odd indices, and right children have even indices
             let is_left_child = node_index & 1 == 1;
             let sibling_index = if is_left_child {
                 node_index + 1
