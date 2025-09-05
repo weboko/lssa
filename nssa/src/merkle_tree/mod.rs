@@ -105,7 +105,7 @@ impl MerkleTree {
         let mut node_index = new_index + self.capacity - 1;
         let mut node_hash = hash_value(&value);
 
-        //add new node to nodes
+        // Insert the new node at the bottom layer
         self.set_node(node_index, node_hash);
         self.length += 1;
 
