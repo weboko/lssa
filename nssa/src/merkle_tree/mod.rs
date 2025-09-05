@@ -57,7 +57,7 @@ impl MerkleTree {
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        //adjust capacity to ensure power of two
+        // Adjust capacity to ensure power of two
         let capacity = capacity.next_power_of_two();
         let total_depth = capacity.trailing_zeros() as usize;
 
