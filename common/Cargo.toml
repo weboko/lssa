@@ -1,7 +1,7 @@
 [package]
 name = "common"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
@@ -10,7 +10,6 @@ serde_json.workspace = true
 serde.workspace = true
 reqwest.workspace = true
 k256.workspace = true
-rand.workspace = true
 
 rs_merkle.workspace = true
 sha2.workspace = true
