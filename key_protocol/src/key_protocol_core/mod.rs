@@ -46,11 +46,15 @@ impl NSSAUserData {
         accounts_key_chains: HashMap<nssa::Address, KeyChain>,
     ) -> Result<Self> {
         if !Self::valid_public_key_transaction_pairing_check(&accounts_keys) {
-            anyhow::bail!("Key transaction pairing check not satisfied, there is addresses, which is not derived from keys");
+            anyhow::bail!(
+                "Key transaction pairing check not satisfied, there is addresses, which is not derived from keys"
+            );
         }
 
         if !Self::valid_private_key_transaction_pairing_check(&accounts_key_chains) {
-            anyhow::bail!("Key transaction pairing check not satisfied, there is addresses, which is not derived from keys");
+            anyhow::bail!(
+                "Key transaction pairing check not satisfied, there is addresses, which is not derived from keys"
+            );
         }
 
         Ok(Self {

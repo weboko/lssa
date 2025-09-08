@@ -1,4 +1,4 @@
-use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
+use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
 use common::merkle_tree_public::TreeHashType;
 use elliptic_curve::group::GroupEncoding;
 use elliptic_curve::point::AffineCoordinates;
@@ -6,7 +6,7 @@ use k256::AffinePoint;
 use log::info;
 use secret_holders::{PrivateKeyHolder, SeedHolder, TopSecretKeyHolder};
 use serde::{Deserialize, Serialize};
-use sha2::{digest::FixedOutput, Digest};
+use sha2::{Digest, digest::FixedOutput};
 use types::{CipherText, Nonce};
 
 use crate::key_protocol_core::PublicKey;
