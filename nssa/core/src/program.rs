@@ -1,4 +1,4 @@
-use crate::account::{Account, AccountWithMetadata};
+use crate::account::{Account, AccountWithMetadata, FingerPrint};
 use risc0_zkvm::serde::Deserializer;
 use risc0_zkvm::{DeserializeOwned, guest::env};
 use serde::{Deserialize, Serialize};
@@ -21,8 +21,9 @@ pub struct ProgramOutput {
 
 pub fn read_nssa_inputs<T: DeserializeOwned>() -> ProgramInput<T> {
     let pre_states: Vec<AccountWithMetadata> = env::read();
-    let words: InstructionData = env::read();
-    let instruction = T::deserialize(&mut Deserializer::new(words.as_ref())).unwrap();
+    let instruction_words: InstructionData = env::read();
+    let authorized_fingerprints: Vec<FingerPrint> = env::read();
+    let instruction = T::deserialize(&mut Deserializer::new(instruction_words.as_ref())).unwrap();
     ProgramInput {
         pre_states,
         instruction,

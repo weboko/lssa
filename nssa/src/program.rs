@@ -1,5 +1,5 @@
 use nssa_core::{
-    account::{Account, AccountWithMetadata},
+    account::{Account, AccountWithMetadata, FingerPrint},
     program::{InstructionData, ProgramId, ProgramOutput},
 };
 use program_methods::{AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID};
@@ -33,10 +33,11 @@ impl Program {
         &self,
         pre_states: &[AccountWithMetadata],
         instruction_data: &InstructionData,
+        authorized_fingerprints: &[FingerPrint]
     ) -> Result<Vec<Account>, NssaError> {
         // Write inputs to the program
         let mut env_builder = ExecutorEnv::builder();
-        Self::write_inputs(pre_states, instruction_data, &mut env_builder)?;
+        Self::write_inputs(pre_states, instruction_data, authorized_fingerprints, &mut env_builder)?;
         let env = env_builder.build().unwrap();
 
         // Execute the program (without proving)
@@ -58,11 +59,13 @@ impl Program {
     pub(crate) fn write_inputs(
         pre_states: &[AccountWithMetadata],
         instruction_data: &[u32],
+        authorized_fingerprints: &[FingerPrint],
         env_builder: &mut ExecutorEnvBuilder,
     ) -> Result<(), NssaError> {
         let pre_states = pre_states.to_vec();
+        let authorized_fingerprints = authorized_fingerprints.to_vec();
         env_builder
-            .write(&(pre_states, instruction_data))
+            .write(&(pre_states, instruction_data, authorized_fingerprints))
             .map_err(|e| NssaError::ProgramWriteInputFailed(e.to_string()))?;
         Ok(())
     }
@@ -173,11 +176,11 @@ mod tests {
                 balance: 77665544332211,
                 ..Account::default()
             },
-            is_authorized: false,
+            fingerprint: [0; 32]
         };
         let recipient = AccountWithMetadata {
             account: Account::default(),
-            is_authorized: false,
+            fingerprint: [1; 32]
         };
 
         let expected_sender_post = Account {
@@ -189,7 +192,7 @@ mod tests {
             ..Account::default()
         };
         let [sender_post, recipient_post] = program
-            .execute(&[sender, recipient], &instruction_data)
+            .execute(&[sender, recipient], &instruction_data, &[])
             .unwrap()
             .try_into()
             .unwrap();

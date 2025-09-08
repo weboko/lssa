@@ -14,11 +14,13 @@ pub struct Account {
     pub nonce: Nonce,
 }
 
+pub type FingerPrint = [u8; 32];
+
 #[derive(Serialize, Deserialize, Clone)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct AccountWithMetadata {
     pub account: Account,
-    pub is_authorized: bool,
+    pub fingerprint: FingerPrint,
 }
 
 #[cfg(test)]

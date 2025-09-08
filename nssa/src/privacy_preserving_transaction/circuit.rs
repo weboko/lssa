@@ -1,7 +1,7 @@
 use nssa_core::{
     MembershipProof, NullifierPublicKey, NullifierSecretKey, PrivacyPreservingCircuitInput,
     PrivacyPreservingCircuitOutput, SharedSecretKey,
-    account::AccountWithMetadata,
+    account::{AccountWithMetadata, FingerPrint},
     program::{InstructionData, ProgramOutput},
 };
 use risc0_zkvm::{ExecutorEnv, InnerReceipt, Receipt, default_prover};
@@ -72,10 +72,16 @@ fn execute_and_prove_program(
     program: &Program,
     pre_states: &[AccountWithMetadata],
     instruction_data: &InstructionData,
+    authorized_fingerprints: &[FingerPrint],
 ) -> Result<Receipt, NssaError> {
     // Write inputs to the program
     let mut env_builder = ExecutorEnv::builder();
-    Program::write_inputs(pre_states, instruction_data, &mut env_builder)?;
+    Program::write_inputs(
+        pre_states,
+        instruction_data,
+        authorized_fingerprints,
+        &mut env_builder,
+    )?;
     let env = env_builder.build().unwrap();
 
     // Prove the program
@@ -112,12 +118,12 @@ mod tests {
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
+            fingerprint: [0; 32],
         };
 
         let recipient = AccountWithMetadata {
             account: Account::default(),
-            is_authorized: false,
+            fingerprint: [1; 32],
         };
 
         let balance_to_move: u128 = 37;
@@ -181,7 +187,7 @@ mod tests {
                 nonce: 0xdeadbeef,
                 ..Account::default()
             },
-            is_authorized: true,
+            fingerprint: [0; 32],
         };
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
@@ -189,7 +195,7 @@ mod tests {
 
         let recipient = AccountWithMetadata {
             account: Account::default(),
-            is_authorized: false,
+            fingerprint: [1; 32],
         };
         let balance_to_move: u128 = 37;
 
