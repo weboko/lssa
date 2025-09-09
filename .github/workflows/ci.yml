@@ -20,7 +20,7 @@ jobs:
 
     name: ubuntu-latest-pipeline
     steps:
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v3
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -28,6 +28,8 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt, clippy
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
       - name: lint - ubuntu-latest
         if: success() || failure()
         run: chmod 777 ./ci_scripts/lint-ubuntu.sh && ./ci_scripts/lint-ubuntu.sh
