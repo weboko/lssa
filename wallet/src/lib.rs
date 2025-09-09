@@ -30,6 +30,8 @@ pub mod config;
 pub mod helperfunctions;
 pub mod poller;
 
+//
+
 pub struct WalletCore {
     pub storage: WalletChainStore,
     pub poller: TxPoller,
