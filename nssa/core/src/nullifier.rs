@@ -13,12 +13,6 @@ impl From<&NullifierPublicKey> for FingerPrint {
     }
 }
 
-impl From<NullifierPublicKey> for FingerPrint {
-    fn from(value: NullifierPublicKey) -> Self {
-        FingerPrint::new(value.0)
-    }
-}
-
 impl From<&NullifierSecretKey> for NullifierPublicKey {
     fn from(value: &NullifierSecretKey) -> Self {
         let mut bytes = Vec::new();

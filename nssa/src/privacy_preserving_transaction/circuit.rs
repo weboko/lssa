@@ -108,20 +108,20 @@ mod tests {
     fn prove_privacy_preserving_execution_circuit_public_and_private_pre_accounts() {
         let recipient_keys = test_private_account_keys_1();
         let program = Program::authenticated_transfer_program();
-        let sender = AccountWithMetadata {
-            account: Account {
+        let sender = AccountWithMetadata::new(
+            Account {
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-            fingerprint: FingerPrint::new([0; 32]),
-        };
+            true,
+            FingerPrint::new([0; 32]),
+        );
 
-        let recipient = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-            fingerprint: recipient_keys.npk().into(),
-        };
+        let recipient = AccountWithMetadata::new(
+            Account::default(),
+            false,
+            FingerPrint::from(&recipient_keys.npk()),
+        );
 
         let balance_to_move: u128 = 37;
 
@@ -180,22 +180,22 @@ mod tests {
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
 
-        let sender_pre = AccountWithMetadata {
-            account: Account {
+        let sender_pre = AccountWithMetadata::new(
+            Account {
                 balance: 100,
                 nonce: 0xdeadbeef,
                 ..Account::default()
             },
-            is_authorized: true,
-            fingerprint: sender_keys.npk().into(),
-        };
+            true,
+            FingerPrint::from(&sender_keys.npk()),
+        );
         let commitment_sender = Commitment::new(&sender_keys.npk(), &sender_pre.account);
 
-        let recipient = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-            fingerprint: recipient_keys.npk().into(),
-        };
+        let recipient = AccountWithMetadata::new(
+            Account::default(),
+            false,
+            FingerPrint::from(&recipient_keys.npk()),
+        );
         let balance_to_move: u128 = 37;
 
         let mut commitment_set = CommitmentSet::with_capacity(2);
