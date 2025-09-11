@@ -88,12 +88,6 @@ impl From<&Address> for FingerPrint {
     }
 }
 
-impl From<Address> for FingerPrint {
-    fn from(address: Address) -> Self {
-        FingerPrint::new(address.value)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{Address, address::AddressError};

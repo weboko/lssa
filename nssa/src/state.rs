@@ -776,19 +776,15 @@ pub mod tests {
         balance_to_move: u128,
         state: &V01State,
     ) -> PrivacyPreservingTransaction {
-        let sender = AccountWithMetadata {
-            account: state.get_account_by_address(&sender_keys.address()),
-            is_authorized: true,
-            fingerprint: sender_keys.address().into(),
-        };
+        let sender = AccountWithMetadata::new(
+            state.get_account_by_address(&sender_keys.address()),
+            true,
+            &sender_keys.address(),
+        );
 
         let sender_nonce = sender.account.nonce;
 
-        let recipient = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-            fingerprint: recipient_keys.npk().into(),
-        };
+        let recipient = AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         let esk = [3; 32];
         let shared_secret = SharedSecretKey::new(&esk, &recipient_keys.ivk());
@@ -827,16 +823,10 @@ pub mod tests {
     ) -> PrivacyPreservingTransaction {
         let program = Program::authenticated_transfer_program();
         let sender_commitment = Commitment::new(&sender_keys.npk(), sender_private_account);
-        let sender_pre = AccountWithMetadata {
-            account: sender_private_account.clone(),
-            is_authorized: true,
-            fingerprint: sender_keys.npk().into(),
-        };
-        let recipient_pre = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-            fingerprint: recipient_keys.npk().into(),
-        };
+        let sender_pre =
+            AccountWithMetadata::new(sender_private_account.clone(), true, &sender_keys.npk());
+        let recipient_pre =
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         let esk_1 = [3; 32];
         let shared_secret_1 = SharedSecretKey::new(&esk_1, &sender_keys.ivk());
@@ -889,16 +879,13 @@ pub mod tests {
     ) -> PrivacyPreservingTransaction {
         let program = Program::authenticated_transfer_program();
         let sender_commitment = Commitment::new(&sender_keys.npk(), sender_private_account);
-        let sender_pre = AccountWithMetadata {
-            account: sender_private_account.clone(),
-            is_authorized: true,
-            fingerprint: sender_keys.npk().into(),
-        };
-        let recipient_pre = AccountWithMetadata {
-            account: state.get_account_by_address(recipient_address),
-            is_authorized: false,
-            fingerprint: recipient_address.into(),
-        };
+        let sender_pre =
+            AccountWithMetadata::new(sender_private_account.clone(), true, &sender_keys.npk());
+        let recipient_pre = AccountWithMetadata::new(
+            state.get_account_by_address(recipient_address),
+            false,
+            recipient_address,
+        );
 
         let esk = [3; 32];
         let shared_secret = SharedSecretKey::new(&esk, &sender_keys.ivk());
