@@ -41,7 +41,7 @@ mod tests {
     use super::*;
     use crate::{
         Commitment, Nullifier, NullifierPublicKey,
-        account::{Account, AccountWithMetadata, AccountId},
+        account::{Account, AccountId, AccountWithMetadata},
     };
     use risc0_zkvm::serde::from_slice;
 

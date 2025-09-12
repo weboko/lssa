@@ -77,7 +77,7 @@ impl Program {
 
 #[cfg(test)]
 mod tests {
-    use nssa_core::account::{Account, AccountWithMetadata, AccountId};
+    use nssa_core::account::{Account, AccountId, AccountWithMetadata};
 
     use crate::program::Program;
 
