@@ -90,7 +90,7 @@ fn execute_and_prove_program(
 mod tests {
     use nssa_core::{
         Commitment, EncryptionScheme, Nullifier,
-        account::{Account, AccountWithMetadata, AccountId},
+        account::{Account, AccountId, AccountWithMetadata},
     };
 
     use crate::{

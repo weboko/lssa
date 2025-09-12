@@ -126,7 +126,7 @@ mod tests {
     fn test_account_id_from_address() {
         let address: Address = "37".repeat(32).parse().unwrap();
         let expected_account_id = AccountId::new([55; 32]);
-        
+
         let account_id = AccountId::from(&address);
 
         assert_eq!(account_id, expected_account_id);
