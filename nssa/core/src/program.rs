@@ -59,20 +59,23 @@ pub fn validate_execution(
             return false;
         }
 
-        // 3. Ownership change only allowed from default accounts
-        if pre.account.program_owner != post.program_owner && pre.account != Account::default() {
+        // 3. Program ownership changes are not allowed
+        if pre.account.program_owner != post.program_owner {
             return false;
         }
+
+        let account_program_owner = pre.account.program_owner;
 
         // 4. Decreasing balance only allowed if owned by executing program
-        if post.balance < pre.account.balance && pre.account.program_owner != executing_program_id {
+        if post.balance < pre.account.balance && account_program_owner != executing_program_id {
             return false;
         }
 
-        // 5. Data changes only allowed if owned by executing program
+        // 5. Data changes only allowed if owned by executing program or if account pre state has
+        //    default values
         if pre.account.data != post.data
-            && (pre.account != Account::default() && (executing_program_id != pre.account.program_owner
-                || executing_program_id != post.program_owner))
+            && pre.account != Account::default()
+            && account_program_owner != executing_program_id
         {
             return false;
         }
