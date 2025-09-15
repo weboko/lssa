@@ -1,5 +1,5 @@
 use bip39::Mnemonic;
-use common::merkle_tree_public::TreeHashType;
+use common::TreeHashType;
 use elliptic_curve::PrimeField;
 use k256::{AffinePoint, Scalar};
 use rand::{RngCore, rngs::OsRng};

@@ -1,5 +1,5 @@
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
-use common::merkle_tree_public::TreeHashType;
+use common::TreeHashType;
 use elliptic_curve::group::GroupEncoding;
 use elliptic_curve::point::AffineCoordinates;
 use k256::AffinePoint;

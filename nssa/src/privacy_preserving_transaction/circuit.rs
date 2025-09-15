@@ -12,15 +12,7 @@ use program_methods::{PRIVACY_PRESERVING_CIRCUIT_ELF, PRIVACY_PRESERVING_CIRCUIT
 
 /// Proof of the privacy preserving execution circuit
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Proof(Vec<u8>);
-
-impl Proof {
-    pub(crate) fn is_valid_for(&self, circuit_output: &PrivacyPreservingCircuitOutput) -> bool {
-        let inner: InnerReceipt = borsh::from_slice(&self.0).unwrap();
-        let receipt = Receipt::new(inner, circuit_output.to_bytes());
-        receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID).is_ok()
-    }
-}
+pub struct Proof(pub(crate) Vec<u8>);
 
 /// Generates a proof of the execution of a NSSA program inside the privacy preserving execution
 /// circuit
@@ -84,6 +76,14 @@ fn execute_and_prove_program(
         .prove(env, program.elf())
         .map_err(|e| NssaError::ProgramProveFailed(e.to_string()))?
         .receipt)
+}
+
+impl Proof {
+    pub(crate) fn is_valid_for(&self, circuit_output: &PrivacyPreservingCircuitOutput) -> bool {
+        let inner: InnerReceipt = borsh::from_slice(&self.0).unwrap();
+        let receipt = Receipt::new(inner, circuit_output.to_bytes());
+        receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID).is_ok()
+    }
 }
 
 #[cfg(test)]
