@@ -4,6 +4,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use common::{
     ExecutionFailureKind,
     sequencer_client::{SequencerClient, json::SendTxResponse},
+    transaction::{EncodedTransaction, NSSATransaction},
 };
 
 use anyhow::Result;
@@ -120,7 +121,7 @@ impl WalletCore {
 
             let tx = nssa::PublicTransaction::new(message, witness_set);
 
-            Ok(self.sequencer_client.send_tx(tx).await?)
+            Ok(self.sequencer_client.send_tx_public(tx).await?)
         } else {
             Err(ExecutionFailureKind::InsufficientFundsError)
         }
@@ -151,15 +152,12 @@ impl WalletCore {
     }
 
     ///Poll transactions
-    pub async fn poll_public_native_token_transfer(
-        &self,
-        hash: String,
-    ) -> Result<nssa::PublicTransaction> {
+    pub async fn poll_public_native_token_transfer(&self, hash: String) -> Result<NSSATransaction> {
         let transaction_encoded = self.poller.poll_tx(hash).await?;
         let tx_base64_decode = BASE64.decode(transaction_encoded)?;
-        let pub_tx = nssa::PublicTransaction::from_bytes(&tx_base64_decode)?;
+        let pub_tx = EncodedTransaction::from_bytes(tx_base64_decode);
 
-        Ok(pub_tx)
+        Ok(NSSATransaction::try_from(&pub_tx)?)
     }
 }
 
