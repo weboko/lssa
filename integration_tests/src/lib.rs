@@ -6,6 +6,7 @@ use clap::Parser;
 use common::sequencer_client::SequencerClient;
 use log::{info, warn};
 use nssa::program::Program;
+use nssa_core::{NullifierPublicKey, encryption::shared_key_derivation::Secp256k1Point};
 use sequencer_core::config::SequencerConfig;
 use sequencer_runner::startup_sequencer;
 use tempfile::TempDir;
@@ -373,14 +374,18 @@ pub async fn test_success_private_transfer_to_another_owned_account() {
 }
 
 pub async fn test_success_private_transfer_to_another_foreign_account() {
-    let command = Command::SendNativeTokenTransferPrivate {
+    let to_npk_orig = NullifierPublicKey([42; 32]);
+    let to_npk = hex::encode(to_npk_orig.0);
+    let to_ipk = Secp256k1Point::from_scalar(to_npk_orig.0);
+
+    let command = Command::SendNativeTokenTransferPrivateForeignAccount {
         from: ACC_SENDER_PRIVATE.to_string(),
-        to: ACC_RECEIVER_PRIVATE.to_string(),
+        to_npk,
+        to_ipk: hex::encode(to_ipk.0),
         amount: 100,
     };
 
     let from = produce_account_addr_from_hex(ACC_SENDER_PRIVATE.to_string()).unwrap();
-    let to = produce_account_addr_from_hex(ACC_RECEIVER_PRIVATE.to_string()).unwrap();
 
     let wallet_config = fetch_config().unwrap();
 
@@ -407,16 +412,17 @@ pub async fn test_success_private_transfer_to_another_foreign_account() {
     };
 
     let new_commitment2 = {
-        let to_acc = wallet_storage
-            .storage
-            .user_data
-            .get_private_account_mut(&to)
-            .unwrap();
+        let mut to_acc = nssa_core::account::Account::default();
 
-        to_acc.1.balance += 100;
-        to_acc.1.nonce += 1;
+        to_acc.program_owner = [
+            1793544791, 852173979, 3315478100, 4158236927, 146723505, 3793635251, 999304864,
+            2535706995,
+        ];
 
-        nssa_core::Commitment::new(&to_acc.0.nullifer_public_key, &to_acc.1)
+        to_acc.balance += 100;
+        to_acc.nonce += 1;
+
+        nssa_core::Commitment::new(&to_npk_orig, &to_acc)
     };
 
     let proof1 = seq_client
@@ -431,6 +437,159 @@ pub async fn test_success_private_transfer_to_another_foreign_account() {
         .unwrap();
 
     println!("New proof is {proof1:#?}");
+    println!("New proof is {proof2:#?}");
+
+    info!("Success!");
+}
+
+pub async fn test_success_deshielded_transfer_to_another_account() {
+    let command = Command::SendNativeTokenTransferDeshielded {
+        from: ACC_SENDER_PRIVATE.to_string(),
+        to: ACC_RECEIVER.to_string(),
+        amount: 100,
+    };
+
+    let from = produce_account_addr_from_hex(ACC_SENDER_PRIVATE.to_string()).unwrap();
+
+    let wallet_config = fetch_config().unwrap();
+
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    let mut wallet_storage = WalletCore::start_from_config_update_chain(wallet_config).unwrap();
+
+    wallet::execute_subcommand(command).await.unwrap();
+
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    let new_commitment1 = {
+        let from_acc = wallet_storage
+            .storage
+            .user_data
+            .get_private_account_mut(&from)
+            .unwrap();
+
+        from_acc.1.balance -= 100;
+        from_acc.1.nonce += 1;
+
+        nssa_core::Commitment::new(&from_acc.0.nullifer_public_key, &from_acc.1)
+    };
+
+    let proof1 = seq_client
+        .get_proof_for_commitment(new_commitment1)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let acc_2_balance = seq_client
+        .get_account_balance(ACC_RECEIVER.to_string())
+        .await
+        .unwrap();
+
+    println!("New proof is {proof1:#?}");
+    assert_eq!(acc_2_balance.balance, 20100);
+
+    info!("Success!");
+}
+
+pub async fn test_success_shielded_transfer_to_another_owned_account() {
+    let command = Command::SendNativeTokenTransferShielded {
+        from: ACC_SENDER.to_string(),
+        to: ACC_RECEIVER_PRIVATE.to_string(),
+        amount: 100,
+    };
+
+    let to = produce_account_addr_from_hex(ACC_RECEIVER_PRIVATE.to_string()).unwrap();
+
+    let wallet_config = fetch_config().unwrap();
+
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    let mut wallet_storage = WalletCore::start_from_config_update_chain(wallet_config).unwrap();
+
+    wallet::execute_subcommand(command).await.unwrap();
+
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    let new_commitment2 = {
+        let to_acc = wallet_storage
+            .storage
+            .user_data
+            .get_private_account_mut(&to)
+            .unwrap();
+
+        to_acc.1.balance += 100;
+        to_acc.1.nonce += 1;
+
+        nssa_core::Commitment::new(&to_acc.0.nullifer_public_key, &to_acc.1)
+    };
+
+    let acc_1_balance = seq_client
+        .get_account_balance(ACC_SENDER.to_string())
+        .await
+        .unwrap();
+
+    let proof2 = seq_client
+        .get_proof_for_commitment(new_commitment2)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(acc_1_balance.balance, 9900);
+
+    println!("New proof is {proof2:#?}");
+
+    info!("Success!");
+}
+
+pub async fn test_success_shielded_transfer_to_another_foreign_account() {
+    let to_npk_orig = NullifierPublicKey([42; 32]);
+    let to_npk = hex::encode(to_npk_orig.0);
+    let to_ipk = Secp256k1Point::from_scalar(to_npk_orig.0);
+
+    let command = Command::SendNativeTokenTransferShieldedForeignAccount {
+        from: ACC_SENDER.to_string(),
+        to_npk,
+        to_ipk: hex::encode(to_ipk.0),
+        amount: 100,
+    };
+
+    let wallet_config = fetch_config().unwrap();
+
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    wallet::execute_subcommand(command).await.unwrap();
+
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    let new_commitment2 = {
+        let mut to_acc = nssa_core::account::Account::default();
+
+        to_acc.program_owner = [
+            1793544791, 852173979, 3315478100, 4158236927, 146723505, 3793635251, 999304864,
+            2535706995,
+        ];
+
+        to_acc.balance += 100;
+        to_acc.nonce += 1;
+
+        nssa_core::Commitment::new(&to_npk_orig, &to_acc)
+    };
+
+    let acc_1_balance = seq_client
+        .get_account_balance(ACC_SENDER.to_string())
+        .await
+        .unwrap();
+
+    let proof2 = seq_client
+        .get_proof_for_commitment(new_commitment2)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(acc_1_balance.balance, 9900);
     println!("New proof is {proof2:#?}");
 
     info!("Success!");
@@ -480,6 +639,30 @@ pub async fn main_tests_runner() -> Result<()> {
                 test_success_private_transfer_to_another_owned_account
             );
         }
+        "test_success_private_transfer_to_another_foreign_account" => {
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_private_transfer_to_another_foreign_account
+            );
+        }
+        "test_success_deshielded_transfer_to_another_account" => {
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_deshielded_transfer_to_another_account
+            );
+        }
+        "test_success_shielded_transfer_to_another_owned_account" => {
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_shielded_transfer_to_another_owned_account
+            );
+        }
+        "test_success_shielded_transfer_to_another_foreign_account" => {
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_shielded_transfer_to_another_foreign_account
+            );
+        }
         "all" => {
             test_cleanup_wrap!(home_dir, test_success_move_to_another_account);
             test_cleanup_wrap!(home_dir, test_success);
@@ -489,6 +672,18 @@ pub async fn main_tests_runner() -> Result<()> {
             test_cleanup_wrap!(
                 home_dir,
                 test_success_private_transfer_to_another_owned_account
+            );
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_private_transfer_to_another_foreign_account
+            );
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_deshielded_transfer_to_another_account
+            );
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_shielded_transfer_to_another_owned_account
             );
         }
         _ => {

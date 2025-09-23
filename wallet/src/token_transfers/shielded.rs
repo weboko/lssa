@@ -1,6 +1,7 @@
 use common::{ExecutionFailureKind, sequencer_client::json::SendTxResponse};
-use key_protocol::key_management::ephemeral_key_holder::EphemeralKeyHolder;
+use k256::elliptic_curve::rand_core::{OsRng, RngCore};
 use nssa::Address;
+use nssa_core::{SharedSecretKey, encryption::EphemeralPublicKey};
 
 use crate::WalletCore;
 
@@ -10,11 +11,11 @@ impl WalletCore {
         from: Address,
         to: Address,
         balance_to_move: u128,
-    ) -> Result<SendTxResponse, ExecutionFailureKind> {
-        let from_data = self.storage.user_data.get_private_account(&from);
+    ) -> Result<(SendTxResponse, nssa_core::SharedSecretKey), ExecutionFailureKind> {
+        let from_data = self.get_account(from).await;
         let to_data = self.storage.user_data.get_private_account(&to);
 
-        let Some((from_keys, from_acc)) = from_data else {
+        let Ok(from_acc) = from_data else {
             return Err(ExecutionFailureKind::KeyNotFoundError);
         };
 
@@ -37,23 +38,22 @@ impl WalletCore {
             };
             let recipient_pre = nssa_core::account::AccountWithMetadata {
                 account: to_acc.clone(),
-                is_authorized: false,
+                is_authorized: true,
             };
 
-            let eph_holder = EphemeralKeyHolder::new(
-                to_npk.clone(),
-                from_keys.private_key_holder.outgoing_viewing_secret_key,
-                from_acc.nonce.try_into().unwrap(),
-            );
 
-            let shared_secret = eph_holder.calculate_shared_secret_sender(to_ipk.clone());
+            //Move into different function
+            let mut esk = [0; 32];
+            OsRng.fill_bytes(&mut esk);
+            let shared_secret = SharedSecretKey::new(&esk, &to_keys.incoming_viewing_public_key);
+            let epk = EphemeralPublicKey::from_scalar(esk);
 
             let (output, proof) = nssa::privacy_preserving_transaction::circuit::execute_and_prove(
                 &[sender_pre, recipient_pre],
                 &nssa::program::Program::serialize_instruction(balance_to_move).unwrap(),
                 &[0, 1],
                 &[to_acc.nonce + 1],
-                &[(to_npk.clone(), shared_secret)],
+                &[(to_npk.clone(), shared_secret.clone())],
                 &[(
                     to_keys.private_key_holder.nullifier_secret_key,
                     self.sequencer_client
@@ -70,11 +70,7 @@ impl WalletCore {
                 nssa::privacy_preserving_transaction::message::Message::try_from_circuit_output(
                     vec![from],
                     vec![from_acc.nonce],
-                    vec![(
-                        to_npk.clone(),
-                        to_ipk.clone(),
-                        eph_holder.generate_ephemeral_public_key(),
-                    )],
+                    vec![(to_npk.clone(), to_ipk.clone(), epk)],
                     output,
                 )
                 .unwrap();
@@ -97,7 +93,10 @@ impl WalletCore {
                 witness_set,
             );
 
-            Ok(self.sequencer_client.send_tx_private(tx).await?)
+            Ok((
+                self.sequencer_client.send_tx_private(tx).await?,
+                shared_secret,
+            ))
         } else {
             Err(ExecutionFailureKind::InsufficientFundsError)
         }
@@ -109,10 +108,10 @@ impl WalletCore {
         to_npk: nssa_core::NullifierPublicKey,
         to_ipk: nssa_core::encryption::IncomingViewingPublicKey,
         balance_to_move: u128,
-    ) -> Result<SendTxResponse, ExecutionFailureKind> {
-        let from_data = self.storage.user_data.get_private_account(&from);
+    ) -> Result<(SendTxResponse, nssa_core::SharedSecretKey), ExecutionFailureKind> {
+        let from_data = self.get_account(from).await;
 
-        let Some((from_keys, from_acc)) = from_data else {
+        let Ok(from_acc) = from_data else {
             return Err(ExecutionFailureKind::KeyNotFoundError);
         };
 
@@ -130,20 +129,18 @@ impl WalletCore {
                 is_authorized: false,
             };
 
-            let eph_holder = EphemeralKeyHolder::new(
-                to_npk.clone(),
-                from_keys.private_key_holder.outgoing_viewing_secret_key,
-                from_acc.nonce.try_into().unwrap(),
-            );
-
-            let shared_secret = eph_holder.calculate_shared_secret_sender(to_ipk.clone());
+            //Move into different function
+            let mut esk = [0; 32];
+            OsRng.fill_bytes(&mut esk);
+            let shared_secret = SharedSecretKey::new(&esk, &to_ipk);
+            let epk = EphemeralPublicKey::from_scalar(esk);
 
             let (output, proof) = nssa::privacy_preserving_transaction::circuit::execute_and_prove(
                 &[sender_pre, recipient_pre],
                 &nssa::program::Program::serialize_instruction(balance_to_move).unwrap(),
                 &[0, 2],
                 &[to_acc.nonce + 1],
-                &[(to_npk.clone(), shared_secret)],
+                &[(to_npk.clone(), shared_secret.clone())],
                 &[],
                 &program,
             )
@@ -153,11 +150,7 @@ impl WalletCore {
                 nssa::privacy_preserving_transaction::message::Message::try_from_circuit_output(
                     vec![from],
                     vec![from_acc.nonce],
-                    vec![(
-                        to_npk.clone(),
-                        to_ipk.clone(),
-                        eph_holder.generate_ephemeral_public_key(),
-                    )],
+                    vec![(to_npk.clone(), to_ipk.clone(), epk)],
                     output,
                 )
                 .unwrap();
@@ -180,7 +173,10 @@ impl WalletCore {
                 witness_set,
             );
 
-            Ok(self.sequencer_client.send_tx_private(tx).await?)
+            Ok((
+                self.sequencer_client.send_tx_private(tx).await?,
+                shared_secret,
+            ))
         } else {
             Err(ExecutionFailureKind::InsufficientFundsError)
         }
