@@ -33,7 +33,8 @@ impl SequecerChainStore {
 
         #[cfg(feature = "testnet")]
         let state = {
-            let mut this = nssa::V01State::new_with_genesis_accounts(&init_accs, initial_commitments);
+            let mut this =
+                nssa::V01State::new_with_genesis_accounts(&init_accs, initial_commitments);
             this.add_pinata_program("cafe".repeat(16).parse().unwrap());
             this
         };

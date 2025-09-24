@@ -2,8 +2,9 @@ use std::{fs::File, io::Write, path::PathBuf, str::FromStr, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use common::{
-    sequencer_client::{json::SendTxResponse, SequencerClient},
-    transaction::{EncodedTransaction, NSSATransaction}, ExecutionFailureKind,
+    ExecutionFailureKind,
+    sequencer_client::{SequencerClient, json::SendTxResponse},
+    transaction::{EncodedTransaction, NSSATransaction},
 };
 
 use anyhow::Result;
