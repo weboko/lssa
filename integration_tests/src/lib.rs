@@ -337,6 +337,7 @@ pub async fn test_success_private_transfer_to_another_owned_account() {
             .get_private_account_mut(&from)
             .unwrap();
 
+        from_acc.1.program_owner = nssa::program::Program::authenticated_transfer_program().id();
         from_acc.1.balance -= 100;
         from_acc.1.nonce += 1;
 
@@ -350,6 +351,7 @@ pub async fn test_success_private_transfer_to_another_owned_account() {
             .get_private_account_mut(&to)
             .unwrap();
 
+        to_acc.1.program_owner = nssa::program::Program::authenticated_transfer_program().id();
         to_acc.1.balance += 100;
         to_acc.1.nonce += 1;
 
