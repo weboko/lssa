@@ -2,8 +2,8 @@ use std::{fs::File, io::Write, path::PathBuf, str::FromStr, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use common::{
-    sequencer_client::SequencerClient,
-    transaction::{EncodedTransaction, NSSATransaction},
+    sequencer_client::{json::SendTxResponse, SequencerClient},
+    transaction::{EncodedTransaction, NSSATransaction}, ExecutionFailureKind,
 };
 
 use anyhow::Result;
@@ -83,6 +83,33 @@ impl WalletCore {
         self.storage
             .user_data
             .generate_new_privacy_preserving_transaction_key_chain()
+    }
+
+    // pub fn search_for_initial_account(&self, acc_addr: Address) -> Option<Account> {
+    //     for initial_acc in &self.storage.wallet_config.initial_accounts {
+    //         if initial_acc.address() == acc_addr {
+    //             return Some(initial_acc.account().clone());
+    //         }
+    //     }
+    //     None
+    // }
+
+    pub async fn claim_pinata(
+        &self,
+        pinata_addr: Address,
+        winner_addr: Address,
+        solution: u128,
+    ) -> Result<SendTxResponse, ExecutionFailureKind> {
+        let addresses = vec![pinata_addr, winner_addr];
+        let program_id = nssa::program::Program::pinata().id();
+        let message =
+            nssa::public_transaction::Message::try_new(program_id, addresses, vec![], solution)
+                .unwrap();
+
+        let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[]);
+        let tx = nssa::PublicTransaction::new(message, witness_set);
+
+        Ok(self.sequencer_client.send_tx_public(tx).await?)
     }
 
     ///Get account balance
@@ -251,6 +278,19 @@ pub enum Command {
     GetAccount {
         #[arg(short, long)]
         addr: String,
+    },
+    // TODO: Testnet only. Refactor to prevent compilation on mainnet.
+    // Claim piñata prize
+    ClaimPinata {
+        ///pinata_addr - valid 32 byte hex string
+        #[arg(long)]
+        pinata_addr: String,
+        ///winner_addr - valid 32 byte hex string
+        #[arg(long)]
+        winner_addr: String,
+        ///solution - solution to pinata challenge
+        #[arg(long)]
+        solution: u128,
     },
 }
 
@@ -595,6 +635,20 @@ pub async fn execute_subcommand(command: Command) -> Result<()> {
             let addr: Address = addr.parse()?;
             let account: HumanReadableAccount = wallet_core.get_account(addr).await?.into();
             println!("{}", serde_json::to_string(&account).unwrap());
+        }
+        Command::ClaimPinata {
+            pinata_addr,
+            winner_addr,
+            solution,
+        } => {
+            let res = wallet_core
+                .claim_pinata(
+                    pinata_addr.parse().unwrap(),
+                    winner_addr.parse().unwrap(),
+                    solution,
+                )
+                .await?;
+            info!("Results of tx send is {res:#?}");
         }
     }
 
