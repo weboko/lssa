@@ -19,3 +19,6 @@ k256 = "0.13.3"
 [dev-dependencies]
 test-program-methods = { path = "test_program_methods" }
 hex-literal = "1.0.0"
+
+[features]
+default = []
