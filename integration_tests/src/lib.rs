@@ -89,6 +89,7 @@ pub async fn post_test(residual: (ServerHandle, JoinHandle<Result<()>>, TempDir)
 }
 
 pub async fn test_success() {
+    info!("test_success");
     let command = Command::SendNativeTokenTransferPublic {
         from: ACC_SENDER.to_string(),
         to: ACC_RECEIVER.to_string(),
@@ -124,6 +125,7 @@ pub async fn test_success() {
 }
 
 pub async fn test_success_move_to_another_account() {
+    info!("test_success_move_to_another_account");
     let command = Command::RegisterAccountPublic {};
 
     let wallet_config = fetch_config().unwrap();
@@ -179,6 +181,7 @@ pub async fn test_success_move_to_another_account() {
 }
 
 pub async fn test_failure() {
+    info!("test_failure");
     let command = Command::SendNativeTokenTransferPublic {
         from: ACC_SENDER.to_string(),
         to: ACC_RECEIVER.to_string(),
@@ -216,6 +219,7 @@ pub async fn test_failure() {
 }
 
 pub async fn test_success_two_transactions() {
+    info!("test_success_two_transactions");
     let command = Command::SendNativeTokenTransferPublic {
         from: ACC_SENDER.to_string(),
         to: ACC_RECEIVER.to_string(),
@@ -280,6 +284,7 @@ pub async fn test_success_two_transactions() {
 }
 
 pub async fn test_get_account() {
+    info!("test_get_account");
     let wallet_config = fetch_config().unwrap();
     let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
@@ -299,6 +304,7 @@ pub async fn test_get_account() {
 }
 
 pub async fn test_success_private_transfer_to_another_owned_account() {
+    info!("test_success_private_transfer_to_another_owned_account");
     let command = Command::SendNativeTokenTransferPrivate {
         from: ACC_SENDER_PRIVATE.to_string(),
         to: ACC_RECEIVER_PRIVATE.to_string(),
@@ -365,6 +371,7 @@ pub async fn test_success_private_transfer_to_another_owned_account() {
 }
 
 pub async fn test_success_private_transfer_to_another_foreign_account() {
+    info!("test_success_private_transfer_to_another_foreign_account");
     let to_npk_orig = NullifierPublicKey([42; 32]);
     let to_npk = hex::encode(to_npk_orig.0);
     let to_ipk = Secp256k1Point::from_scalar(to_npk_orig.0);
@@ -434,6 +441,7 @@ pub async fn test_success_private_transfer_to_another_foreign_account() {
 }
 
 pub async fn test_success_private_transfer_to_another_owned_account_claiming_path() {
+    info!("test_success_private_transfer_to_another_owned_account_claiming_path");
     let command = Command::RegisterAccountPrivate {};
 
     let sub_ret = wallet::execute_subcommand(command).await.unwrap();
@@ -533,6 +541,7 @@ pub async fn test_success_private_transfer_to_another_owned_account_claiming_pat
 }
 
 pub async fn test_success_deshielded_transfer_to_another_account() {
+    info!("test_success_deshielded_transfer_to_another_account");
     let command = Command::SendNativeTokenTransferDeshielded {
         from: ACC_SENDER_PRIVATE.to_string(),
         to: ACC_RECEIVER.to_string(),
@@ -584,6 +593,7 @@ pub async fn test_success_deshielded_transfer_to_another_account() {
 }
 
 pub async fn test_success_shielded_transfer_to_another_owned_account() {
+    info!("test_success_shielded_transfer_to_another_owned_account");
     let command = Command::SendNativeTokenTransferShielded {
         from: ACC_SENDER.to_string(),
         to: ACC_RECEIVER_PRIVATE.to_string(),
@@ -636,6 +646,7 @@ pub async fn test_success_shielded_transfer_to_another_owned_account() {
 }
 
 pub async fn test_success_shielded_transfer_to_another_foreign_account() {
+    info!("test_success_shielded_transfer_to_another_foreign_account");
     let to_npk_orig = NullifierPublicKey([42; 32]);
     let to_npk = hex::encode(to_npk_orig.0);
     let to_ipk = Secp256k1Point::from_scalar(to_npk_orig.0);
@@ -685,6 +696,7 @@ pub async fn test_success_shielded_transfer_to_another_foreign_account() {
 }
 
 pub async fn test_success_shielded_transfer_to_another_owned_account_claiming_path() {
+    info!("test_success_shielded_transfer_to_another_owned_account_claiming_path");
     let command = Command::RegisterAccountPrivate {};
 
     let sub_ret = wallet::execute_subcommand(command).await.unwrap();
@@ -767,6 +779,7 @@ pub async fn test_success_shielded_transfer_to_another_owned_account_claiming_pa
 }
 
 pub async fn test_pinata() {
+    info!("test_pinata");
     let pinata_addr = "cafe".repeat(16);
     let pinata_prize = 150;
     let solution = 989106;
@@ -917,6 +930,14 @@ pub async fn main_tests_runner() -> Result<()> {
             test_cleanup_wrap!(
                 home_dir,
                 test_success_shielded_transfer_to_another_foreign_account
+            );
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_private_transfer_to_another_owned_account_claiming_path
+            );
+            test_cleanup_wrap!(
+                home_dir,
+                test_success_shielded_transfer_to_another_owned_account_claiming_path
             );
             test_cleanup_wrap!(home_dir, test_pinata);
         }
