@@ -13,6 +13,7 @@ use tempfile::TempDir;
 use tokio::task::JoinHandle;
 use wallet::{
     Command, SubcommandReturnValue, WalletCore,
+    config::PersistentAccountData,
     helperfunctions::{fetch_config, fetch_persistent_accounts, produce_account_addr_from_hex},
 };
 
@@ -301,6 +302,152 @@ pub async fn test_get_account() {
     assert_eq!(account.balance, 10000);
     assert!(account.data.is_empty());
     assert_eq!(account.nonce, 0);
+}
+
+/// This test creates a new token using the token program. After creating the token, the test executes a
+/// token transfer to a new account.
+pub async fn test_success_token_program() {
+    let wallet_config = fetch_config().unwrap();
+
+    // Create new account for the token definition
+    wallet::execute_subcommand(Command::RegisterAccountPublic {})
+        .await
+        .unwrap();
+    // Create new account for the token supply holder
+    wallet::execute_subcommand(Command::RegisterAccountPublic {})
+        .await
+        .unwrap();
+    // Create new account for receiving a token transaction
+    wallet::execute_subcommand(Command::RegisterAccountPublic {})
+        .await
+        .unwrap();
+
+    let persistent_accounts = fetch_persistent_accounts().unwrap();
+
+    let mut new_persistent_accounts_addr = Vec::new();
+
+    for per_acc in persistent_accounts {
+        match per_acc {
+            PersistentAccountData::Public(per_acc) => {
+                if (per_acc.address.to_string() != ACC_RECEIVER)
+                    && (per_acc.address.to_string() != ACC_SENDER)
+                {
+                    new_persistent_accounts_addr.push(per_acc.address);
+                }
+            }
+            _ => continue,
+        }
+    }
+
+    let [definition_addr, supply_addr, recipient_addr] = new_persistent_accounts_addr
+        .try_into()
+        .expect("Failed to produce new account, not present in persistent accounts");
+
+    // Create new token
+    let command = Command::CreateNewToken {
+        definition_addr: definition_addr.to_string(),
+        supply_addr: supply_addr.to_string(),
+        name: "A NAME".to_string(),
+        total_supply: 37,
+    };
+    wallet::execute_subcommand(command).await.unwrap();
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    // Check the status of the token definition account is the expected after the execution
+    let definition_acc = seq_client
+        .get_account(definition_addr.to_string())
+        .await
+        .unwrap()
+        .account;
+
+    assert_eq!(definition_acc.program_owner, Program::token().id());
+    // The data of a token definition account has the following layout:
+    // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+    assert_eq!(
+        definition_acc.data,
+        vec![
+            0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    );
+
+    // Check the status of the token holding account with the total supply is the expected after the execution
+    let supply_acc = seq_client
+        .get_account(supply_addr.to_string())
+        .await
+        .unwrap()
+        .account;
+
+    // The account must be owned by the token program
+    assert_eq!(supply_acc.program_owner, Program::token().id());
+    // The data of a token definition account has the following layout:
+    // [ 0x01 || corresponding_token_definition_id (32 bytes) || balance (little endian 16 bytes) ]
+    // First byte of the data equal to 1 means it's a token holding account
+    assert_eq!(supply_acc.data[0], 1);
+    // Bytes from 1 to 33 represent the id of the token this account is associated with.
+    // In this example, this is a token account of the newly created token, so it is expected
+    // to be equal to the address of the token definition account.
+    assert_eq!(
+        &supply_acc.data[1..33],
+        nssa::AccountId::from(&definition_addr).to_bytes()
+    );
+    assert_eq!(
+        u128::from_le_bytes(supply_acc.data[33..].try_into().unwrap()),
+        37
+    );
+
+    // Transfer 7 tokens from `supply_acc` to the account at address `recipient_addr`
+    let command = Command::TransferToken {
+        sender_addr: supply_addr.to_string(),
+        recipient_addr: recipient_addr.to_string(),
+        balance_to_move: 7,
+    };
+    wallet::execute_subcommand(command).await.unwrap();
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    // Check the status of the account at `supply_addr` is the expected after the execution
+    let supply_acc = seq_client
+        .get_account(supply_addr.to_string())
+        .await
+        .unwrap()
+        .account;
+    // The account must be owned by the token program
+    assert_eq!(supply_acc.program_owner, Program::token().id());
+    // First byte equal to 1 means it's a token holding account
+    assert_eq!(supply_acc.data[0], 1);
+    // Bytes from 1 to 33 represent the id of the token this account is associated with.
+    assert_eq!(
+        &supply_acc.data[1..33],
+        nssa::AccountId::from(&definition_addr).to_bytes()
+    );
+    assert_eq!(
+        u128::from_le_bytes(supply_acc.data[33..].try_into().unwrap()),
+        30
+    );
+
+    // Check the status of the account at `recipient_addr` is the expected after the execution
+    let recipient_acc = seq_client
+        .get_account(recipient_addr.to_string())
+        .await
+        .unwrap()
+        .account;
+
+    // The account must be owned by the token program
+    assert_eq!(recipient_acc.program_owner, Program::token().id());
+    // First byte equal to 1 means it's a token holding account
+    assert_eq!(recipient_acc.data[0], 1);
+    // Bytes from 1 to 33 represent the id of the token this account is associated with.
+    assert_eq!(
+        &recipient_acc.data[1..33],
+        nssa::AccountId::from(&definition_addr).to_bytes()
+    );
+    assert_eq!(
+        u128::from_le_bytes(recipient_acc.data[33..].try_into().unwrap()),
+        7
+    );
 }
 
 pub async fn test_success_private_transfer_to_another_owned_account() {
@@ -846,6 +993,9 @@ pub async fn main_tests_runner() -> Result<()> {
     } = args;
 
     match test_name.as_str() {
+        "test_success_token_program" => {
+            test_cleanup_wrap!(home_dir, test_success_token_program);
+        }
         "test_success_move_to_another_account" => {
             test_cleanup_wrap!(home_dir, test_success_move_to_another_account);
         }
@@ -855,7 +1005,7 @@ pub async fn main_tests_runner() -> Result<()> {
         "test_failure" => {
             test_cleanup_wrap!(home_dir, test_failure);
         }
-        "test_get_account_wallet_command" => {
+        "test_get_account" => {
             test_cleanup_wrap!(home_dir, test_get_account);
         }
         "test_success_two_transactions" => {
@@ -911,6 +1061,7 @@ pub async fn main_tests_runner() -> Result<()> {
             test_cleanup_wrap!(home_dir, test_success);
             test_cleanup_wrap!(home_dir, test_failure);
             test_cleanup_wrap!(home_dir, test_success_two_transactions);
+            test_cleanup_wrap!(home_dir, test_success_token_program);
             test_cleanup_wrap!(
                 home_dir,
                 test_success_private_transfer_to_another_owned_account
