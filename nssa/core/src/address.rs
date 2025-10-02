@@ -1,6 +1,7 @@
-use std::{fmt::Display, str::FromStr};
-
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "host")]
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(
