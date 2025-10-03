@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "host")]
 use std::{fmt::Display, str::FromStr};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(
     any(feature = "host", test),
-    derive(Debug, Copy, PartialOrd, Ord, Hash, Default)
+    derive(Debug, Copy, PartialOrd, Ord, Default)
 )]
 pub struct Address {
     value: [u8; 32],
@@ -60,7 +60,6 @@ impl Display for Address {
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::{Address, AddressError};
 

@@ -89,8 +89,7 @@ mod tests {
             nonce: 0xdeadbeef,
         };
         let fingerprint = AccountId::new([8; 32]);
-        let new_acc_with_metadata =
-            AccountWithMetadata::new(account.clone(), true, fingerprint);
+        let new_acc_with_metadata = AccountWithMetadata::new(account.clone(), true, fingerprint);
         assert_eq!(new_acc_with_metadata.account, account);
         assert!(new_acc_with_metadata.is_authorized);
         assert_eq!(new_acc_with_metadata.account_id, fingerprint);

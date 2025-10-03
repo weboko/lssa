@@ -20,7 +20,6 @@ pub struct KeyChain {
     pub incoming_viewing_public_key: IncomingViewingPublicKey,
 }
 
-
 impl KeyChain {
     pub fn new_os_random() -> Self {
         //Currently dropping SeedHolder at the end of initialization.

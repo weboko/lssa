@@ -1,10 +1,8 @@
 use common::{ExecutionFailureKind, sequencer_client::json::SendTxResponse};
-use k256::elliptic_curve::rand_core::{OsRng, RngCore};
 use key_protocol::key_management::ephemeral_key_holder::EphemeralKeyHolder;
 use nssa::Address;
-use nssa_core::{SharedSecretKey, encryption::EphemeralPublicKey};
 
-use crate::{helperfunctions::produce_random_nonces, WalletCore};
+use crate::{WalletCore, helperfunctions::produce_random_nonces};
 
 impl WalletCore {
     pub async fn send_deshielded_native_token_transfer(
@@ -13,7 +11,7 @@ impl WalletCore {
         to: Address,
         balance_to_move: u128,
     ) -> Result<(SendTxResponse, nssa_core::SharedSecretKey), ExecutionFailureKind> {
-        let Some((from_keys, mut from_acc)) =
+        let Some((from_keys, from_acc)) =
             self.storage.user_data.get_private_account(&from).cloned()
         else {
             return Err(ExecutionFailureKind::KeyNotFoundError);

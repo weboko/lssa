@@ -1,7 +1,5 @@
 use common::{ExecutionFailureKind, sequencer_client::json::SendTxResponse};
-use key_protocol::key_management::ephemeral_key_holder::{
-    EphemeralKeyHolder, produce_one_sided_shared_secret_receiver,
-};
+use key_protocol::key_management::ephemeral_key_holder::EphemeralKeyHolder;
 use nssa::Address;
 
 use crate::{WalletCore, helperfunctions::produce_random_nonces};
@@ -17,7 +15,7 @@ impl WalletCore {
             return Err(ExecutionFailureKind::KeyNotFoundError);
         };
 
-        let Some((to_keys, mut to_acc)) = self.storage.user_data.get_private_account(&to).cloned()
+        let Some((to_keys, to_acc)) = self.storage.user_data.get_private_account(&to).cloned()
         else {
             return Err(ExecutionFailureKind::KeyNotFoundError);
         };

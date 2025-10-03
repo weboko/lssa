@@ -712,7 +712,7 @@ pub async fn execute_subcommand(command: Command) -> Result<SubcommandReturnValu
         Command::RegisterAccountPrivate {} => {
             let addr = wallet_core.create_new_account_private();
 
-            let (key, account) = wallet_core
+            let (key, _) = wallet_core
                 .storage
                 .user_data
                 .get_private_account(&addr)
@@ -722,7 +722,7 @@ pub async fn execute_subcommand(command: Command) -> Result<SubcommandReturnValu
             println!("With npk {}", hex::encode(&key.nullifer_public_key));
             println!(
                 "With ipk {}",
-                hex::encode(&key.incoming_viewing_public_key.to_bytes())
+                hex::encode(key.incoming_viewing_public_key.to_bytes())
             );
 
             let path = wallet_core.store_persistent_accounts()?;
