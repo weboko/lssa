@@ -7,23 +7,25 @@ use crate::{NullifierPublicKey, account::Account};
 #[cfg_attr(any(feature = "host", test), derive(Debug, Clone, PartialEq, Eq, Hash))]
 pub struct Commitment(pub(super) [u8; 32]);
 
-// ```python
-// from hashlib import sha256
-// hasher = sha256()
-// hasher.update(bytes([0] * 32 + [0] * 32 + [0] * 16 + [0] * 16 + list(sha256().digest())))
-// DUMMY_COMMITMENT = hasher.digest()
-// ```
+/// A commitment to all zero data.
+/// ```python
+/// from hashlib import sha256
+/// hasher = sha256()
+/// hasher.update(bytes([0] * 32 + [0] * 32 + [0] * 16 + [0] * 16 + list(sha256().digest())))
+/// DUMMY_COMMITMENT = hasher.digest()
+/// ```
 pub const DUMMY_COMMITMENT: Commitment = Commitment([
     130, 75, 48, 230, 171, 101, 121, 141, 159, 118, 21, 74, 135, 248, 16, 255, 238, 156, 61, 24,
     165, 33, 34, 172, 227, 30, 215, 20, 85, 47, 230, 29,
 ]);
 
-// ```python
-// from hashlib import sha256
-// hasher = sha256()
-// hasher.update(DUMMY_COMMITMENT)
-// DUMMY_COMMITMENT_HASH = hasher.digest()
-// ```
+/// The hash of the dummy commitment
+/// ```python
+/// from hashlib import sha256
+/// hasher = sha256()
+/// hasher.update(DUMMY_COMMITMENT)
+/// DUMMY_COMMITMENT_HASH = hasher.digest()
+/// ```
 pub const DUMMY_COMMITMENT_HASH: [u8; 32] = [
     170, 10, 217, 228, 20, 35, 189, 177, 238, 235, 97, 129, 132, 89, 96, 247, 86, 91, 222, 214, 38,
     194, 216, 67, 56, 251, 208, 226, 0, 117, 149, 39,
