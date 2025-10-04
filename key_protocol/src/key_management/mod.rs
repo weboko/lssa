@@ -40,15 +40,6 @@ impl KeyChain {
         }
     }
 
-    // pub fn produce_user_address(&self) -> [u8; 32] {
-    //     let mut hasher = sha2::Sha256::new();
-    //
-    //     hasher.update(&self.nullifer_public_key);
-    //     hasher.update(self.incoming_viewing_public_key.to_bytes());
-    //
-    //     <TreeHashType>::from(hasher.finalize_fixed())
-    // }
-
     pub fn calculate_shared_secret_receiver(
         &self,
         ephemeral_public_key_sender: EphemeralPublicKey,
