@@ -21,8 +21,8 @@ pub struct ProgramOutput {
 
 pub fn read_nssa_inputs<T: DeserializeOwned>() -> ProgramInput<T> {
     let pre_states: Vec<AccountWithMetadata> = env::read();
-    let words: InstructionData = env::read();
-    let instruction = T::deserialize(&mut Deserializer::new(words.as_ref())).unwrap();
+    let instruction_words: InstructionData = env::read();
+    let instruction = T::deserialize(&mut Deserializer::new(instruction_words.as_ref())).unwrap();
     ProgramInput {
         pre_states,
         instruction,
@@ -59,20 +59,23 @@ pub fn validate_execution(
             return false;
         }
 
-        // 3. Ownership change only allowed from default accounts
-        if pre.account.program_owner != post.program_owner && pre.account != Account::default() {
+        // 3. Program ownership changes are not allowed
+        if pre.account.program_owner != post.program_owner {
             return false;
         }
+
+        let account_program_owner = pre.account.program_owner;
 
         // 4. Decreasing balance only allowed if owned by executing program
-        if post.balance < pre.account.balance && pre.account.program_owner != executing_program_id {
+        if post.balance < pre.account.balance && account_program_owner != executing_program_id {
             return false;
         }
 
-        // 5. Data changes only allowed if owned by executing program
+        // 5. Data changes only allowed if owned by executing program or if account pre state has
+        //    default values
         if pre.account.data != post.data
-            && (executing_program_id != pre.account.program_owner
-                || executing_program_id != post.program_owner)
+            && pre.account != Account::default()
+            && account_program_owner != executing_program_id
         {
             return false;
         }

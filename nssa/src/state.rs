@@ -64,7 +64,10 @@ pub struct V01State {
 }
 
 impl V01State {
-    pub fn new_with_genesis_accounts(initial_data: &[(Address, u128)]) -> Self {
+    pub fn new_with_genesis_accounts(
+        initial_data: &[(Address, u128)],
+        initial_commitments: &[nssa_core::Commitment],
+    ) -> Self {
         let authenticated_transfer_program = Program::authenticated_transfer_program();
         let public_state = initial_data
             .iter()
@@ -79,13 +82,17 @@ impl V01State {
             })
             .collect();
 
+        let mut private_state = CommitmentSet::with_capacity(32);
+        private_state.extend(initial_commitments);
+
         let mut this = Self {
             public_state,
-            private_state: (CommitmentSet::with_capacity(32), NullifierSet::new()),
+            private_state: (private_state, NullifierSet::new()),
             builtin_programs: HashMap::new(),
         };
 
         this.insert_program(Program::authenticated_transfer_program());
+        this.insert_program(Program::token());
 
         this
     }
@@ -242,7 +249,7 @@ pub mod tests {
 
     use nssa_core::{
         Commitment, Nullifier, NullifierPublicKey, NullifierSecretKey, SharedSecretKey,
-        account::{Account, AccountWithMetadata, Nonce},
+        account::{Account, AccountId, AccountWithMetadata, Nonce},
         encryption::{EphemeralPublicKey, IncomingViewingPublicKey, Scalar},
     };
 
@@ -269,14 +276,14 @@ pub mod tests {
         let addr1 = Address::from(&PublicKey::new_from_private_key(&key1));
         let addr2 = Address::from(&PublicKey::new_from_private_key(&key2));
         let initial_data = [(addr1, 100u128), (addr2, 151u128)];
-        let program = Program::authenticated_transfer_program();
+        let authenticated_transfers_program = Program::authenticated_transfer_program();
         let expected_public_state = {
             let mut this = HashMap::new();
             this.insert(
                 addr1,
                 Account {
                     balance: 100,
-                    program_owner: program.id(),
+                    program_owner: authenticated_transfers_program.id(),
                     ..Account::default()
                 },
             );
@@ -284,7 +291,7 @@ pub mod tests {
                 addr2,
                 Account {
                     balance: 151,
-                    program_owner: program.id(),
+                    program_owner: authenticated_transfers_program.id(),
                     ..Account::default()
                 },
             );
@@ -292,11 +299,15 @@ pub mod tests {
         };
         let expected_builtin_programs = {
             let mut this = HashMap::new();
-            this.insert(program.id(), program);
+            this.insert(
+                authenticated_transfers_program.id(),
+                authenticated_transfers_program,
+            );
+            this.insert(Program::token().id(), Program::token());
             this
         };
 
-        let state = V01State::new_with_genesis_accounts(&initial_data);
+        let state = V01State::new_with_genesis_accounts(&initial_data, &[]);
 
         assert_eq!(state.public_state, expected_public_state);
         assert_eq!(state.builtin_programs, expected_builtin_programs);
@@ -304,7 +315,7 @@ pub mod tests {
 
     #[test]
     fn test_insert_program() {
-        let mut state = V01State::new_with_genesis_accounts(&[]);
+        let mut state = V01State::new_with_genesis_accounts(&[], &[]);
         let program_to_insert = Program::simple_balance_transfer();
         let program_id = program_to_insert.id();
         assert!(!state.builtin_programs.contains_key(&program_id));
@@ -319,7 +330,7 @@ pub mod tests {
         let key = PrivateKey::try_new([1; 32]).unwrap();
         let addr = Address::from(&PublicKey::new_from_private_key(&key));
         let initial_data = [(addr, 100u128)];
-        let state = V01State::new_with_genesis_accounts(&initial_data);
+        let state = V01State::new_with_genesis_accounts(&initial_data, &[]);
         let expected_account = state.public_state.get(&addr).unwrap();
 
         let account = state.get_account_by_address(&addr);
@@ -330,7 +341,7 @@ pub mod tests {
     #[test]
     fn test_get_account_by_address_default_account() {
         let addr2 = Address::new([0; 32]);
-        let state = V01State::new_with_genesis_accounts(&[]);
+        let state = V01State::new_with_genesis_accounts(&[], &[]);
         let expected_account = Account::default();
 
         let account = state.get_account_by_address(&addr2);
@@ -340,7 +351,7 @@ pub mod tests {
 
     #[test]
     fn test_builtin_programs_getter() {
-        let state = V01State::new_with_genesis_accounts(&[]);
+        let state = V01State::new_with_genesis_accounts(&[], &[]);
 
         let builtin_programs = state.builtin_programs();
 
@@ -352,7 +363,7 @@ pub mod tests {
         let key = PrivateKey::try_new([1; 32]).unwrap();
         let address = Address::from(&PublicKey::new_from_private_key(&key));
         let initial_data = [(address, 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[]);
         let from = address;
         let to = Address::new([2; 32]);
         assert_eq!(state.get_account_by_address(&to), Account::default());
@@ -372,7 +383,7 @@ pub mod tests {
         let key = PrivateKey::try_new([1; 32]).unwrap();
         let address = Address::from(&PublicKey::new_from_private_key(&key));
         let initial_data = [(address, 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[]);
         let from = address;
         let from_key = key;
         let to = Address::new([2; 32]);
@@ -396,7 +407,7 @@ pub mod tests {
         let address1 = Address::from(&PublicKey::new_from_private_key(&key1));
         let address2 = Address::from(&PublicKey::new_from_private_key(&key2));
         let initial_data = [(address1, 100), (address2, 200)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[]);
         let from = address2;
         let from_key = key2;
         let to = address1;
@@ -419,7 +430,7 @@ pub mod tests {
         let key2 = PrivateKey::try_new([2; 32]).unwrap();
         let address2 = Address::from(&PublicKey::new_from_private_key(&key2));
         let initial_data = [(address1, 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data);
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[]);
         let address3 = Address::new([3; 32]);
         let balance_to_move = 5;
 
@@ -503,7 +514,8 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_modifies_nonces() {
         let initial_data = [(Address::new([1; 32]), 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
+        let mut state =
+            V01State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
         let addresses = vec![Address::new([1; 32])];
         let program_id = Program::nonce_changer_program().id();
         let message =
@@ -519,7 +531,8 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_output_accounts_exceed_inputs() {
         let initial_data = [(Address::new([1; 32]), 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
+        let mut state =
+            V01State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
         let addresses = vec![Address::new([1; 32])];
         let program_id = Program::extra_output_program().id();
         let message =
@@ -535,7 +548,8 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_with_missing_output_accounts() {
         let initial_data = [(Address::new([1; 32]), 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
+        let mut state =
+            V01State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
         let addresses = vec![Address::new([1; 32]), Address::new([2; 32])];
         let program_id = Program::missing_output_program().id();
         let message =
@@ -551,7 +565,8 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_modifies_program_owner_with_only_non_default_program_owner() {
         let initial_data = [(Address::new([1; 32]), 0)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
+        let mut state =
+            V01State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
         let address = Address::new([1; 32]);
         let account = state.get_account_by_address(&address);
         // Assert the target account only differs from the default account in the program owner field
@@ -573,7 +588,7 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_modifies_program_owner_with_only_non_default_balance() {
         let initial_data = [];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data)
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[])
             .with_test_programs()
             .with_non_default_accounts_but_default_program_owners();
         let address = Address::new([255; 32]);
@@ -597,7 +612,7 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_modifies_program_owner_with_only_non_default_nonce() {
         let initial_data = [];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data)
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[])
             .with_test_programs()
             .with_non_default_accounts_but_default_program_owners();
         let address = Address::new([254; 32]);
@@ -621,7 +636,7 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_modifies_program_owner_with_only_non_default_data() {
         let initial_data = [];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data)
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[])
             .with_test_programs()
             .with_non_default_accounts_but_default_program_owners();
         let address = Address::new([253; 32]);
@@ -645,7 +660,8 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_transfers_balance_from_non_owned_account() {
         let initial_data = [(Address::new([1; 32]), 100)];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
+        let mut state =
+            V01State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
         let sender_address = Address::new([1; 32]);
         let receiver_address = Address::new([2; 32]);
         let balance_to_move: u128 = 1;
@@ -672,12 +688,13 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_modifies_data_of_non_owned_account() {
         let initial_data = [];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
-        let address = Address::new([1; 32]);
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[])
+            .with_test_programs()
+            .with_non_default_accounts_but_default_program_owners();
+        let address = Address::new([255; 32]);
         let program_id = Program::data_changer().id();
 
-        // Consider the extreme case where the target account is the default account
-        assert_eq!(state.get_account_by_address(&address), Account::default());
+        assert_ne!(state.get_account_by_address(&address), Account::default());
         assert_ne!(
             state.get_account_by_address(&address).program_owner,
             program_id
@@ -695,7 +712,8 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_does_not_preserve_total_balance_by_minting() {
         let initial_data = [];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data).with_test_programs();
+        let mut state =
+            V01State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
         let address = Address::new([1; 32]);
         let program_id = Program::minter().id();
 
@@ -712,7 +730,7 @@ pub mod tests {
     #[test]
     fn test_program_should_fail_if_does_not_preserve_total_balance_by_burning() {
         let initial_data = [];
-        let mut state = V01State::new_with_genesis_accounts(&initial_data)
+        let mut state = V01State::new_with_genesis_accounts(&initial_data, &[])
             .with_test_programs()
             .with_account_owned_by_burner_program();
         let program_id = Program::burner().id();
@@ -789,17 +807,15 @@ pub mod tests {
         balance_to_move: u128,
         state: &V01State,
     ) -> PrivacyPreservingTransaction {
-        let sender = AccountWithMetadata {
-            account: state.get_account_by_address(&sender_keys.address()),
-            is_authorized: true,
-        };
+        let sender = AccountWithMetadata::new(
+            state.get_account_by_address(&sender_keys.address()),
+            true,
+            &sender_keys.address(),
+        );
 
         let sender_nonce = sender.account.nonce;
 
-        let recipient = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+        let recipient = AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         let esk = [3; 32];
         let shared_secret = SharedSecretKey::new(&esk, &recipient_keys.ivk());
@@ -838,14 +854,10 @@ pub mod tests {
     ) -> PrivacyPreservingTransaction {
         let program = Program::authenticated_transfer_program();
         let sender_commitment = Commitment::new(&sender_keys.npk(), sender_private_account);
-        let sender_pre = AccountWithMetadata {
-            account: sender_private_account.clone(),
-            is_authorized: true,
-        };
-        let recipient_pre = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+        let sender_pre =
+            AccountWithMetadata::new(sender_private_account.clone(), true, &sender_keys.npk());
+        let recipient_pre =
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         let esk_1 = [3; 32];
         let shared_secret_1 = SharedSecretKey::new(&esk_1, &sender_keys.ivk());
@@ -898,14 +910,13 @@ pub mod tests {
     ) -> PrivacyPreservingTransaction {
         let program = Program::authenticated_transfer_program();
         let sender_commitment = Commitment::new(&sender_keys.npk(), sender_private_account);
-        let sender_pre = AccountWithMetadata {
-            account: sender_private_account.clone(),
-            is_authorized: true,
-        };
-        let recipient_pre = AccountWithMetadata {
-            account: state.get_account_by_address(recipient_address),
-            is_authorized: false,
-        };
+        let sender_pre =
+            AccountWithMetadata::new(sender_private_account.clone(), true, &sender_keys.npk());
+        let recipient_pre = AccountWithMetadata::new(
+            state.get_account_by_address(recipient_address),
+            false,
+            recipient_address,
+        );
 
         let esk = [3; 32];
         let shared_secret = SharedSecretKey::new(&esk, &sender_keys.ivk());
@@ -943,7 +954,7 @@ pub mod tests {
         let sender_keys = test_public_account_keys_1();
         let recipient_keys = test_private_account_keys_1();
 
-        let mut state = V01State::new_with_genesis_accounts(&[(sender_keys.address(), 200)]);
+        let mut state = V01State::new_with_genesis_accounts(&[(sender_keys.address(), 200)], &[]);
 
         let balance_to_move = 37;
 
@@ -989,7 +1000,7 @@ pub mod tests {
         };
         let recipient_keys = test_private_account_keys_2();
 
-        let mut state = V01State::new_with_genesis_accounts(&[])
+        let mut state = V01State::new_with_genesis_accounts(&[], &[])
             .with_private_account(&sender_keys, &sender_private_account);
 
         let balance_to_move = 37;
@@ -1054,10 +1065,10 @@ pub mod tests {
         };
         let recipient_keys = test_public_account_keys_1();
         let recipient_initial_balance = 400;
-        let mut state = V01State::new_with_genesis_accounts(&[(
-            recipient_keys.address(),
-            recipient_initial_balance,
-        )])
+        let mut state = V01State::new_with_genesis_accounts(
+            &[(recipient_keys.address(), recipient_initial_balance)],
+            &[],
+        )
         .with_private_account(&sender_keys, &sender_private_account);
 
         let balance_to_move = 37;
@@ -1114,14 +1125,15 @@ pub mod tests {
     #[test]
     fn test_burner_program_should_fail_in_privacy_preserving_circuit() {
         let program = Program::burner();
-        let public_account = AccountWithMetadata {
-            account: Account {
+        let public_account = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account],
@@ -1139,14 +1151,15 @@ pub mod tests {
     #[test]
     fn test_minter_program_should_fail_in_privacy_preserving_circuit() {
         let program = Program::minter();
-        let public_account = AccountWithMetadata {
-            account: Account {
+        let public_account = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account],
@@ -1164,14 +1177,15 @@ pub mod tests {
     #[test]
     fn test_nonce_changer_program_should_fail_in_privacy_preserving_circuit() {
         let program = Program::nonce_changer_program();
-        let public_account = AccountWithMetadata {
-            account: Account {
+        let public_account = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account],
@@ -1189,14 +1203,15 @@ pub mod tests {
     #[test]
     fn test_data_changer_program_should_fail_for_non_owned_account_in_privacy_preserving_circuit() {
         let program = Program::data_changer();
-        let public_account = AccountWithMetadata {
-            account: Account {
+        let public_account = AccountWithMetadata::new(
+            Account {
                 program_owner: [0, 1, 2, 3, 4, 5, 6, 7],
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account],
@@ -1214,14 +1229,15 @@ pub mod tests {
     #[test]
     fn test_extra_output_program_should_fail_in_privacy_preserving_circuit() {
         let program = Program::extra_output_program();
-        let public_account = AccountWithMetadata {
-            account: Account {
+        let public_account = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account],
@@ -1239,22 +1255,24 @@ pub mod tests {
     #[test]
     fn test_missing_output_program_should_fail_in_privacy_preserving_circuit() {
         let program = Program::missing_output_program();
-        let public_account_1 = AccountWithMetadata {
-            account: Account {
+        let public_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let public_account_2 = AccountWithMetadata {
-            account: Account {
+            true,
+            AccountId::new([0; 32]),
+        );
+        let public_account_2 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([1; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account_1, public_account_2],
@@ -1272,14 +1290,15 @@ pub mod tests {
     #[test]
     fn test_program_owner_changer_should_fail_in_privacy_preserving_circuit() {
         let program = Program::program_owner_changer();
-        let public_account = AccountWithMetadata {
-            account: Account {
+        let public_account = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account],
@@ -1297,22 +1316,24 @@ pub mod tests {
     #[test]
     fn test_transfer_from_non_owned_account_should_fail_in_privacy_preserving_circuit() {
         let program = Program::simple_balance_transfer();
-        let public_account_1 = AccountWithMetadata {
-            account: Account {
+        let public_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: [0, 1, 2, 3, 4, 5, 6, 7],
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let public_account_2 = AccountWithMetadata {
-            account: Account {
+            true,
+            AccountId::new([0; 32]),
+        );
+        let public_account_2 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([1; 32]),
+        );
 
         let result = execute_and_prove(
             &[public_account_1, public_account_2],
@@ -1330,22 +1351,24 @@ pub mod tests {
     #[test]
     fn test_circuit_fails_if_visibility_masks_have_incorrect_lenght() {
         let program = Program::simple_balance_transfer();
-        let public_account_1 = AccountWithMetadata {
-            account: Account {
+        let public_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let public_account_2 = AccountWithMetadata {
-            account: Account {
+            true,
+            AccountId::new([0; 32]),
+        );
+        let public_account_2 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 0,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([1; 32]),
+        );
 
         // Setting only one visibility mask for a circuit execution with two pre_state accounts.
         let visibility_mask = [0];
@@ -1367,18 +1390,17 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         // Setting only one nonce for an execution with two private accounts.
         let private_account_nonces = [0xdeadbeef1];
@@ -1408,18 +1430,17 @@ pub mod tests {
     fn test_circuit_fails_if_insufficient_keys_are_provided() {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         // Setting only one key for an execution with two private accounts.
         let private_account_keys = [(
@@ -1444,18 +1465,17 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         // Setting no auth key for an execution with one non default private accounts.
         let private_account_auth = [];
@@ -1486,18 +1506,17 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         let private_account_keys = [
             // First private account is the sender
@@ -1535,22 +1554,24 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account {
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 = AccountWithMetadata::new(
+            Account {
                 // Non default balance
                 balance: 1,
                 ..Account::default()
             },
-            is_authorized: false,
-        };
+            false,
+            AccountId::new([1; 32]),
+        );
 
         let result = execute_and_prove(
             &[private_account_1, private_account_2],
@@ -1580,22 +1601,24 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account {
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 = AccountWithMetadata::new(
+            Account {
                 // Non default program_owner
                 program_owner: [0, 1, 2, 3, 4, 5, 6, 7],
                 ..Account::default()
             },
-            is_authorized: false,
-        };
+            false,
+            AccountId::new([1; 32]),
+        );
 
         let result = execute_and_prove(
             &[private_account_1, private_account_2],
@@ -1624,22 +1647,24 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account {
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 = AccountWithMetadata::new(
+            Account {
                 // Non default data
                 data: b"hola mundo".to_vec(),
                 ..Account::default()
             },
-            is_authorized: false,
-        };
+            false,
+            AccountId::new([1; 32]),
+        );
 
         let result = execute_and_prove(
             &[private_account_1, private_account_2],
@@ -1668,22 +1693,24 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account {
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 = AccountWithMetadata::new(
+            Account {
                 // Non default nonce
                 nonce: 0xdeadbeef,
                 ..Account::default()
             },
-            is_authorized: false,
-        };
+            false,
+            AccountId::new([1; 32]),
+        );
 
         let result = execute_and_prove(
             &[private_account_1, private_account_2],
@@ -1713,19 +1740,21 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 = AccountWithMetadata::new(
+            Account::default(),
             // This should be set to false in normal circumstances
-            is_authorized: true,
-        };
+            true,
+            AccountId::new([1; 32]),
+        );
 
         let result = execute_and_prove(
             &[private_account_1, private_account_2],
@@ -1752,18 +1781,17 @@ pub mod tests {
     #[test]
     fn test_circuit_should_fail_with_invalid_visibility_mask_value() {
         let program = Program::simple_balance_transfer();
-        let public_account_1 = AccountWithMetadata {
-            account: Account {
+        let public_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let public_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let public_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         let visibility_mask = [0, 3];
         let result = execute_and_prove(
@@ -1784,18 +1812,17 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         // Setting three new private account nonces for a circuit execution with only two private
         // accounts.
@@ -1827,18 +1854,17 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         // Setting three private account keys for a circuit execution with only two private
         // accounts.
@@ -1874,18 +1900,17 @@ pub mod tests {
         let program = Program::simple_balance_transfer();
         let sender_keys = test_private_account_keys_1();
         let recipient_keys = test_private_account_keys_2();
-        let private_account_1 = AccountWithMetadata {
-            account: Account {
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
                 program_owner: program.id(),
                 balance: 100,
                 ..Account::default()
             },
-            is_authorized: true,
-        };
-        let private_account_2 = AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: false,
-        };
+            true,
+            AccountId::new([0; 32]),
+        );
+        let private_account_2 =
+            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
 
         // Setting two private account keys for a circuit execution with only one non default
         // private account (visibility mask equal to 1 means that auth keys are expected).

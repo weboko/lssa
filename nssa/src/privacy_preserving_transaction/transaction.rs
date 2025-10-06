@@ -15,7 +15,7 @@ use super::witness_set::WitnessSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivacyPreservingTransaction {
-    message: Message,
+    pub message: Message,
     witness_set: WitnessSet,
 }
 
@@ -90,9 +90,12 @@ impl PrivacyPreservingTransaction {
         let public_pre_states: Vec<_> = message
             .public_addresses
             .iter()
-            .map(|address| AccountWithMetadata {
-                account: state.get_account_by_address(address),
-                is_authorized: signer_addresses.contains(address),
+            .map(|address| {
+                AccountWithMetadata::new(
+                    state.get_account_by_address(address),
+                    signer_addresses.contains(address),
+                    address,
+                )
             })
             .collect();
 

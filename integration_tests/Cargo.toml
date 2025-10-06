@@ -8,11 +8,14 @@ anyhow.workspace = true
 env_logger.workspace = true
 log.workspace = true
 actix.workspace = true
+bytemuck = "1.23.2"
 
 actix-web.workspace = true
 tokio.workspace = true
 hex.workspace = true
 tempfile.workspace = true
+
+nssa-core = { path = "../nssa/core", features = ["host"] }
 
 [dependencies.clap]
 features = ["derive", "env"]

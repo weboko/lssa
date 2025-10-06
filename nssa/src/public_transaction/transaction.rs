@@ -91,9 +91,12 @@ impl PublicTransaction {
         let pre_states: Vec<_> = message
             .addresses
             .iter()
-            .map(|address| AccountWithMetadata {
-                account: state.get_account_by_address(address),
-                is_authorized: signer_addresses.contains(address),
+            .map(|address| {
+                AccountWithMetadata::new(
+                    state.get_account_by_address(address),
+                    signer_addresses.contains(address),
+                    address,
+                )
             })
             .collect();
 
@@ -138,7 +141,7 @@ pub mod tests {
     fn state_for_tests() -> V01State {
         let (_, _, addr1, addr2) = keys_for_tests();
         let initial_data = [(addr1, 10000), (addr2, 20000)];
-        V01State::new_with_genesis_accounts(&initial_data)
+        V01State::new_with_genesis_accounts(&initial_data, &[])
     }
 
     fn transaction_for_tests() -> PublicTransaction {

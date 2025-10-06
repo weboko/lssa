@@ -1,12 +1,12 @@
 use risc0_zkvm::{guest::env, serde::to_vec};
 
 use nssa_core::{
-    account::{Account, AccountWithMetadata},
-    compute_digest_for_path,
-    encryption::Ciphertext,
-    program::{validate_execution, ProgramOutput, DEFAULT_PROGRAM_ID},
     Commitment, CommitmentSetDigest, EncryptionScheme, Nullifier, NullifierPublicKey,
     PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
+    account::{Account, AccountId, AccountWithMetadata},
+    compute_digest_for_path,
+    encryption::Ciphertext,
+    program::{DEFAULT_PROGRAM_ID, ProgramOutput, validate_execution},
 };
 
 fn main() {
@@ -73,6 +73,10 @@ fn main() {
             1 | 2 => {
                 let new_nonce = private_nonces_iter.next().expect("Missing private nonce");
                 let (npk, shared_secret) = private_keys_iter.next().expect("Missing keys");
+
+                if AccountId::from(npk) != pre_states[i].account_id {
+                    panic!("AccountId mismatch");
+                }
 
                 if visibility_mask[i] == 1 {
                     // Private account with authentication
