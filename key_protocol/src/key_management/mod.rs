@@ -1,11 +1,9 @@
-use common::TreeHashType;
 use nssa_core::{
     NullifierPublicKey, SharedSecretKey,
     encryption::{EphemeralPublicKey, IncomingViewingPublicKey},
 };
 use secret_holders::{PrivateKeyHolder, SecretSpendingKey, SeedHolder};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, digest::FixedOutput};
 
 pub type PublicAccountSigningKey = [u8; 32];
 
@@ -19,18 +17,6 @@ pub struct KeyChain {
     pub private_key_holder: PrivateKeyHolder,
     pub nullifer_public_key: NullifierPublicKey,
     pub incoming_viewing_public_key: IncomingViewingPublicKey,
-}
-
-pub fn produce_user_address_foreign_account(
-    npk: &NullifierPublicKey,
-    ipk: &IncomingViewingPublicKey,
-) -> [u8; 32] {
-    let mut hasher = sha2::Sha256::new();
-
-    hasher.update(npk);
-    hasher.update(ipk.to_bytes());
-
-    <TreeHashType>::from(hasher.finalize_fixed())
 }
 
 impl KeyChain {
@@ -51,15 +37,6 @@ impl KeyChain {
             nullifer_public_key,
             incoming_viewing_public_key,
         }
-    }
-
-    pub fn produce_user_address(&self) -> [u8; 32] {
-        let mut hasher = sha2::Sha256::new();
-
-        hasher.update(&self.nullifer_public_key);
-        hasher.update(self.incoming_viewing_public_key.to_bytes());
-
-        <TreeHashType>::from(hasher.finalize_fixed())
     }
 
     pub fn calculate_shared_secret_receiver(
