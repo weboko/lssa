@@ -4,7 +4,7 @@ use crate::{
     public_transaction::PublicTransaction,
 };
 use nssa_core::{
-    Commitment, CommitmentSetDigest, MembershipProof, Nullifier,
+    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT, MembershipProof, Nullifier,
     account::Account,
     address::Address,
     program::{DEFAULT_PROGRAM_ID, ProgramId},
@@ -84,6 +84,7 @@ impl V01State {
             .collect();
 
         let mut private_state = CommitmentSet::with_capacity(32);
+        private_state.extend(&[DUMMY_COMMITMENT]);
         private_state.extend(initial_commitments);
 
         let mut this = Self {
@@ -1026,7 +1027,8 @@ pub mod tests {
         );
 
         let sender_pre_commitment = Commitment::new(&sender_keys.npk(), &sender_private_account);
-        let expected_new_nullifier = Nullifier::new(&sender_pre_commitment, &sender_keys.nsk);
+        let expected_new_nullifier =
+            Nullifier::for_account_update(&sender_pre_commitment, &sender_keys.nsk);
 
         let expected_new_commitment_2 = Commitment::new(
             &recipient_keys.npk(),
@@ -1100,7 +1102,8 @@ pub mod tests {
         );
 
         let sender_pre_commitment = Commitment::new(&sender_keys.npk(), &sender_private_account);
-        let expected_new_nullifier = Nullifier::new(&sender_pre_commitment, &sender_keys.nsk);
+        let expected_new_nullifier =
+            Nullifier::for_account_update(&sender_pre_commitment, &sender_keys.nsk);
 
         assert!(state.private_state.0.contains(&sender_pre_commitment));
         assert!(!state.private_state.0.contains(&expected_new_commitment));
@@ -1398,10 +1401,10 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 =
-            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         // Setting only one nonce for an execution with two private accounts.
         let private_account_nonces = [0xdeadbeef1];
@@ -1438,7 +1441,7 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 =
             AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
@@ -1473,10 +1476,10 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 =
-            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         // Setting no auth key for an execution with one non default private accounts.
         let private_account_auth = [];
@@ -1514,10 +1517,10 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 =
-            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         let private_account_keys = [
             // First private account is the sender
@@ -1562,7 +1565,7 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 = AccountWithMetadata::new(
             Account {
@@ -1571,7 +1574,7 @@ pub mod tests {
                 ..Account::default()
             },
             false,
-            AccountId::new([1; 32]),
+            &recipient_keys.npk(),
         );
 
         let result = execute_and_prove(
@@ -1609,7 +1612,7 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 = AccountWithMetadata::new(
             Account {
@@ -1618,7 +1621,7 @@ pub mod tests {
                 ..Account::default()
             },
             false,
-            AccountId::new([1; 32]),
+            &recipient_keys.npk(),
         );
 
         let result = execute_and_prove(
@@ -1655,7 +1658,7 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 = AccountWithMetadata::new(
             Account {
@@ -1664,7 +1667,7 @@ pub mod tests {
                 ..Account::default()
             },
             false,
-            AccountId::new([1; 32]),
+            &recipient_keys.npk(),
         );
 
         let result = execute_and_prove(
@@ -1701,7 +1704,7 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 = AccountWithMetadata::new(
             Account {
@@ -1710,7 +1713,7 @@ pub mod tests {
                 ..Account::default()
             },
             false,
-            AccountId::new([1; 32]),
+            &recipient_keys.npk(),
         );
 
         let result = execute_and_prove(
@@ -1748,13 +1751,13 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 = AccountWithMetadata::new(
             Account::default(),
             // This should be set to false in normal circumstances
             true,
-            AccountId::new([1; 32]),
+            &recipient_keys.npk(),
         );
 
         let result = execute_and_prove(
@@ -1820,10 +1823,10 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 =
-            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         // Setting three new private account nonces for a circuit execution with only two private
         // accounts.
@@ -1862,10 +1865,10 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 =
-            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         // Setting three private account keys for a circuit execution with only two private
         // accounts.
@@ -1908,10 +1911,10 @@ pub mod tests {
                 ..Account::default()
             },
             true,
-            AccountId::new([0; 32]),
+            &sender_keys.npk(),
         );
         let private_account_2 =
-            AccountWithMetadata::new(Account::default(), false, AccountId::new([1; 32]));
+            AccountWithMetadata::new(Account::default(), false, &recipient_keys.npk());
 
         // Setting two private account keys for a circuit execution with only one non default
         // private account (visibility mask equal to 1 means that auth keys are expected).
@@ -1934,6 +1937,97 @@ pub mod tests {
                     recipient_keys.npk(),
                     SharedSecretKey::new(&[56; 32], &recipient_keys.ivk()),
                 ),
+            ],
+            &private_account_auth,
+            &program,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_private_accounts_can_only_be_initialized_once() {
+        let sender_keys = test_private_account_keys_1();
+        let sender_private_account = Account {
+            program_owner: Program::authenticated_transfer_program().id(),
+            balance: 100,
+            nonce: 0xdeadbeef,
+            data: vec![],
+        };
+        let recipient_keys = test_private_account_keys_2();
+
+        let mut state = V01State::new_with_genesis_accounts(&[], &[])
+            .with_private_account(&sender_keys, &sender_private_account);
+
+        let balance_to_move = 37;
+
+        let tx = private_balance_transfer_for_tests(
+            &sender_keys,
+            &sender_private_account,
+            &recipient_keys,
+            balance_to_move,
+            [0xcafecafe, 0xfecafeca],
+            &state,
+        );
+
+        state
+            .transition_from_privacy_preserving_transaction(&tx)
+            .unwrap();
+
+        let sender_private_account = Account {
+            program_owner: Program::authenticated_transfer_program().id(),
+            balance: 100 - balance_to_move,
+            nonce: 0xcafecafe,
+            data: vec![],
+        };
+
+        let tx = private_balance_transfer_for_tests(
+            &sender_keys,
+            &sender_private_account,
+            &recipient_keys,
+            balance_to_move,
+            [0x1234, 0x5678],
+            &state,
+        );
+
+        let result = state.transition_from_privacy_preserving_transaction(&tx);
+
+        assert!(matches!(result, Err(NssaError::InvalidInput(_))));
+        let NssaError::InvalidInput(error_message) = result.err().unwrap() else {
+            panic!("Incorrect message error");
+        };
+        let expected_error_message = "Nullifier already seen".to_string();
+        assert_eq!(error_message, expected_error_message);
+    }
+
+    #[test]
+    fn test_circuit_should_fail_if_there_are_repeated_ids() {
+        let program = Program::simple_balance_transfer();
+        let sender_keys = test_private_account_keys_1();
+        let private_account_1 = AccountWithMetadata::new(
+            Account {
+                program_owner: program.id(),
+                balance: 100,
+                ..Account::default()
+            },
+            true,
+            &sender_keys.npk(),
+        );
+
+        let visibility_mask = [1, 1];
+        let private_account_auth = [
+            (sender_keys.nsk, (1, vec![])),
+            (sender_keys.nsk, (1, vec![])),
+        ];
+        let shared_secret = SharedSecretKey::new(&[55; 32], &sender_keys.ivk());
+        let result = execute_and_prove(
+            &[private_account_1.clone(), private_account_1],
+            &Program::serialize_instruction(100u128).unwrap(),
+            &visibility_mask,
+            &[0xdeadbeef1, 0xdeadbeef2],
+            &[
+                (sender_keys.npk(), shared_secret.clone()),
+                (sender_keys.npk(), shared_secret),
             ],
             &private_account_auth,
             &program,

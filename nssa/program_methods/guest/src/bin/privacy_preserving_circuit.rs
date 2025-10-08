@@ -1,8 +1,10 @@
+use std::collections::HashSet;
+
 use risc0_zkvm::{guest::env, serde::to_vec};
 
 use nssa_core::{
-    Commitment, CommitmentSetDigest, EncryptionScheme, Nullifier, NullifierPublicKey,
-    PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
+    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT_HASH, EncryptionScheme,
+    Nullifier, NullifierPublicKey, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
     account::{Account, AccountId, AccountWithMetadata},
     compute_digest_for_path,
     encryption::Ciphertext,
@@ -29,6 +31,11 @@ fn main() {
         pre_states,
         post_states,
     } = program_output;
+
+    // Check that there are no repeated account ids
+    if !validate_uniqueness_of_account_ids(&pre_states) {
+        panic!("Repeated account ids found")
+    }
 
     // Check that the program is well behaved.
     // See the # Programs section for the definition of the `validate_execution` method.
@@ -98,8 +105,8 @@ fn main() {
                         panic!("Pre-state not authorized");
                     }
 
-                    // Compute nullifier
-                    let nullifier = Nullifier::new(&commitment_pre, nsk);
+                    // Compute update nullifier
+                    let nullifier = Nullifier::for_account_update(&commitment_pre, nsk);
                     new_nullifiers.push((nullifier, set_digest));
                 } else {
                     if pre_states[i].account != Account::default() {
@@ -109,6 +116,10 @@ fn main() {
                     if pre_states[i].is_authorized {
                         panic!("Found new private account marked as authorized.");
                     }
+
+                    // Compute initialization nullifier
+                    let nullifier = Nullifier::for_account_initialization(npk);
+                    new_nullifiers.push((nullifier, DUMMY_COMMITMENT_HASH));
                 }
 
                 // Update post-state with new nonce
@@ -160,4 +171,15 @@ fn main() {
     };
 
     env::commit(&output);
+}
+
+fn validate_uniqueness_of_account_ids(pre_states: &[AccountWithMetadata]) -> bool {
+    let number_of_accounts = pre_states.len();
+    let number_of_account_ids = pre_states
+        .iter()
+        .map(|account| account.account_id.clone())
+        .collect::<HashSet<_>>()
+        .len();
+
+    number_of_accounts == number_of_account_ids
 }
