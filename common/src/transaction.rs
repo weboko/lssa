@@ -5,12 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use sha2::{Digest, digest::FixedOutput};
 
-use elliptic_curve::{
-    consts::{B0, B1},
-    generic_array::GenericArray,
-};
-use sha2::digest::typenum::{UInt, UTerm};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NSSATransaction {
     Public(nssa::PublicTransaction),
@@ -32,7 +26,6 @@ impl From<nssa::PrivacyPreservingTransaction> for NSSATransaction {
 use crate::TreeHashType;
 
 pub type CipherText = Vec<u8>;
-pub type Nonce = GenericArray<u8, UInt<UInt<UInt<UInt<UTerm, B1>, B1>, B0>, B0>>;
 pub type Tag = u8;
 
 #[derive(
