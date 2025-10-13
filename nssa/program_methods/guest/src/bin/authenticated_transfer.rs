@@ -3,6 +3,8 @@ use nssa_core::{
     program::{ProgramInput, read_nssa_inputs, write_nssa_outputs},
 };
 
+/// Initializes a default account under the ownership of this program.
+/// This is achieved by a noop.
 fn initialize_account(pre_state: AccountWithMetadata) {
     let account_to_claim = pre_state.account.clone();
     let is_authorized = pre_state.is_authorized;
@@ -21,6 +23,7 @@ fn initialize_account(pre_state: AccountWithMetadata) {
     write_nssa_outputs(vec![pre_state], vec![account_to_claim]);
 }
 
+/// Transfers `balance_to_move` native balance from `sender` to `recipient`.
 fn transfer(sender: AccountWithMetadata, recipient: AccountWithMetadata, balance_to_move: u128) {
     // Continue only if the sender has authorized this operation
     if !sender.is_authorized {
