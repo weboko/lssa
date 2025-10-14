@@ -4,6 +4,7 @@ mod merkle_tree;
 pub mod privacy_preserving_transaction;
 pub mod program;
 pub mod public_transaction;
+pub mod program_deployment_transaction;
 mod signature;
 mod state;
 

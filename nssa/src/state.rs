@@ -61,7 +61,7 @@ type NullifierSet = HashSet<Nullifier>;
 pub struct V01State {
     public_state: HashMap<Address, Account>,
     private_state: (CommitmentSet, NullifierSet),
-    builtin_programs: HashMap<ProgramId, Program>,
+    programs: HashMap<ProgramId, Program>,
 }
 
 impl V01State {
@@ -90,7 +90,7 @@ impl V01State {
         let mut this = Self {
             public_state,
             private_state: (private_state, NullifierSet::new()),
-            builtin_programs: HashMap::new(),
+            programs: HashMap::new(),
         };
 
         this.insert_program(Program::authenticated_transfer_program());
@@ -100,7 +100,7 @@ impl V01State {
     }
 
     pub(crate) fn insert_program(&mut self, program: Program) {
-        self.builtin_programs.insert(program.id(), program);
+        self.programs.insert(program.id(), program);
     }
 
     pub fn transition_from_public_transaction(
@@ -173,7 +173,7 @@ impl V01State {
     }
 
     pub(crate) fn builtin_programs(&self) -> &HashMap<ProgramId, Program> {
-        &self.builtin_programs
+        &self.programs
     }
 
     pub fn commitment_set_digest(&self) -> CommitmentSetDigest {
@@ -312,7 +312,7 @@ pub mod tests {
         let state = V01State::new_with_genesis_accounts(&initial_data, &[]);
 
         assert_eq!(state.public_state, expected_public_state);
-        assert_eq!(state.builtin_programs, expected_builtin_programs);
+        assert_eq!(state.programs, expected_builtin_programs);
     }
 
     #[test]
@@ -320,11 +320,11 @@ pub mod tests {
         let mut state = V01State::new_with_genesis_accounts(&[], &[]);
         let program_to_insert = Program::simple_balance_transfer();
         let program_id = program_to_insert.id();
-        assert!(!state.builtin_programs.contains_key(&program_id));
+        assert!(!state.programs.contains_key(&program_id));
 
         state.insert_program(program_to_insert);
 
-        assert!(state.builtin_programs.contains_key(&program_id));
+        assert!(state.programs.contains_key(&program_id));
     }
 
     #[test]
@@ -357,7 +357,7 @@ pub mod tests {
 
         let builtin_programs = state.builtin_programs();
 
-        assert_eq!(builtin_programs, &state.builtin_programs);
+        assert_eq!(builtin_programs, &state.programs);
     }
 
     #[test]
