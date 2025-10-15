@@ -9,7 +9,7 @@ use common::{
     transaction::{EncodedTransaction, NSSATransaction},
 };
 use log::{info, warn};
-use nssa::{Address, PrivacyPreservingTransaction, program::Program};
+use nssa::{Address, PrivacyPreservingTransaction, ProgramDeploymentTransaction, program::Program};
 use nssa_core::{
     Commitment, NullifierPublicKey, encryption::shared_key_derivation::Secp256k1Point,
 };
@@ -41,6 +41,8 @@ pub const ACC_RECEIVER_PRIVATE: &str =
     "a55f4f98d2f265c91d8a9868564242d8070b9bf7180a29363f52eb76988636fd";
 
 pub const TIME_TO_WAIT_FOR_BLOCK_SECONDS: u64 = 12;
+
+pub const NSSA_PROGRAM_FOR_TEST: &'static [u8] = include_bytes!("simple_balance_transfer.bin");
 
 #[allow(clippy::type_complexity)]
 pub async fn pre_test(
@@ -791,6 +793,20 @@ pub async fn test_pinata() {
     info!("Success!");
 }
 
+pub async fn test_program_deployment() {
+    info!("test program deployment");
+    println!("{}", NSSA_PROGRAM_FOR_TEST.len());
+    let bytecode = NSSA_PROGRAM_FOR_TEST.to_vec();
+    let message = nssa::program_deployment_transaction::Message::new(bytecode);
+    let transaction = ProgramDeploymentTransaction::new(message);
+
+    let wallet_config = fetch_config().unwrap();
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    let response = seq_client.send_tx_program(transaction).await.unwrap();
+    println!("response: {:?}", response);
+}
+
 macro_rules! test_cleanup_wrap {
     ($home_dir:ident, $test_func:ident) => {{
         let res = pre_test($home_dir.clone()).await.unwrap();
@@ -871,6 +887,9 @@ pub async fn main_tests_runner() -> Result<()> {
         "test_pinata" => {
             test_cleanup_wrap!(home_dir, test_pinata);
         }
+        "test_program_deployment" => {
+            test_cleanup_wrap!(home_dir, test_program_deployment);
+        }
         "all" => {
             test_cleanup_wrap!(home_dir, test_success_move_to_another_account);
             test_cleanup_wrap!(home_dir, test_success);
@@ -902,6 +921,7 @@ pub async fn main_tests_runner() -> Result<()> {
                 test_success_private_transfer_to_another_owned_account_claiming_path
             );
             test_cleanup_wrap!(home_dir, test_pinata);
+            test_cleanup_wrap!(home_dir, test_program_deployment);
         }
         "all_private" => {
             test_cleanup_wrap!(

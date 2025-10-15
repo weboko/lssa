@@ -36,9 +36,10 @@ impl Message {
             ));
         }
         let bytecode_len = u32_from_cursor(cursor)?;
-        let mut bytecode = Vec::with_capacity(bytecode_len as usize);
+        let mut bytecode = vec![0; bytecode_len as usize];
         let num_bytes = cursor.read(&mut bytecode)?;
         if num_bytes != bytecode_len as usize {
+            println!("num bytes: {}", num_bytes);
             return Err(NssaError::TransactionDeserializationError(
                 "Invalid number of bytes".to_string(),
             ));
@@ -67,4 +68,21 @@ fn u32_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<u32, NssaError> {
     let mut word_buf = [0u8; 4];
     cursor.read_exact(&mut word_buf)?;
     Ok(u32::from_le_bytes(word_buf))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use crate::{ProgramDeploymentTransaction, program_deployment_transaction::Message};
+
+    #[test]
+    fn test_roundtrip() {
+        let message = Message::new(vec![0xca, 0xfe, 0xca, 0xfe, 0x01, 0x02, 0x03]);
+        let tx = ProgramDeploymentTransaction::new(message);
+        let bytes = tx.to_bytes();
+        let mut cursor = Cursor::new(bytes.as_ref());
+        let tx_from_cursor = ProgramDeploymentTransaction::from_cursor(&mut cursor).unwrap();
+        assert_eq!(tx, tx_from_cursor);
+    }
 }

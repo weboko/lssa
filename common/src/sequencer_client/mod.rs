@@ -237,4 +237,23 @@ impl SequencerClient {
 
         Ok(resp_deser)
     }
+
+    pub async fn send_tx_program(
+        &self,
+        transaction: nssa::ProgramDeploymentTransaction,
+    ) -> Result<SendTxResponse, SequencerClientError> {
+        let transaction = EncodedTransaction::from(NSSATransaction::ProgramDeployment(transaction));
+
+        let tx_req = SendTxRequest {
+            transaction: borsh::to_vec(&transaction).unwrap(),
+        };
+
+        let req = serde_json::to_value(tx_req)?;
+
+        let resp = self.call_method_with_payload("send_tx", req).await?;
+
+        let resp_deser = serde_json::from_value(resp)?;
+
+        Ok(resp_deser)
+    }
 }

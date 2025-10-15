@@ -30,6 +30,12 @@ impl From<nssa::PrivacyPreservingTransaction> for NSSATransaction {
     }
 }
 
+impl From<nssa::ProgramDeploymentTransaction> for NSSATransaction {
+    fn from(value: nssa::ProgramDeploymentTransaction) -> Self {
+        Self::ProgramDeployment(value)
+    }
+}
+
 use crate::TreeHashType;
 
 pub type CipherText = Vec<u8>;
@@ -66,7 +72,7 @@ impl From<NSSATransaction> for EncodedTransaction {
             },
             NSSATransaction::ProgramDeployment(tx) => Self {
                 tx_kind: TxKind::ProgramDeployment,
-                encoded_transaction_data: todo!(),
+                encoded_transaction_data: tx.to_bytes(),
             },
         }
     }
@@ -83,7 +89,10 @@ impl TryFrom<&EncodedTransaction> for NSSATransaction {
                 nssa::PrivacyPreservingTransaction::from_bytes(&value.encoded_transaction_data)
                     .map(|tx| tx.into())
             }
-            TxKind::ProgramDeployment => todo!(),
+            TxKind::ProgramDeployment => {
+                nssa::ProgramDeploymentTransaction::from_bytes(&value.encoded_transaction_data)
+                    .map(|tx| tx.into())
+            }
         }
     }
 }

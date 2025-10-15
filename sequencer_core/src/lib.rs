@@ -98,7 +98,7 @@ impl SequencerCore {
                     Err(TransactionMalformationErrorKind::InvalidSignature)
                 }
             }
-            NSSATransaction::ProgramDeployment(program_deployment_transaction) => todo!(),
+            NSSATransaction::ProgramDeployment(tx) => Ok(NSSATransaction::ProgramDeployment(tx)),
         }
     }
 
