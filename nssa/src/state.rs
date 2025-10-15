@@ -1,6 +1,7 @@
 use crate::{
     error::NssaError, merkle_tree::MerkleTree,
     privacy_preserving_transaction::PrivacyPreservingTransaction, program::Program,
+    program_deployment_transaction::ProgramDeploymentTransaction,
     public_transaction::PublicTransaction,
 };
 use nssa_core::{
@@ -157,6 +158,15 @@ impl V01State {
         Ok(())
     }
 
+    pub fn transition_from_program_deployment_transaction(
+        &mut self,
+        tx: &ProgramDeploymentTransaction,
+    ) -> Result<(), NssaError> {
+        let program = tx.validate_and_produce_public_state_diff(self)?;
+        self.insert_program(program);
+        Ok(())
+    }
+
     fn get_account_by_address_mut(&mut self, address: Address) -> &mut Account {
         self.public_state.entry(address).or_default()
     }
@@ -172,7 +182,7 @@ impl V01State {
         self.private_state.0.get_proof_for(commitment)
     }
 
-    pub(crate) fn builtin_programs(&self) -> &HashMap<ProgramId, Program> {
+    pub(crate) fn programs(&self) -> &HashMap<ProgramId, Program> {
         &self.programs
     }
 
@@ -355,7 +365,7 @@ pub mod tests {
     fn test_builtin_programs_getter() {
         let state = V01State::new_with_genesis_accounts(&[], &[]);
 
-        let builtin_programs = state.builtin_programs();
+        let builtin_programs = state.programs();
 
         assert_eq!(builtin_programs, &state.programs);
     }

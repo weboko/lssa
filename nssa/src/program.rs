@@ -2,10 +2,7 @@ use nssa_core::{
     account::{Account, AccountWithMetadata},
     program::{InstructionData, ProgramId, ProgramOutput},
 };
-use program_methods::{
-    AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID, PINATA_ELF, PINATA_ID, TOKEN_ELF,
-    TOKEN_ID,
-};
+use program_methods::{AUTHENTICATED_TRANSFER_ELF, PINATA_ELF, TOKEN_ELF};
 use risc0_zkvm::{ExecutorEnv, ExecutorEnvBuilder, default_executor, serde::to_vec};
 use serde::Serialize;
 
@@ -14,16 +11,26 @@ use crate::error::NssaError;
 #[derive(Debug, PartialEq, Eq)]
 pub struct Program {
     id: ProgramId,
-    elf: &'static [u8],
+    elf: Vec<u8>,
 }
 
 impl Program {
+    pub(crate) fn new(bytecode: Vec<u8>) -> Result<Self, NssaError> {
+        let binary = risc0_binfmt::ProgramBinary::decode(&bytecode)
+            .map_err(|_| NssaError::InvalidProgramBytecode)?;
+        let id = binary
+            .compute_image_id()
+            .map_err(|_| NssaError::InvalidProgramBytecode)?
+            .into();
+        Ok(Self { elf: bytecode, id })
+    }
+
     pub fn id(&self) -> ProgramId {
         self.id
     }
 
-    pub(crate) fn elf(&self) -> &'static [u8] {
-        self.elf
+    pub(crate) fn elf(&self) -> &[u8] {
+        &self.elf
     }
 
     pub fn serialize_instruction<T: Serialize>(
@@ -45,7 +52,7 @@ impl Program {
         // Execute the program (without proving)
         let executor = default_executor();
         let session_info = executor
-            .execute(env, self.elf)
+            .execute(env, self.elf())
             .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
 
         // Get outputs
@@ -71,33 +78,34 @@ impl Program {
     }
 
     pub fn authenticated_transfer_program() -> Self {
-        Self {
-            id: AUTHENTICATED_TRANSFER_ID,
-            elf: AUTHENTICATED_TRANSFER_ELF,
-        }
+        // This unwrap won't panic since the `AUTHENTICATED_TRANSFER_ELF` comes from risc0 build of
+        // `program_methods`
+        Self::new(AUTHENTICATED_TRANSFER_ELF.to_vec()).unwrap()
     }
 
     pub fn token() -> Self {
-        Self {
-            id: TOKEN_ID,
-            elf: TOKEN_ELF,
-        }
+        // This unwrap won't panic since the `TOKEN_ELF` comes from risc0 build of
+        // `program_methods`
+        Self::new(TOKEN_ELF.to_vec()).unwrap()
     }
 }
 
 // TODO: Testnet only. Refactor to prevent compilation on mainnet.
 impl Program {
     pub fn pinata() -> Self {
-        Self {
-            id: PINATA_ID,
-            elf: PINATA_ELF,
-        }
+        // This unwrap won't panic since the `PINATA_ELF` comes from risc0 build of
+        // `program_methods`
+        Self::new(PINATA_ELF.to_vec()).unwrap()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use nssa_core::account::{Account, AccountId, AccountWithMetadata};
+    use program_methods::{
+        AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID, PINATA_ELF, PINATA_ID, TOKEN_ELF,
+        TOKEN_ID,
+    };
 
     use crate::program::Program;
 
@@ -108,7 +116,7 @@ mod tests {
 
             Program {
                 id: NONCE_CHANGER_ID,
-                elf: NONCE_CHANGER_ELF,
+                elf: NONCE_CHANGER_ELF.to_vec(),
             }
         }
 
@@ -118,7 +126,7 @@ mod tests {
 
             Program {
                 id: EXTRA_OUTPUT_ID,
-                elf: EXTRA_OUTPUT_ELF,
+                elf: EXTRA_OUTPUT_ELF.to_vec(),
             }
         }
 
@@ -128,7 +136,7 @@ mod tests {
 
             Program {
                 id: MISSING_OUTPUT_ID,
-                elf: MISSING_OUTPUT_ELF,
+                elf: MISSING_OUTPUT_ELF.to_vec(),
             }
         }
 
@@ -138,7 +146,7 @@ mod tests {
 
             Program {
                 id: PROGRAM_OWNER_CHANGER_ID,
-                elf: PROGRAM_OWNER_CHANGER_ELF,
+                elf: PROGRAM_OWNER_CHANGER_ELF.to_vec(),
             }
         }
 
@@ -148,7 +156,7 @@ mod tests {
 
             Program {
                 id: SIMPLE_BALANCE_TRANSFER_ID,
-                elf: SIMPLE_BALANCE_TRANSFER_ELF,
+                elf: SIMPLE_BALANCE_TRANSFER_ELF.to_vec(),
             }
         }
 
@@ -158,7 +166,7 @@ mod tests {
 
             Program {
                 id: DATA_CHANGER_ID,
-                elf: DATA_CHANGER_ELF,
+                elf: DATA_CHANGER_ELF.to_vec(),
             }
         }
 
@@ -168,7 +176,7 @@ mod tests {
 
             Program {
                 id: MINTER_ID,
-                elf: MINTER_ELF,
+                elf: MINTER_ELF.to_vec(),
             }
         }
 
@@ -178,7 +186,7 @@ mod tests {
 
             Program {
                 id: BURNER_ID,
-                elf: BURNER_ELF,
+                elf: BURNER_ELF.to_vec(),
             }
         }
     }
@@ -215,5 +223,19 @@ mod tests {
 
         assert_eq!(sender_post, expected_sender_post);
         assert_eq!(recipient_post, expected_recipient_post);
+    }
+
+    #[test]
+    fn test_builtin_programs() {
+        let auth_transfer_program = Program::authenticated_transfer_program();
+        let token_program = Program::token();
+        let pinata_program = Program::pinata();
+
+        assert_eq!(auth_transfer_program.id, AUTHENTICATED_TRANSFER_ID);
+        assert_eq!(auth_transfer_program.elf, AUTHENTICATED_TRANSFER_ELF);
+        assert_eq!(token_program.id, TOKEN_ID);
+        assert_eq!(token_program.elf, TOKEN_ELF);
+        assert_eq!(pinata_program.id, PINATA_ID);
+        assert_eq!(pinata_program.elf, PINATA_ELF);
     }
 }

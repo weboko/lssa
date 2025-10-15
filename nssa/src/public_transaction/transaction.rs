@@ -102,7 +102,7 @@ impl PublicTransaction {
 
         // Check the `program_id` corresponds to a built-in program
         // Only allowed program so far is the authenticated transfer program
-        let Some(program) = state.builtin_programs().get(&message.program_id) else {
+        let Some(program) = state.programs().get(&message.program_id) else {
             return Err(NssaError::InvalidInput("Unknown program".into()));
         };
 
