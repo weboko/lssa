@@ -14,7 +14,7 @@ use log::info;
 use nssa::{Account, Address, privacy_preserving_transaction::message::EncryptedAccountData};
 
 use clap::{Parser, Subcommand};
-use nssa_core::Commitment;
+use nssa_core::{Commitment, MembershipProof};
 
 use crate::cli::{
     WalletSubcommand, chain::ChainSubcommand,
@@ -139,16 +139,17 @@ impl WalletCore {
         Ok(NSSATransaction::try_from(&pub_tx)?)
     }
 
-    pub async fn check_private_account_initialized(&self, addr: &Address) -> bool {
+    pub async fn check_private_account_initialized(
+        &self,
+        addr: &Address,
+    ) -> Result<Option<MembershipProof>> {
         if let Some(acc_comm) = self.get_private_account_commitment(addr) {
-            matches!(
-                self.sequencer_client
-                    .get_proof_for_commitment(acc_comm)
-                    .await,
-                Ok(Some(_))
-            )
+            self.sequencer_client
+                .get_proof_for_commitment(acc_comm)
+                .await
+                .map_err(anyhow::Error::from)
         } else {
-            false
+            Ok(None)
         }
     }
 

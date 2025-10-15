@@ -92,16 +92,17 @@ impl WalletSubcommand for PinataProgramSubcommandPrivate {
                 let pinata_addr = pinata_addr.parse().unwrap();
                 let winner_addr = winner_addr.parse().unwrap();
 
-                let winner_intialized = wallet_core
+                let winner_initialization = wallet_core
                     .check_private_account_initialized(&winner_addr)
-                    .await;
+                    .await?;
 
-                let (res, [secret_winner]) = if winner_intialized {
+                let (res, [secret_winner]) = if let Some(winner_proof) = winner_initialization {
                     wallet_core
                         .claim_pinata_private_owned_account_already_initialized(
                             pinata_addr,
                             winner_addr,
                             solution,
+                            winner_proof
                         )
                         .await?
                 } else {
