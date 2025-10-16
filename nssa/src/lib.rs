@@ -13,8 +13,8 @@ pub use nssa_core::address::Address;
 pub use privacy_preserving_transaction::{
     PrivacyPreservingTransaction, circuit::execute_and_prove,
 };
-pub use public_transaction::PublicTransaction;
 pub use program_deployment_transaction::ProgramDeploymentTransaction;
+pub use public_transaction::PublicTransaction;
 pub use signature::PrivateKey;
 pub use signature::PublicKey;
 pub use signature::Signature;

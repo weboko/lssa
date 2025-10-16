@@ -42,7 +42,7 @@ pub const ACC_RECEIVER_PRIVATE: &str =
 
 pub const TIME_TO_WAIT_FOR_BLOCK_SECONDS: u64 = 12;
 
-pub const NSSA_PROGRAM_FOR_TEST: &'static [u8] = include_bytes!("simple_balance_transfer.bin");
+pub const NSSA_PROGRAM_FOR_TEST: &[u8] = include_bytes!("simple_balance_transfer.bin");
 
 #[allow(clippy::type_complexity)]
 pub async fn pre_test(

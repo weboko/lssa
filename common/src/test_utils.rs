@@ -68,4 +68,3 @@ pub fn create_transaction_native_token_transfer(
 
     EncodedTransaction::from(NSSATransaction::Public(nssa_tx))
 }
-
