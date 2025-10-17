@@ -9,10 +9,7 @@ use common::{
     transaction::{EncodedTransaction, NSSATransaction},
 };
 use log::{info, warn};
-use nssa::{
-    Address, PrivacyPreservingTransaction, PrivateKey, ProgramDeploymentTransaction,
-    privacy_preserving_transaction::witness_set, program::Program,
-};
+use nssa::{Address, PrivacyPreservingTransaction, ProgramDeploymentTransaction, program::Program};
 use nssa_core::{
     Commitment, NullifierPublicKey, encryption::shared_key_derivation::Secp256k1Point,
 };
