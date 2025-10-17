@@ -14,7 +14,7 @@ use crate::rpc_primitives::requests::{
 };
 use crate::sequencer_client::json::AccountInitialData;
 use crate::transaction::{EncodedTransaction, NSSATransaction};
-use crate::{SequencerClientError, SequencerRpcError};
+use crate::error::{SequencerClientError, SequencerRpcError};
 
 pub mod json;
 
