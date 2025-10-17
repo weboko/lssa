@@ -50,4 +50,3 @@ pub enum ExecutionFailureKind {
     #[error("Can not pay for operation")]
     InsufficientFundsError,
 }
-

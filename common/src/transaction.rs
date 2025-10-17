@@ -85,7 +85,6 @@ impl EncodedTransaction {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use sha2::{Digest, digest::FixedOutput};
