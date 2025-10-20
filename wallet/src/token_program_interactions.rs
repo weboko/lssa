@@ -448,4 +448,325 @@ impl WalletCore {
             [shared_secret_sender, shared_secret_recipient],
         ))
     }
+
+    pub async fn send_transfer_token_transaction_deshielded(
+        &self,
+        sender_address: Address,
+        recipient_address: Address,
+        amount: u128,
+    ) -> Result<(SendTxResponse, [SharedSecretKey; 1]), ExecutionFailureKind> {
+        let Some((sender_keys, sender_acc)) = self
+            .storage
+            .user_data
+            .get_private_account(&sender_address)
+            .cloned()
+        else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let Ok(recipient_acc) = self.get_account_public(recipient_address).await else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let sender_npk = sender_keys.nullifer_public_key;
+        let sender_ipk = sender_keys.incoming_viewing_public_key;
+
+        let program = Program::token();
+
+        let sender_commitment = Commitment::new(&sender_npk, &sender_acc);
+
+        let sender_pre = AccountWithMetadata::new(sender_acc.clone(), true, &sender_npk);
+        let recipient_pre =
+            AccountWithMetadata::new(recipient_acc.clone(), false, recipient_address);
+
+        let eph_holder_sender = EphemeralKeyHolder::new(&sender_npk);
+        let shared_secret_sender = eph_holder_sender.calculate_shared_secret_sender(&sender_ipk);
+
+        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
+        let mut instruction = [0; 23];
+        instruction[0] = 0x01;
+        instruction[1..17].copy_from_slice(&amount.to_le_bytes());
+
+        let (output, proof) = circuit::execute_and_prove(
+            &[sender_pre, recipient_pre],
+            &Program::serialize_instruction(instruction).unwrap(),
+            &[1, 0],
+            &produce_random_nonces(1),
+            &[(sender_npk.clone(), shared_secret_sender.clone())],
+            &[(
+                sender_keys.private_key_holder.nullifier_secret_key,
+                self.sequencer_client
+                    .get_proof_for_commitment(sender_commitment)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+            )],
+            &program,
+        )
+        .unwrap();
+
+        let message =
+            nssa::privacy_preserving_transaction::message::Message::try_from_circuit_output(
+                vec![recipient_address],
+                vec![],
+                vec![(
+                    sender_npk.clone(),
+                    sender_ipk.clone(),
+                    eph_holder_sender.generate_ephemeral_public_key(),
+                )],
+                output,
+            )
+            .unwrap();
+
+        let witness_set =
+            nssa::privacy_preserving_transaction::witness_set::WitnessSet::for_message(
+                &message,
+                proof,
+                &[],
+            );
+        let tx = nssa::PrivacyPreservingTransaction::new(message, witness_set);
+
+        Ok((
+            self.sequencer_client.send_tx_private(tx).await?,
+            [shared_secret_sender],
+        ))
+    }
+
+    pub async fn send_transfer_token_transaction_shielded_owned_account_already_initialized(
+        &self,
+        sender_address: Address,
+        recipient_address: Address,
+        amount: u128,
+        recipient_proof: MembershipProof,
+    ) -> Result<(SendTxResponse, [SharedSecretKey; 1]), ExecutionFailureKind> {
+        let Ok(sender_acc) = self.get_account_public(sender_address).await else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let Some(sender_priv_key) = self
+            .storage
+            .user_data
+            .get_pub_account_signing_key(&sender_address)
+        else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let Some((recipient_keys, recipient_acc)) = self
+            .storage
+            .user_data
+            .get_private_account(&recipient_address)
+            .cloned()
+        else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let recipient_npk = recipient_keys.nullifer_public_key.clone();
+        let recipient_ipk = recipient_keys.incoming_viewing_public_key.clone();
+
+        let program = Program::token();
+
+        let sender_pre = AccountWithMetadata::new(sender_acc.clone(), true, sender_address);
+        let recipient_pre = AccountWithMetadata::new(recipient_acc.clone(), true, &recipient_npk);
+
+        let eph_holder_recipient = EphemeralKeyHolder::new(&recipient_npk);
+        let shared_secret_recipient =
+            eph_holder_recipient.calculate_shared_secret_sender(&recipient_ipk);
+
+        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
+        let mut instruction = [0; 23];
+        instruction[0] = 0x01;
+        instruction[1..17].copy_from_slice(&amount.to_le_bytes());
+
+        let (output, proof) = circuit::execute_and_prove(
+            &[sender_pre, recipient_pre],
+            &Program::serialize_instruction(instruction).unwrap(),
+            &[0, 1],
+            &produce_random_nonces(1),
+            &[(recipient_npk.clone(), shared_secret_recipient.clone())],
+            &[(
+                recipient_keys.private_key_holder.nullifier_secret_key,
+                recipient_proof,
+            )],
+            &program,
+        )
+        .unwrap();
+
+        let message =
+            nssa::privacy_preserving_transaction::message::Message::try_from_circuit_output(
+                vec![sender_address],
+                vec![sender_acc.nonce],
+                vec![(
+                    recipient_npk.clone(),
+                    recipient_ipk.clone(),
+                    eph_holder_recipient.generate_ephemeral_public_key(),
+                )],
+                output,
+            )
+            .unwrap();
+
+        let witness_set =
+            nssa::privacy_preserving_transaction::witness_set::WitnessSet::for_message(
+                &message,
+                proof,
+                &[sender_priv_key],
+            );
+        let tx = nssa::PrivacyPreservingTransaction::new(message, witness_set);
+
+        Ok((
+            self.sequencer_client.send_tx_private(tx).await?,
+            [shared_secret_recipient],
+        ))
+    }
+
+    pub async fn send_transfer_token_transaction_shielded_owned_account_not_initialized(
+        &self,
+        sender_address: Address,
+        recipient_address: Address,
+        amount: u128,
+    ) -> Result<(SendTxResponse, [SharedSecretKey; 1]), ExecutionFailureKind> {
+        let Ok(sender_acc) = self.get_account_public(sender_address).await else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let Some(sender_priv_key) = self
+            .storage
+            .user_data
+            .get_pub_account_signing_key(&sender_address)
+        else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let Some((recipient_keys, recipient_acc)) = self
+            .storage
+            .user_data
+            .get_private_account(&recipient_address)
+            .cloned()
+        else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let recipient_npk = recipient_keys.nullifer_public_key.clone();
+        let recipient_ipk = recipient_keys.incoming_viewing_public_key.clone();
+
+        let program = Program::token();
+
+        let sender_pre = AccountWithMetadata::new(sender_acc.clone(), true, sender_address);
+        let recipient_pre = AccountWithMetadata::new(recipient_acc.clone(), false, &recipient_npk);
+
+        let eph_holder_recipient = EphemeralKeyHolder::new(&recipient_npk);
+        let shared_secret_recipient =
+            eph_holder_recipient.calculate_shared_secret_sender(&recipient_ipk);
+
+        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
+        let mut instruction = [0; 23];
+        instruction[0] = 0x01;
+        instruction[1..17].copy_from_slice(&amount.to_le_bytes());
+
+        let (output, proof) = circuit::execute_and_prove(
+            &[sender_pre, recipient_pre],
+            &Program::serialize_instruction(instruction).unwrap(),
+            &[0, 2],
+            &produce_random_nonces(1),
+            &[(recipient_npk.clone(), shared_secret_recipient.clone())],
+            &[],
+            &program,
+        )
+        .unwrap();
+
+        let message =
+            nssa::privacy_preserving_transaction::message::Message::try_from_circuit_output(
+                vec![sender_address],
+                vec![sender_acc.nonce],
+                vec![(
+                    recipient_npk.clone(),
+                    recipient_ipk.clone(),
+                    eph_holder_recipient.generate_ephemeral_public_key(),
+                )],
+                output,
+            )
+            .unwrap();
+
+        let witness_set =
+            nssa::privacy_preserving_transaction::witness_set::WitnessSet::for_message(
+                &message,
+                proof,
+                &[sender_priv_key],
+            );
+        let tx = nssa::PrivacyPreservingTransaction::new(message, witness_set);
+
+        Ok((
+            self.sequencer_client.send_tx_private(tx).await?,
+            [shared_secret_recipient],
+        ))
+    }
+
+    pub async fn send_transfer_token_transaction_shielded_foreign_account(
+        &self,
+        sender_address: Address,
+        recipient_npk: NullifierPublicKey,
+        recipient_ipk: IncomingViewingPublicKey,
+        amount: u128,
+    ) -> Result<SendTxResponse, ExecutionFailureKind> {
+        let Ok(sender_acc) = self.get_account_public(sender_address).await else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let Some(sender_priv_key) = self
+            .storage
+            .user_data
+            .get_pub_account_signing_key(&sender_address)
+        else {
+            return Err(ExecutionFailureKind::KeyNotFoundError);
+        };
+
+        let recipient_acc = nssa_core::account::Account::default();
+
+        let program = Program::token();
+
+        let sender_pre = AccountWithMetadata::new(sender_acc.clone(), true, sender_address);
+        let recipient_pre = AccountWithMetadata::new(recipient_acc.clone(), false, &recipient_npk);
+
+        let eph_holder_recipient = EphemeralKeyHolder::new(&recipient_npk);
+        let shared_secret_recipient =
+            eph_holder_recipient.calculate_shared_secret_sender(&recipient_ipk);
+
+        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
+        let mut instruction = [0; 23];
+        instruction[0] = 0x01;
+        instruction[1..17].copy_from_slice(&amount.to_le_bytes());
+
+        let (output, proof) = circuit::execute_and_prove(
+            &[sender_pre, recipient_pre],
+            &Program::serialize_instruction(instruction).unwrap(),
+            &[0, 2],
+            &produce_random_nonces(1),
+            &[(recipient_npk.clone(), shared_secret_recipient.clone())],
+            &[],
+            &program,
+        )
+        .unwrap();
+
+        let message =
+            nssa::privacy_preserving_transaction::message::Message::try_from_circuit_output(
+                vec![sender_address],
+                vec![sender_acc.nonce],
+                vec![(
+                    recipient_npk.clone(),
+                    recipient_ipk.clone(),
+                    eph_holder_recipient.generate_ephemeral_public_key(),
+                )],
+                output,
+            )
+            .unwrap();
+
+        let witness_set =
+            nssa::privacy_preserving_transaction::witness_set::WitnessSet::for_message(
+                &message,
+                proof,
+                &[sender_priv_key],
+            );
+        let tx = nssa::PrivacyPreservingTransaction::new(message, witness_set);
+
+        Ok(self.sequencer_client.send_tx_private(tx).await?)
+    }
 }
