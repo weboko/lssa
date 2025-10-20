@@ -2,8 +2,7 @@ use std::{fs::File, io::Write, path::PathBuf, str::FromStr, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use common::{
-    ExecutionFailureKind,
-    sequencer_client::{SequencerClient, json::SendTxResponse},
+    sequencer_client::SequencerClient,
     transaction::{EncodedTransaction, NSSATransaction},
 };
 
@@ -16,7 +15,9 @@ use nssa::{Account, Address, program::Program};
 use clap::{Parser, Subcommand};
 use nssa_core::{Commitment, MembershipProof};
 
+use crate::cli::WalletSubcommand;
 use crate::{
+    cli::token_program::TokenProgramSubcommand,
     helperfunctions::{
         HumanReadableAccount, fetch_config, fetch_persistent_accounts, get_home,
         produce_data_for_storage,
@@ -27,10 +28,12 @@ use crate::{
 pub const HOME_DIR_ENV_VAR: &str = "NSSA_WALLET_HOME_DIR";
 
 pub mod chain_storage;
+pub mod cli;
 pub mod config;
 pub mod helperfunctions;
 pub mod pinata_interactions;
 pub mod poller;
+pub mod token_program_interactions;
 pub mod token_transfers;
 
 pub struct WalletCore {
@@ -86,63 +89,6 @@ impl WalletCore {
             .generate_new_privacy_preserving_transaction_key_chain()
     }
 
-    pub async fn send_new_token_definition(
-        &self,
-        definition_address: Address,
-        supply_address: Address,
-        name: [u8; 6],
-        total_supply: u128,
-    ) -> Result<SendTxResponse, ExecutionFailureKind> {
-        let addresses = vec![definition_address, supply_address];
-        let program_id = nssa::program::Program::token().id();
-        // Instruction must be: [0x00 || total_supply (little-endian 16 bytes) || name (6 bytes)]
-        let mut instruction = [0; 23];
-        instruction[1..17].copy_from_slice(&total_supply.to_le_bytes());
-        instruction[17..].copy_from_slice(&name);
-        let message =
-            nssa::public_transaction::Message::try_new(program_id, addresses, vec![], instruction)
-                .unwrap();
-
-        let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[]);
-
-        let tx = nssa::PublicTransaction::new(message, witness_set);
-
-        Ok(self.sequencer_client.send_tx_public(tx).await?)
-    }
-
-    pub async fn send_transfer_token_transaction(
-        &self,
-        sender_address: Address,
-        recipient_address: Address,
-        amount: u128,
-    ) -> Result<SendTxResponse, ExecutionFailureKind> {
-        let addresses = vec![sender_address, recipient_address];
-        let program_id = nssa::program::Program::token().id();
-        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
-        let mut instruction = [0; 23];
-        instruction[0] = 0x01;
-        instruction[1..17].copy_from_slice(&amount.to_le_bytes());
-        let Ok(nonces) = self.get_accounts_nonces(vec![sender_address]).await else {
-            return Err(ExecutionFailureKind::SequencerError);
-        };
-        let message =
-            nssa::public_transaction::Message::try_new(program_id, addresses, nonces, instruction)
-                .unwrap();
-
-        let Some(signing_key) = self
-            .storage
-            .user_data
-            .get_pub_account_signing_key(&sender_address)
-        else {
-            return Err(ExecutionFailureKind::KeyNotFoundError);
-        };
-        let witness_set =
-            nssa::public_transaction::WitnessSet::for_message(&message, &[signing_key]);
-
-        let tx = nssa::PublicTransaction::new(message, witness_set);
-
-        Ok(self.sequencer_client.send_tx_public(tx).await?)
-    }
     ///Get account balance
     pub async fn get_account_balance(&self, acc: Address) -> Result<u128> {
         Ok(self
@@ -367,26 +313,6 @@ pub enum Command {
         #[arg(short, long)]
         addr: String,
     },
-    //Create a new token using the token program
-    CreateNewToken {
-        #[arg(short, long)]
-        definition_addr: String,
-        #[arg(short, long)]
-        supply_addr: String,
-        #[arg(short, long)]
-        name: String,
-        #[arg(short, long)]
-        total_supply: u128,
-    },
-    //Transfer tokens using the token program
-    TransferToken {
-        #[arg(short, long)]
-        sender_addr: String,
-        #[arg(short, long)]
-        recipient_addr: String,
-        #[arg(short, long)]
-        balance_to_move: u128,
-    },
     // TODO: Testnet only. Refactor to prevent compilation on mainnet.
     // Claim piñata prize
     ClaimPinata {
@@ -416,6 +342,9 @@ pub enum Command {
         #[arg(long)]
         solution: u128,
     },
+    ///Token command
+    #[command(subcommand)]
+    TokenProgram(TokenProgramSubcommand),
 }
 
 ///To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
@@ -742,43 +671,6 @@ pub async fn execute_subcommand(command: Command) -> Result<SubcommandReturnValu
             }
             SubcommandReturnValue::Empty
         }
-        Command::CreateNewToken {
-            definition_addr,
-            supply_addr,
-            name,
-            total_supply,
-        } => {
-            let name = name.as_bytes();
-            if name.len() > 6 {
-                // TODO: return error
-                panic!();
-            }
-            let mut name_bytes = [0; 6];
-            name_bytes[..name.len()].copy_from_slice(name);
-            wallet_core
-                .send_new_token_definition(
-                    definition_addr.parse().unwrap(),
-                    supply_addr.parse().unwrap(),
-                    name_bytes,
-                    total_supply,
-                )
-                .await?;
-            SubcommandReturnValue::Empty
-        }
-        Command::TransferToken {
-            sender_addr,
-            recipient_addr,
-            balance_to_move,
-        } => {
-            wallet_core
-                .send_transfer_token_transaction(
-                    sender_addr.parse().unwrap(),
-                    recipient_addr.parse().unwrap(),
-                    balance_to_move,
-                )
-                .await?;
-            SubcommandReturnValue::Empty
-        }
         Command::ClaimPinata {
             pinata_addr,
             winner_addr,
@@ -875,6 +767,9 @@ pub async fn execute_subcommand(command: Command) -> Result<SubcommandReturnValu
             println!("Stored persistent accounts at {path:#?}");
 
             SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash }
+        }
+        Command::TokenProgram(token_subcommand) => {
+            token_subcommand.handle_subcommand(&mut wallet_core).await?
         }
     };
 

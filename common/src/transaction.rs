@@ -1,9 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use generic_array::GenericArray;
 use k256::ecdsa::{Signature, SigningKey, VerifyingKey};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use generic_array::GenericArray;
 use sha2::digest::typenum::{B0, B1};
 use sha2::digest::typenum::{UInt, UTerm};
 use sha2::{Digest, digest::FixedOutput};
