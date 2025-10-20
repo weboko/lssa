@@ -458,28 +458,10 @@ pub async fn test_success_private_transfer_to_another_owned_account() {
         amount: 100,
     };
 
-    let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } =
-        wallet::execute_subcommand(command).await.unwrap()
-    else {
-        panic!("invalid subcommand return value");
-    };
+    wallet::execute_subcommand(command).await.unwrap();
 
     info!("Waiting for next block creation");
     tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
-
-    let command = Command::FetchPrivateAccount {
-        tx_hash: tx_hash.clone(),
-        acc_addr: from.to_string(),
-        output_id: 0,
-    };
-    wallet::execute_subcommand(command).await.unwrap();
-
-    let command = Command::FetchPrivateAccount {
-        tx_hash,
-        acc_addr: to.to_string(),
-        output_id: 1,
-    };
-    wallet::execute_subcommand(command).await.unwrap();
 
     let wallet_config = fetch_config().unwrap();
     let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
@@ -518,13 +500,6 @@ pub async fn test_success_private_transfer_to_another_foreign_account() {
 
     info!("Waiting for next block creation");
     tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
-
-    let command = Command::FetchPrivateAccount {
-        tx_hash: tx_hash.clone(),
-        acc_addr: from.to_string(),
-        output_id: 0,
-    };
-    wallet::execute_subcommand(command).await.unwrap();
 
     let wallet_config = fetch_config().unwrap();
     let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
@@ -624,21 +599,11 @@ pub async fn test_success_deshielded_transfer_to_another_account() {
     let from_acc = wallet_storage.get_account_private(&from).unwrap();
     assert_eq!(from_acc.balance, 10000);
 
-    let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } =
-        wallet::execute_subcommand(command).await.unwrap()
-    else {
-        panic!("invalid subcommand return value");
-    };
+    wallet::execute_subcommand(command).await.unwrap();
 
     info!("Waiting for next block creation");
     tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
 
-    let command = Command::FetchPrivateAccount {
-        tx_hash,
-        acc_addr: from.to_string(),
-        output_id: 0,
-    };
-    wallet::execute_subcommand(command).await.unwrap();
     let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config).unwrap();
 
     let from_acc = wallet_storage.get_account_private(&from).unwrap();
@@ -671,21 +636,12 @@ pub async fn test_success_shielded_transfer_to_another_owned_account() {
     let wallet_config = fetch_config().unwrap();
     let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
-    let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } =
-        wallet::execute_subcommand(command).await.unwrap()
-    else {
-        panic!("invalid subcommand return value");
-    };
+    wallet::execute_subcommand(command).await.unwrap();
 
     info!("Waiting for next block creation");
     tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
 
-    let command = Command::FetchPrivateAccount {
-        tx_hash,
-        acc_addr: to.to_string(),
-        output_id: 0,
-    };
-    wallet::execute_subcommand(command).await.unwrap();
+    let wallet_config = fetch_config().unwrap();
     let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config).unwrap();
 
     let acc_to = wallet_storage.get_account_private(&to).unwrap();
@@ -791,6 +747,122 @@ pub async fn test_pinata() {
     info!("Success!");
 }
 
+pub async fn test_pinata_private_receiver() {
+    info!("test_pinata_private_receiver");
+    let pinata_addr = "cafe".repeat(16);
+    let pinata_prize = 150;
+    let solution = 989106;
+
+    let command = Command::ClaimPinataPrivateReceiverOwned {
+        pinata_addr: pinata_addr.clone(),
+        winner_addr: ACC_SENDER_PRIVATE.to_string(),
+        solution,
+    };
+
+    let wallet_config = fetch_config().unwrap();
+
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    let pinata_balance_pre = seq_client
+        .get_account_balance(pinata_addr.clone())
+        .await
+        .unwrap()
+        .balance;
+
+    let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } =
+        wallet::execute_subcommand(command).await.unwrap()
+    else {
+        panic!("invalid subcommand return value");
+    };
+
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    info!("Checking correct balance move");
+    let pinata_balance_post = seq_client
+        .get_account_balance(pinata_addr.clone())
+        .await
+        .unwrap()
+        .balance;
+
+    let command = Command::FetchPrivateAccount {
+        tx_hash: tx_hash.clone(),
+        acc_addr: ACC_SENDER_PRIVATE.to_string(),
+        output_id: 0,
+    };
+    wallet::execute_subcommand(command).await.unwrap();
+
+    let wallet_config = fetch_config().unwrap();
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+    let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config).unwrap();
+
+    let new_commitment1 = wallet_storage
+        .get_private_account_commitment(&ACC_SENDER_PRIVATE.parse().unwrap())
+        .unwrap();
+    assert!(verify_commitment_is_in_state(new_commitment1, &seq_client).await);
+
+    assert_eq!(pinata_balance_post, pinata_balance_pre - pinata_prize);
+
+    info!("Success!");
+}
+
+pub async fn test_pinata_private_receiver_new_account() {
+    info!("test_pinata_private_receiver");
+    let pinata_addr = "cafe".repeat(16);
+    let pinata_prize = 150;
+    let solution = 989106;
+
+    // Create new account for the token supply holder (private)
+    let SubcommandReturnValue::RegisterAccount { addr: winner_addr } =
+        wallet::execute_subcommand(Command::RegisterAccountPrivate {})
+            .await
+            .unwrap()
+    else {
+        panic!("invalid subcommand return value");
+    };
+
+    let command = Command::ClaimPinataPrivateReceiverOwned {
+        pinata_addr: pinata_addr.clone(),
+        winner_addr: winner_addr.to_string(),
+        solution,
+    };
+
+    let wallet_config = fetch_config().unwrap();
+
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    let pinata_balance_pre = seq_client
+        .get_account_balance(pinata_addr.clone())
+        .await
+        .unwrap()
+        .balance;
+
+    wallet::execute_subcommand(command).await.unwrap();
+
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    info!("Checking correct balance move");
+    let pinata_balance_post = seq_client
+        .get_account_balance(pinata_addr.clone())
+        .await
+        .unwrap()
+        .balance;
+
+    let wallet_config = fetch_config().unwrap();
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+    let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config).unwrap();
+
+    let new_commitment1 = wallet_storage
+        .get_private_account_commitment(&winner_addr)
+        .unwrap();
+    assert!(verify_commitment_is_in_state(new_commitment1, &seq_client).await);
+
+    assert_eq!(pinata_balance_post, pinata_balance_pre - pinata_prize);
+
+    info!("Success!");
+}
+
 macro_rules! test_cleanup_wrap {
     ($home_dir:ident, $test_func:ident) => {{
         let res = pre_test($home_dir.clone()).await.unwrap();
@@ -871,6 +943,12 @@ pub async fn main_tests_runner() -> Result<()> {
         "test_pinata" => {
             test_cleanup_wrap!(home_dir, test_pinata);
         }
+        "test_pinata_private_receiver" => {
+            test_cleanup_wrap!(home_dir, test_pinata_private_receiver);
+        }
+        "test_pinata_private_receiver_new_account" => {
+            test_cleanup_wrap!(home_dir, test_pinata_private_receiver_new_account);
+        }
         "all" => {
             test_cleanup_wrap!(home_dir, test_success_move_to_another_account);
             test_cleanup_wrap!(home_dir, test_success);
@@ -902,6 +980,8 @@ pub async fn main_tests_runner() -> Result<()> {
                 test_success_private_transfer_to_another_owned_account_claiming_path
             );
             test_cleanup_wrap!(home_dir, test_pinata);
+            test_cleanup_wrap!(home_dir, test_pinata_private_receiver);
+            test_cleanup_wrap!(home_dir, test_pinata_private_receiver_new_account);
         }
         "all_private" => {
             test_cleanup_wrap!(
@@ -928,6 +1008,8 @@ pub async fn main_tests_runner() -> Result<()> {
                 home_dir,
                 test_success_private_transfer_to_another_owned_account_claiming_path
             );
+            test_cleanup_wrap!(home_dir, test_pinata_private_receiver);
+            test_cleanup_wrap!(home_dir, test_pinata_private_receiver_new_account);
         }
         _ => {
             anyhow::bail!("Unknown test name");
