@@ -70,29 +70,29 @@ mod tests {
 
     #[test]
     fn parse_valid_address() {
-        let hex_str = "00".repeat(32); // 64 hex chars = 32 bytes
-        let addr: Address = hex_str.parse().unwrap();
+        let base58_str = "11111111111111111111111111111111";
+        let addr: Address = base58_str.parse().unwrap();
         assert_eq!(addr.value, [0u8; 32]);
     }
 
     #[test]
-    fn parse_invalid_hex() {
-        let hex_str = "zz".repeat(32); // invalid hex chars
-        let result = hex_str.parse::<Address>().unwrap_err();
+    fn parse_invalid_base58() {
+        let base58_str = "00".repeat(32); // invalid base58 chars
+        let result = base58_str.parse::<Address>().unwrap_err();
         assert!(matches!(result, AddressError::InvalidBase58(_)));
     }
 
     #[test]
     fn parse_wrong_length_short() {
-        let hex_str = "00".repeat(31); // 62 chars = 31 bytes
-        let result = hex_str.parse::<Address>().unwrap_err();
+        let base58_str = "11".repeat(31); // 62 chars = 31 bytes
+        let result = base58_str.parse::<Address>().unwrap_err();
         assert!(matches!(result, AddressError::InvalidLength(_)));
     }
 
     #[test]
     fn parse_wrong_length_long() {
-        let hex_str = "00".repeat(33); // 66 chars = 33 bytes
-        let result = hex_str.parse::<Address>().unwrap_err();
+        let base58_str = "11".repeat(33); // 66 chars = 33 bytes
+        let result = base58_str.parse::<Address>().unwrap_err();
         assert!(matches!(result, AddressError::InvalidLength(_)));
     }
 }

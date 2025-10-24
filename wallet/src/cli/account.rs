@@ -217,7 +217,10 @@ impl WalletSubcommand for NewSubcommand {
                     .get_private_account(&addr)
                     .unwrap();
 
-                println!("Generated new account with addr {}", addr.to_bytes().to_base58());
+                println!(
+                    "Generated new account with addr {}",
+                    addr.to_bytes().to_base58()
+                );
                 println!("With npk {}", hex::encode(&key.nullifer_public_key.0));
                 println!(
                     "With ipk {}",

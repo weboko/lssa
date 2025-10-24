@@ -25,6 +25,8 @@ use wallet::{
     helperfunctions::{fetch_config, fetch_persistent_accounts},
 };
 
+use sequencer_core::sequencer_store::PINATA_BASE58;
+
 use crate::{
     ACC_RECEIVER, ACC_RECEIVER_PRIVATE, ACC_SENDER, ACC_SENDER_PRIVATE,
     NSSA_PROGRAM_FOR_TEST_DATA_CHANGER, TIME_TO_WAIT_FOR_BLOCK_SECONDS,
@@ -1315,12 +1317,12 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     #[test_suite_fn]
     pub async fn test_pinata() {
         info!("test_pinata");
-        let pinata_addr = "cafe".repeat(16);
+        let pinata_addr = PINATA_BASE58;
         let pinata_prize = 150;
         let solution = 989106;
         let command = Command::Pinata(PinataProgramSubcommand::Public(
             PinataProgramSubcommandPublic::Claim {
-                pinata_addr: pinata_addr.clone(),
+                pinata_addr: pinata_addr.to_string(),
                 winner_addr: ACC_SENDER.to_string(),
                 solution,
             },
@@ -1331,7 +1333,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
         let pinata_balance_pre = seq_client
-            .get_account_balance(pinata_addr.clone())
+            .get_account_balance(pinata_addr.to_string())
             .await
             .unwrap()
             .balance;
@@ -1343,7 +1345,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         info!("Checking correct balance move");
         let pinata_balance_post = seq_client
-            .get_account_balance(pinata_addr.clone())
+            .get_account_balance(pinata_addr.to_string())
             .await
             .unwrap()
             .balance;
@@ -1379,7 +1381,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // We pass an uninitialized account and we expect after execution to be owned by the data
         // changer program (NSSA account claiming mechanism) with data equal to [0] (due to program logic)
         let data_changer = Program::new(bytecode).unwrap();
-        let address: Address = "deadbeef".repeat(8).parse().unwrap();
+        let address: Address = "11".repeat(16).parse().unwrap();
         let message = nssa::public_transaction::Message::try_new(
             data_changer.id(),
             vec![address],
@@ -1442,13 +1444,13 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     #[test_suite_fn]
     pub async fn test_pinata_private_receiver() {
         info!("test_pinata_private_receiver");
-        let pinata_addr = "cafe".repeat(16);
+        let pinata_addr = PINATA_BASE58;
         let pinata_prize = 150;
         let solution = 989106;
 
         let command = Command::Pinata(PinataProgramSubcommand::Private(
             PinataProgramSubcommandPrivate::ClaimPrivateOwned {
-                pinata_addr: pinata_addr.clone(),
+                pinata_addr: pinata_addr.to_string(),
                 winner_addr: ACC_SENDER_PRIVATE.to_string(),
                 solution,
             },
@@ -1459,7 +1461,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
         let pinata_balance_pre = seq_client
-            .get_account_balance(pinata_addr.clone())
+            .get_account_balance(pinata_addr.to_string())
             .await
             .unwrap()
             .balance;
@@ -1475,7 +1477,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         info!("Checking correct balance move");
         let pinata_balance_post = seq_client
-            .get_account_balance(pinata_addr.clone())
+            .get_account_balance(pinata_addr.to_string())
             .await
             .unwrap()
             .balance;
@@ -1506,7 +1508,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     #[test_suite_fn]
     pub async fn test_pinata_private_receiver_new_account() {
         info!("test_pinata_private_receiver");
-        let pinata_addr = "cafe".repeat(16);
+        let pinata_addr = PINATA_BASE58;
         let pinata_prize = 150;
         let solution = 989106;
 
@@ -1523,7 +1525,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         let command = Command::Pinata(PinataProgramSubcommand::Private(
             PinataProgramSubcommandPrivate::ClaimPrivateOwned {
-                pinata_addr: pinata_addr.clone(),
+                pinata_addr: pinata_addr.to_string(),
                 winner_addr: winner_addr.to_string(),
                 solution,
             },
@@ -1534,7 +1536,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
         let pinata_balance_pre = seq_client
-            .get_account_balance(pinata_addr.clone())
+            .get_account_balance(pinata_addr.to_string())
             .await
             .unwrap()
             .balance;
@@ -1546,7 +1548,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         info!("Checking correct balance move");
         let pinata_balance_post = seq_client
-            .get_account_balance(pinata_addr.clone())
+            .get_account_balance(pinata_addr.to_string())
             .await
             .unwrap()
             .balance;

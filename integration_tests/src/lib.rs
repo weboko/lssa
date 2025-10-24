@@ -32,13 +32,11 @@ struct Args {
     test_name: String,
 }
 
-pub const ACC_SENDER: &str = "d07ad2e84b27fa00c262f0a1eea0ff35ca0973547e6a106f72f193c2dc838b44";
-pub const ACC_RECEIVER: &str = "e7ae77c5ef1a05999344af499fc78a1705398d62ed06cf2e1479f6def89a39bc";
+pub const ACC_SENDER: &str = "BLgCRDXYdQPMMWVHYRFGQZbgeHx9frkipa8GtpG2Syqy";
+pub const ACC_RECEIVER: &str = "Gj1mJy5W7J5pfmLRujmQaLfLMWidNxQ6uwnhb666ZwHw";
 
-pub const ACC_SENDER_PRIVATE: &str =
-    "d360d6b5763f71ac6af56253687fd7d556d5c6c64312e53c0b92ef039a4375df";
-pub const ACC_RECEIVER_PRIVATE: &str =
-    "f27087ffc29b99035303697dcf6c8e323b1847d4261e6afd49e0d71c6dfa31ea";
+pub const ACC_SENDER_PRIVATE: &str = "3oCG8gqdKLMegw4rRfyaMQvuPHpcASt7xwttsmnZLSkw";
+pub const ACC_RECEIVER_PRIVATE: &str = "AKTcXgJ1xoynta1Ec7y6Jso1z1JQtHqd7aPQ1h9er6xX";
 
 pub const TIME_TO_WAIT_FOR_BLOCK_SECONDS: u64 = 12;
 

@@ -434,7 +434,7 @@ mod tests {
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_account_balance",
-            "params": { "address": "efac".repeat(16) },
+            "params": { "address": "11".repeat(16) },
             "id": 1
         });
         let expected_response = serde_json::json!({
@@ -451,12 +451,12 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_get_account_balance_for_invalid_hex() {
+    async fn test_get_account_balance_for_invalid_base58() {
         let (json_handler, _, _) = components_for_tests();
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_account_balance",
-            "params": { "address": "not_a_valid_hex" },
+            "params": { "address": "not_a_valid_base58" },
             "id": 1
         });
         let expected_response = serde_json::json!({
@@ -465,7 +465,7 @@ mod tests {
             "error": {
                 "code": -32602,
                 "message": "Invalid params",
-                "data": "invalid hex"
+                "data": "invalid base58"
             }
         });
         let response = call_rpc_handler_with_json(json_handler, request).await;
@@ -527,7 +527,7 @@ mod tests {
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_accounts_nonces",
-            "params": { "addresses": ["efac".repeat(16)] },
+            "params": { "addresses": ["11".repeat(16)] },
             "id": 1
         });
         let expected_response = serde_json::json!({
@@ -575,7 +575,7 @@ mod tests {
         let request = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "get_account",
-            "params": { "address": "efac".repeat(16) },
+            "params": { "address": "11".repeat(16) },
             "id": 1
         });
         let expected_response = serde_json::json!({
