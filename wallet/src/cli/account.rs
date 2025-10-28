@@ -69,14 +69,16 @@ impl TokenHolding {
 ///Represents generic chain CLI subcommand
 #[derive(Subcommand, Debug, Clone)]
 pub enum AccountSubcommand {
-    ///Get
+    ///Get account data
     Get {
-        #[arg(long)]
+        ///Flag to get raw account data
+        #[arg(short, long)]
         raw: bool,
+        ///Valid 32 byte base58 string with privacy prefix
         #[arg(short, long)]
         addr: String,
     },
-    ///New
+    ///Produce new public or private account  
     #[command(subcommand)]
     New(NewSubcommand),
     ///Sync private accounts
@@ -260,7 +262,7 @@ impl WalletSubcommand for AccountSubcommand {
                     .is_empty()
                 {
                     parse_block_range(
-                        last_synced_block,
+                        last_synced_block + 1,
                         curr_last_block,
                         wallet_core.sequencer_client.clone(),
                         wallet_core,

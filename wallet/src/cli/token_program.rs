@@ -12,11 +12,14 @@ use crate::{
 ///Represents generic CLI subcommand for a wallet working with token program
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramAgnosticSubcommand {
+    ///Produce new ERC-20 token
+    /// 
+    ///Currently the only supported privacy options is for public definition
     New {
-        ///addr - valid 32 byte base58 string
+        ///definition_addr - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         definition_addr: String,
-        ///addr - valid 32 byte base58 string
+        ///supply_addr - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         supply_addr: String,
         #[arg(short, long)]
@@ -24,11 +27,16 @@ pub enum TokenProgramAgnosticSubcommand {
         #[arg(short, long)]
         total_supply: u128,
     },
+    ///Send tokens from one account to another with variable privacy
+    /// 
+    ///If receiver is private, then `to` and (`to_npk` , `to_ipk`) is a mutually exclusive patterns.
+    /// 
+    ///First is used for owned accounts, second otherwise.
     Send {
-        ///from - valid 32 byte base58 string
+        ///from - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         from: String,
-        ///to - valid 32 byte base58 string
+        ///to - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         to: Option<String>,
         ///to_npk - valid 32 byte hex string

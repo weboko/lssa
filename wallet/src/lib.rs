@@ -198,27 +198,32 @@ impl WalletCore {
 #[derive(Subcommand, Debug, Clone)]
 #[clap(about)]
 pub enum Command {
-    ///Transfer command
+    ///Authenticated transfer subcommand
     #[command(subcommand)]
     AuthTransfer(AuthTransferSubcommand),
-    ///Chain command
+    ///Generic chain info subcommand
     #[command(subcommand)]
     ChainInfo(ChainSubcommand),
-    ///Chain command
+    ///Account view and sync subcommand
     #[command(subcommand)]
     Account(AccountSubcommand),
-    ///Pinata command
+    ///Pinata program interaction subcommand
     #[command(subcommand)]
     Pinata(PinataProgramAgnosticSubcommand),
-    ///Token command
+    ///Token program interaction subcommand
     #[command(subcommand)]
     Token(TokenProgramAgnosticSubcommand),
-    // Check the wallet can connect to the node and builtin local programs
-    // match the remote versions
+    /// Check the wallet can connect to the node and builtin local programs
+    /// match the remote versions
     CheckHealth {},
 }
 
 ///To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
+/// 
+/// All account adresses must be valid 32 byte base58 strings.
+/// 
+/// All account addresses must be provided as {privacy_prefix}/{addr},
+/// where valid options for `privacy_prefix` is `Public` and `Private`
 #[derive(Parser, Debug)]
 #[clap(version, about)]
 pub struct Args {

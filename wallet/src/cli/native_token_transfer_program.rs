@@ -12,22 +12,28 @@ use crate::{
 ///Represents generic CLI subcommand for a wallet working with native token transfer program
 #[derive(Subcommand, Debug, Clone)]
 pub enum AuthTransferSubcommand {
+    ///Initialize account under authenticated transfer program
     Init {
-        ///addr - valid 32 byte base58 string
+        ///addr - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         addr: String,
     },
+    ///Send native tokens from one account to another with variable privacy
+    /// 
+    ///If receiver is private, then `to` and (`to_npk` , `to_ipk`) is a mutually exclusive patterns.
+    /// 
+    ///First is used for owned accounts, second otherwise.
     Send {
-        ///from - valid 32 byte base58 string
+        ///from - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         from: String,
-        ///to - valid 32 byte base58 string
+        ///to - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         to: Option<String>,
-        ///to_npk - valid 32 byte base58 string
+        ///to_npk - valid 32 byte hex string
         #[arg(long)]
         to_npk: Option<String>,
-        ///to_ipk - valid 33 byte base58 string
+        ///to_ipk - valid 33 byte hex string
         #[arg(long)]
         to_ipk: Option<String>,
         ///amount - amount of balance to move

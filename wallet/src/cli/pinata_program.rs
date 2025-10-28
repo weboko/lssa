@@ -12,9 +12,9 @@ use crate::{
 ///Represents generic CLI subcommand for a wallet working with pinata program
 #[derive(Subcommand, Debug, Clone)]
 pub enum PinataProgramAgnosticSubcommand {
-    ///Claim
+    ///Claim pinata
     Claim {
-        ///to_addr - valid 32 byte base58 string
+        ///to_addr - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         to_addr: String,
         ///solution - solution to pinata challenge
