@@ -27,6 +27,7 @@ fn main() {
     let ProgramOutput {
         pre_states,
         post_states,
+        chained_call: _,
     } = program_output;
 
     // Check that there are no repeated account ids

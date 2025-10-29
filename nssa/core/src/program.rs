@@ -14,9 +14,18 @@ pub struct ProgramInput<T> {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
+pub struct ChainedCall {
+    pub program_id: ProgramId,
+    pub instruction_data: InstructionData,
+    pub account_indices: Vec<usize>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct ProgramOutput {
     pub pre_states: Vec<AccountWithMetadata>,
     pub post_states: Vec<Account>,
+    pub chained_call: Option<ChainedCall>
 }
 
 pub fn read_nssa_inputs<T: DeserializeOwned>() -> ProgramInput<T> {
@@ -33,6 +42,7 @@ pub fn write_nssa_outputs(pre_states: Vec<AccountWithMetadata>, post_states: Vec
     let output = ProgramOutput {
         pre_states,
         post_states,
+        chained_call: None
     };
     env::commit(&output);
 }
