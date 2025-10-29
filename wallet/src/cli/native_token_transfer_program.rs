@@ -19,9 +19,9 @@ pub enum AuthTransferSubcommand {
         addr: String,
     },
     ///Send native tokens from one account to another with variable privacy
-    /// 
+    ///
     ///If receiver is private, then `to` and (`to_npk` , `to_ipk`) is a mutually exclusive patterns.
-    /// 
+    ///
     ///First is used for owned accounts, second otherwise.
     Send {
         ///from - valid 32 byte base58 string with privacy prefix

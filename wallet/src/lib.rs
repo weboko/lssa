@@ -219,9 +219,9 @@ pub enum Command {
 }
 
 ///To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
-/// 
+///
 /// All account adresses must be valid 32 byte base58 strings.
-/// 
+///
 /// All account addresses must be provided as {privacy_prefix}/{addr},
 /// where valid options for `privacy_prefix` is `Public` and `Private`
 #[derive(Parser, Debug)]

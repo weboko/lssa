@@ -13,7 +13,7 @@ use crate::{
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramAgnosticSubcommand {
     ///Produce new ERC-20 token
-    /// 
+    ///
     ///Currently the only supported privacy options is for public definition
     New {
         ///definition_addr - valid 32 byte base58 string with privacy prefix
@@ -28,9 +28,9 @@ pub enum TokenProgramAgnosticSubcommand {
         total_supply: u128,
     },
     ///Send tokens from one account to another with variable privacy
-    /// 
+    ///
     ///If receiver is private, then `to` and (`to_npk` , `to_ipk`) is a mutually exclusive patterns.
-    /// 
+    ///
     ///First is used for owned accounts, second otherwise.
     Send {
         ///from - valid 32 byte base58 string with privacy prefix
