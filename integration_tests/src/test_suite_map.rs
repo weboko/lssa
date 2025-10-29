@@ -1608,8 +1608,6 @@ pub async fn tps_test() {
     let target_tps = 12;
     let tps_test = TpsTestManager::new(target_tps, num_transactions);
 
-    let res = pre_tps_test(&tps_test);
-
     let target_time = tps_test.target_time();
     info!("Target time: {:?} seconds", target_time.as_secs());
     let res = pre_tps_test(&tps_test).await.unwrap();
