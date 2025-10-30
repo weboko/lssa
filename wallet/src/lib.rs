@@ -217,7 +217,7 @@ pub enum Command {
     /// match the remote versions
     CheckHealth {},
     /// Command to explicitly setup config and storage
-    /// 
+    ///
     /// Does nothing in case if both already present
     Setup {},
 }

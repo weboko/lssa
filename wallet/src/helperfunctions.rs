@@ -73,6 +73,7 @@ pub async fn fetch_config() -> Result<WalletConfig> {
         let mut file = tokio::fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(config_home.join("wallet_config.json"))
             .await?;
 
