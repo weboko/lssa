@@ -194,6 +194,7 @@ impl SequencerCore {
 
 #[cfg(test)]
 mod tests {
+    use base58::{FromBase58, ToBase58};
     use common::test_utils::sequencer_sign_key_for_testing;
 
     use crate::config::AccountInitialData;
@@ -227,23 +228,23 @@ mod tests {
     }
 
     fn setup_sequencer_config() -> SequencerConfig {
-        let acc1_addr = vec![
+        let acc1_addr: Vec<u8> = vec![
             208, 122, 210, 232, 75, 39, 250, 0, 194, 98, 240, 161, 238, 160, 255, 53, 202, 9, 115,
             84, 126, 106, 16, 111, 114, 241, 147, 194, 220, 131, 139, 68,
         ];
 
-        let acc2_addr = vec![
+        let acc2_addr: Vec<u8> = vec![
             231, 174, 119, 197, 239, 26, 5, 153, 147, 68, 175, 73, 159, 199, 138, 23, 5, 57, 141,
             98, 237, 6, 207, 46, 20, 121, 246, 222, 248, 154, 57, 188,
         ];
 
         let initial_acc1 = AccountInitialData {
-            addr: hex::encode(acc1_addr),
+            addr: acc1_addr.to_base58(),
             balance: 10000,
         };
 
         let initial_acc2 = AccountInitialData {
-            addr: hex::encode(acc2_addr),
+            addr: acc2_addr.to_base58(),
             balance: 20000,
         };
 
@@ -278,11 +279,17 @@ mod tests {
         assert_eq!(sequencer.sequencer_config.max_num_tx_in_block, 10);
         assert_eq!(sequencer.sequencer_config.port, 8080);
 
-        let acc1_addr = hex::decode(config.initial_accounts[0].addr.clone())
+        let acc1_addr = config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2_addr = hex::decode(config.initial_accounts[1].addr.clone())
+        let acc2_addr = config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
@@ -304,23 +311,23 @@ mod tests {
 
     #[test]
     fn test_start_different_intial_accounts_balances() {
-        let acc1_addr = vec![
+        let acc1_addr: Vec<u8> = vec![
             27, 132, 197, 86, 123, 18, 100, 64, 153, 93, 62, 213, 170, 186, 5, 101, 215, 30, 24,
             52, 96, 72, 25, 255, 156, 23, 245, 233, 213, 221, 7, 143,
         ];
 
-        let acc2_addr = vec![
+        let acc2_addr: Vec<u8> = vec![
             77, 75, 108, 209, 54, 16, 50, 202, 155, 210, 174, 185, 217, 0, 170, 77, 69, 217, 234,
             216, 10, 201, 66, 51, 116, 196, 81, 167, 37, 77, 7, 102,
         ];
 
         let initial_acc1 = AccountInitialData {
-            addr: hex::encode(acc1_addr),
+            addr: acc1_addr.to_base58(),
             balance: 10000,
         };
 
         let initial_acc2 = AccountInitialData {
-            addr: hex::encode(acc2_addr),
+            addr: acc2_addr.to_base58(),
             balance: 20000,
         };
 
@@ -329,11 +336,17 @@ mod tests {
         let config = setup_sequencer_config_variable_initial_accounts(initial_accounts);
         let sequencer = SequencerCore::start_from_config(config.clone());
 
-        let acc1_addr = hex::decode(config.initial_accounts[0].addr.clone())
+        let acc1_addr = config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2_addr = hex::decode(config.initial_accounts[1].addr.clone())
+        let acc2_addr = config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
@@ -376,11 +389,17 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+        let acc1 = sequencer.sequencer_config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+        let acc2 = sequencer.sequencer_config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
@@ -402,11 +421,17 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+        let acc1 = sequencer.sequencer_config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+        let acc2 = sequencer.sequencer_config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
@@ -438,11 +463,17 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+        let acc1 = sequencer.sequencer_config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+        let acc2 = sequencer.sequencer_config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
@@ -474,11 +505,17 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+        let acc1 = sequencer.sequencer_config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+        let acc2 = sequencer.sequencer_config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
@@ -566,11 +603,17 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+        let acc1 = sequencer.sequencer_config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+        let acc2 = sequencer.sequencer_config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
@@ -608,11 +651,17 @@ mod tests {
 
         common_setup(&mut sequencer);
 
-        let acc1 = hex::decode(sequencer.sequencer_config.initial_accounts[0].addr.clone())
+        let acc1 = sequencer.sequencer_config.initial_accounts[0]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
-        let acc2 = hex::decode(sequencer.sequencer_config.initial_accounts[1].addr.clone())
+        let acc2 = sequencer.sequencer_config.initial_accounts[1]
+            .addr
+            .clone()
+            .from_base58()
             .unwrap()
             .try_into()
             .unwrap();
