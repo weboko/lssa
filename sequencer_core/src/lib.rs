@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, time::Instant};
 
 use anyhow::Result;
 use common::{
@@ -103,7 +103,7 @@ impl SequencerCore {
         })?;
 
         let mempool_size = self.mempool.len();
-        if mempool_size >= self.sequencer_config.max_num_tx_in_block {
+        if mempool_size >= self.sequencer_config.mempool_max_size {
             return Err(TransactionMalformationError::MempoolFullForRound);
         }
 
@@ -146,6 +146,7 @@ impl SequencerCore {
 
     ///Produces new block from transactions in mempool
     pub fn produce_new_block_with_mempool_transactions(&mut self) -> Result<u64> {
+        let now = Instant::now();
         let new_block_height = self.chain_height + 1;
 
         let mut num_valid_transactions_in_block = 0;
@@ -175,6 +176,8 @@ impl SequencerCore {
 
         let curr_time = chrono::Utc::now().timestamp_millis() as u64;
 
+        let num_txs_in_block = valid_transactions.len();
+
         let hashable_data = HashableBlockData {
             block_id: new_block_height,
             transactions: valid_transactions,
@@ -187,6 +190,12 @@ impl SequencerCore {
         self.store.block_store.put_block_at_id(block)?;
 
         self.chain_height = new_block_height;
+
+        log::info!(
+            "Created block with {} transactions in {} seconds",
+            num_txs_in_block,
+            now.elapsed().as_secs()
+        );
 
         Ok(self.chain_height)
     }
@@ -219,6 +228,7 @@ mod tests {
             genesis_id: 1,
             is_genesis_random: false,
             max_num_tx_in_block: 10,
+            mempool_max_size: 10000,
             block_create_timeout_millis: 1000,
             port: 8080,
             initial_accounts,
@@ -548,7 +558,7 @@ mod tests {
     #[test]
     fn test_push_tx_into_mempool_fails_mempool_full() {
         let config = SequencerConfig {
-            max_num_tx_in_block: 1,
+            mempool_max_size: 1,
             ..setup_sequencer_config()
         };
         let mut sequencer = SequencerCore::start_from_config(config);
