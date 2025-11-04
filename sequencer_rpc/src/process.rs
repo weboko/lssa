@@ -104,10 +104,7 @@ impl JsonHandler {
         let block = {
             let state = self.sequencer_state.lock().await;
 
-            state
-                .store
-                .block_store
-                .get_block_at_id(get_block_req.block_id)?
+            state.block_store.get_block_at_id(get_block_req.block_id)?
         };
 
         let helperstruct = GetBlockDataResponse {
@@ -123,7 +120,7 @@ impl JsonHandler {
         let genesis_id = {
             let state = self.sequencer_state.lock().await;
 
-            state.store.block_store.genesis_id
+            state.block_store.genesis_id
         };
 
         let helperstruct = GetGenesisIdResponse { genesis_id };
@@ -176,7 +173,7 @@ impl JsonHandler {
 
         let balance = {
             let state = self.sequencer_state.lock().await;
-            let account = state.store.state.get_account_by_address(&address);
+            let account = state.state.get_account_by_address(&address);
             account.balance
         };
 
@@ -203,7 +200,7 @@ impl JsonHandler {
 
             addresses
                 .into_iter()
-                .map(|addr| state.store.state.get_account_by_address(&addr).nonce)
+                .map(|addr| state.state.get_account_by_address(&addr).nonce)
                 .collect()
         };
 
@@ -225,7 +222,7 @@ impl JsonHandler {
         let account = {
             let state = self.sequencer_state.lock().await;
 
-            state.store.state.get_account_by_address(&address)
+            state.state.get_account_by_address(&address)
         };
 
         let helperstruct = GetAccountResponse { account };
@@ -246,7 +243,6 @@ impl JsonHandler {
         let transaction = {
             let state = self.sequencer_state.lock().await;
             state
-                .store
                 .block_store
                 .get_transaction_by_hash(hash)
                 .map(|tx| borsh::to_vec(&tx).unwrap())
@@ -265,7 +261,6 @@ impl JsonHandler {
         let membership_proof = {
             let state = self.sequencer_state.lock().await;
             state
-                .store
                 .state
                 .get_proof_for_commitment(&get_proof_req.commitment)
         };
