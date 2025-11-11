@@ -259,6 +259,13 @@ pub enum OverCommand {
         #[arg(short, long)]
         password: String,
     },
+    /// !!!WARNING!!! will rewrite current storage
+    RestoreKeys {
+        #[arg(short, long)]
+        password: String,
+        #[arg(short, long)]
+        depth: u32,
+    }
 }
 
 ///To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
@@ -506,6 +513,18 @@ pub async fn execute_continious_run() -> Result<()> {
 pub async fn execute_setup(password: String) -> Result<()> {
     let config = fetch_config().await?;
     let wallet_core = WalletCore::start_from_config_new_storage(config.clone(), password).await?;
+
+    wallet_core.store_persistent_data().await?;
+
+    Ok(())
+}
+
+pub async fn execute_keys_restoration(password: String, depth: u32) -> Result<()> {
+    let config = fetch_config().await?;
+    let mut wallet_core = WalletCore::start_from_config_new_storage(config.clone(), password.clone()).await?;
+
+    wallet_core.storage.user_data.public_key_tree.generate_tree_for_depth(depth);
+    wallet_core.storage.user_data.private_key_tree.generate_tree_for_depth(depth); 
 
     wallet_core.store_persistent_data().await?;
 

@@ -127,6 +127,23 @@ impl<Node: KeyNode> KeyTree<Node> {
         self.addr_map.insert(addr, chain_index.clone());
         self.key_map.insert(chain_index, node);
     }
+
+    pub fn generate_tree_for_depth(&mut self, depth: u32) {
+        let mut id_stack = vec![ChainIndex::root()];
+
+        while !id_stack.is_empty() {
+            let curr_id = id_stack.pop().unwrap();
+
+            self.generate_new_node(curr_id.clone());
+
+            let mut next_id = curr_id.n_th_child(0);
+
+            while (next_id.chain().iter().sum::<u32>()) < depth - 1 {
+                id_stack.push(next_id.clone());
+                next_id = next_id.next_in_line();
+            } 
+        }
+    }
 }
 
 #[cfg(test)]
