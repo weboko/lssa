@@ -12,6 +12,7 @@ use serde::Serialize;
 use crate::{
     HOME_DIR_ENV_VAR,
     config::{
+        InitialAccountData, InitialAccountDataPrivate, InitialAccountDataPublic,
         PersistentAccountDataPrivate, PersistentAccountDataPublic, PersistentStorage, WalletConfig,
     },
 };
@@ -102,11 +103,9 @@ pub async fn fetch_persistent_storage() -> Result<PersistentStorage> {
             Ok(serde_json::from_slice(&storage_content)?)
         }
         Err(err) => match err.kind() {
-            std::io::ErrorKind::NotFound => Ok(PersistentStorage {
-                accounts: vec![],
-                password: "default".to_string(),
-                last_synced_block: 0,
-            }),
+            std::io::ErrorKind::NotFound => {
+                anyhow::bail!("Not found, please setup roots from config command beforehand");
+            }
             _ => {
                 anyhow::bail!("IO error {err:#?}");
             }
@@ -123,27 +122,53 @@ pub fn produce_data_for_storage(
 
     for (addr, key) in &user_data.public_key_tree.addr_map {
         if let Some(data) = user_data.public_key_tree.key_map.get(key) {
-            vec_for_storage.push(PersistentAccountDataPublic {
-                address: *addr,
-                chain_index: key.clone(),
-                data: data.clone(),
-            }.into());
+            vec_for_storage.push(
+                PersistentAccountDataPublic {
+                    address: *addr,
+                    chain_index: key.clone(),
+                    data: data.clone(),
+                }
+                .into(),
+            );
         }
     }
 
     for (addr, key) in &user_data.private_key_tree.addr_map {
         if let Some(data) = user_data.private_key_tree.key_map.get(key) {
-            vec_for_storage.push(PersistentAccountDataPrivate {
-                address: *addr,
-                chain_index: key.clone(),
-                data: data.clone(),
-            }.into());
+            vec_for_storage.push(
+                PersistentAccountDataPrivate {
+                    address: *addr,
+                    chain_index: key.clone(),
+                    data: data.clone(),
+                }
+                .into(),
+            );
         }
+    }
+
+    for (addr, key) in &user_data.default_pub_account_signing_keys {
+        vec_for_storage.push(
+            InitialAccountData::Public(InitialAccountDataPublic {
+                address: addr.to_string(),
+                pub_sign_key: key.clone(),
+            })
+            .into(),
+        )
+    }
+
+    for (addr, (key_chain, account)) in &user_data.default_user_private_accounts {
+        vec_for_storage.push(
+            InitialAccountData::Private(InitialAccountDataPrivate {
+                address: addr.to_string(),
+                account: account.clone(),
+                key_chain: key_chain.clone(),
+            })
+            .into(),
+        )
     }
 
     PersistentStorage {
         accounts: vec_for_storage,
-        password: user_data.password.clone(),
         last_synced_block,
     }
 }

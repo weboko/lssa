@@ -1,59 +1,57 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct ChainIndex(Vec<u32>);
 
+#[derive(thiserror::Error, Debug)]
+pub enum ChainIndexError {
+    #[error("No root found")]
+    NoRootFound,
+    #[error("Failed to parse segment into a number")]
+    ParseIntError(#[from] std::num::ParseIntError),
+}
+
 impl FromStr for ChainIndex {
-    type Err = hex::FromHexError;
+    type Err = ChainIndexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.is_empty() {
-            return Ok(Self(vec![]));
+        if !s.starts_with("/") {
+            return Err(ChainIndexError::NoRootFound);
         }
 
-        let hex_decoded = hex::decode(s)?;
-
-        if !hex_decoded.len().is_multiple_of(4) {
-            Err(hex::FromHexError::InvalidStringLength)
-        } else {
-            let mut res_vec = vec![];
-
-            for i in 0..(hex_decoded.len() / 4) {
-                res_vec.push(u32::from_le_bytes([
-                    hex_decoded[4 * i],
-                    hex_decoded[4 * i + 1],
-                    hex_decoded[4 * i + 2],
-                    hex_decoded[4 * i + 3],
-                ]));
-            }
-
-            Ok(Self(res_vec))
+        if s == "/" {
+            return Ok(ChainIndex(vec![]));
         }
+
+        let uprooted_substring = s.strip_prefix("/").unwrap();
+
+        let splitted_chain: Vec<&str> = uprooted_substring.split("/").collect();
+        let mut res = vec![];
+
+        for split_ch in splitted_chain {
+            let cci = split_ch.parse()?;
+            res.push(cci);
+        }
+
+        Ok(Self(res))
     }
 }
 
-#[allow(clippy::to_string_trait_impl)]
-impl ToString for ChainIndex {
-    fn to_string(&self) -> String {
-        if self.0.is_empty() {
-            return "".to_string();
+impl Display for ChainIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "/")?;
+        for cci in &self.0[..(self.0.len() - 1)] {
+            write!(f, "{cci}/")?;
         }
-
-        let mut res_vec = vec![];
-
-        for index in &self.0 {
-            res_vec.extend_from_slice(&index.to_le_bytes());
-        }
-
-        hex::encode(res_vec)
+        write!(f, "{}", self.0.last().unwrap())
     }
 }
 
 impl ChainIndex {
     pub fn root() -> Self {
-        ChainIndex::from_str("").unwrap()
+        ChainIndex::from_str("/").unwrap()
     }
 
     pub fn chain(&self) -> &[u32] {
@@ -85,31 +83,40 @@ mod tests {
     #[test]
     fn test_chain_id_root_correct() {
         let chain_id = ChainIndex::root();
-        let chain_id_2 = ChainIndex::from_str("").unwrap();
+        let chain_id_2 = ChainIndex::from_str("/").unwrap();
 
         assert_eq!(chain_id, chain_id_2);
     }
 
     #[test]
     fn test_chain_id_deser_correct() {
-        let chain_id = ChainIndex::from_str("01010000").unwrap();
+        let chain_id = ChainIndex::from_str("/257").unwrap();
 
         assert_eq!(chain_id.chain(), &[257]);
     }
 
     #[test]
     fn test_chain_id_next_in_line_correct() {
-        let chain_id = ChainIndex::from_str("01010000").unwrap();
+        let chain_id = ChainIndex::from_str("/257").unwrap();
         let next_in_line = chain_id.next_in_line();
 
-        assert_eq!(next_in_line, ChainIndex::from_str("02010000").unwrap());
+        assert_eq!(next_in_line, ChainIndex::from_str("/258").unwrap());
     }
 
     #[test]
     fn test_chain_id_child_correct() {
-        let chain_id = ChainIndex::from_str("01010000").unwrap();
+        let chain_id = ChainIndex::from_str("/257").unwrap();
         let child = chain_id.n_th_child(3);
 
-        assert_eq!(child, ChainIndex::from_str("0101000003000000").unwrap());
+        assert_eq!(child, ChainIndex::from_str("/257/3").unwrap());
+    }
+
+    #[test]
+    fn test_correct_display() {
+        let chainid = ChainIndex(vec![5, 7, 8]);
+
+        let string_index = format!("{chainid}");
+
+        assert_eq!(string_index, "/5/7/8".to_string());
     }
 }

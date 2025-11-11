@@ -49,12 +49,12 @@ pub enum InitialAccountData {
 pub enum PersistentAccountData {
     Public(PersistentAccountDataPublic),
     Private(PersistentAccountDataPrivate),
+    Preconfigured(InitialAccountData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistentStorage {
     pub accounts: Vec<PersistentAccountData>,
-    pub password: String,
     pub last_synced_block: u64,
 }
 
@@ -72,6 +72,7 @@ impl PersistentAccountData {
         match &self {
             Self::Public(acc) => acc.address,
             Self::Private(acc) => acc.address,
+            Self::Preconfigured(acc) => acc.address(),
         }
     }
 }
@@ -97,6 +98,12 @@ impl From<PersistentAccountDataPublic> for PersistentAccountData {
 impl From<PersistentAccountDataPrivate> for PersistentAccountData {
     fn from(value: PersistentAccountDataPrivate) -> Self {
         Self::Private(value)
+    }
+}
+
+impl From<InitialAccountData> for PersistentAccountData {
+    fn from(value: InitialAccountData) -> Self {
+        Self::Preconfigured(value)
     }
 }
 

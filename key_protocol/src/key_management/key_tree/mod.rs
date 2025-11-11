@@ -40,6 +40,18 @@ impl<Node: KeyNode> KeyTree<Node> {
         Self { key_map, addr_map }
     }
 
+    pub fn new_from_root(root: Node) -> Self {
+        let mut key_map = BTreeMap::new();
+        let mut addr_map = HashMap::new();
+
+        addr_map.insert(root.address(), ChainIndex::root());
+        key_map.insert(ChainIndex::root(), root);
+
+        Self { key_map, addr_map }
+    }
+
+    //ToDo: Add function to create a tree from list of nodes with consistency check.
+
     pub fn find_next_last_child_of_id(&self, parent_id: &ChainIndex) -> Option<u32> {
         if !self.key_map.contains_key(parent_id) {
             return None;
@@ -160,7 +172,7 @@ mod tests {
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("00000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/0").unwrap())
         );
 
         let next_last_child_for_parent_id = tree
@@ -199,7 +211,7 @@ mod tests {
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("00000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/0").unwrap())
         );
 
         let next_last_child_for_parent_id = tree
@@ -208,7 +220,7 @@ mod tests {
 
         assert_eq!(next_last_child_for_parent_id, 1);
 
-        let key_opt = tree.generate_new_node(ChainIndex::from_str("03000000").unwrap());
+        let key_opt = tree.generate_new_node(ChainIndex::from_str("/3").unwrap());
 
         assert_eq!(key_opt, None);
     }
@@ -229,7 +241,7 @@ mod tests {
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("00000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/0").unwrap())
         );
 
         let next_last_child_for_parent_id = tree
@@ -242,7 +254,7 @@ mod tests {
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("01000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/1").unwrap())
         );
 
         let next_last_child_for_parent_id = tree
@@ -251,58 +263,58 @@ mod tests {
 
         assert_eq!(next_last_child_for_parent_id, 2);
 
-        tree.generate_new_node(ChainIndex::from_str("00000000").unwrap())
+        tree.generate_new_node(ChainIndex::from_str("/0").unwrap())
             .unwrap();
 
         let next_last_child_for_parent_id = tree
-            .find_next_last_child_of_id(&ChainIndex::from_str("00000000").unwrap())
+            .find_next_last_child_of_id(&ChainIndex::from_str("/0").unwrap())
             .unwrap();
 
         assert_eq!(next_last_child_for_parent_id, 1);
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("0000000000000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/0/0").unwrap())
         );
 
-        tree.generate_new_node(ChainIndex::from_str("00000000").unwrap())
+        tree.generate_new_node(ChainIndex::from_str("/0").unwrap())
             .unwrap();
 
         let next_last_child_for_parent_id = tree
-            .find_next_last_child_of_id(&ChainIndex::from_str("00000000").unwrap())
+            .find_next_last_child_of_id(&ChainIndex::from_str("/0").unwrap())
             .unwrap();
 
         assert_eq!(next_last_child_for_parent_id, 2);
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("0000000001000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/0/1").unwrap())
         );
 
-        tree.generate_new_node(ChainIndex::from_str("00000000").unwrap())
+        tree.generate_new_node(ChainIndex::from_str("/0").unwrap())
             .unwrap();
 
         let next_last_child_for_parent_id = tree
-            .find_next_last_child_of_id(&ChainIndex::from_str("00000000").unwrap())
+            .find_next_last_child_of_id(&ChainIndex::from_str("/0").unwrap())
             .unwrap();
 
         assert_eq!(next_last_child_for_parent_id, 3);
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("0000000002000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/0/2").unwrap())
         );
 
-        tree.generate_new_node(ChainIndex::from_str("0000000001000000").unwrap())
+        tree.generate_new_node(ChainIndex::from_str("/0/1").unwrap())
             .unwrap();
 
         assert!(
             tree.key_map
-                .contains_key(&ChainIndex::from_str("000000000100000000000000").unwrap())
+                .contains_key(&ChainIndex::from_str("/0/1/0").unwrap())
         );
 
         let next_last_child_for_parent_id = tree
-            .find_next_last_child_of_id(&ChainIndex::from_str("0000000001000000").unwrap())
+            .find_next_last_child_of_id(&ChainIndex::from_str("/0/1").unwrap())
             .unwrap();
 
         assert_eq!(next_last_child_for_parent_id, 1);

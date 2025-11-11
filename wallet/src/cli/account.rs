@@ -90,14 +90,14 @@ pub enum AccountSubcommand {
 #[derive(Subcommand, Debug, Clone)]
 pub enum NewSubcommand {
     ///Register new public account
-    Public { 
+    Public {
         #[arg(long)]
-        cci: ChainIndex
+        cci: ChainIndex,
     },
     ///Register new private account
     Private {
         #[arg(long)]
-        cci: ChainIndex
+        cci: ChainIndex,
     },
 }
 

@@ -166,4 +166,14 @@ mod tests {
 
         let _ = top_secret_key_holder.generate_outgoing_viewing_secret_key();
     }
+
+    #[test]
+    fn two_seeds_generated_same_from_same_mnemonic() {
+        let mnemonic = "test_pass";
+
+        let seed_holder1 = SeedHolder::new_mnemonic(mnemonic.to_string());
+        let seed_holder2 = SeedHolder::new_mnemonic(mnemonic.to_string());
+
+        assert_eq!(seed_holder1.seed, seed_holder2.seed);
+    }
 }

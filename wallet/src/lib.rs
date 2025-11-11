@@ -10,7 +10,7 @@ use common::{
 use anyhow::Result;
 use chain_storage::WalletChainStore;
 use config::WalletConfig;
-use key_protocol::key_management::key_tree::chain_index::ChainIndex;
+use key_protocol::key_management::key_tree::{chain_index::ChainIndex, traits::KeyNode};
 use log::info;
 use nssa::{
     Account, Address, privacy_preserving_transaction::message::EncryptedAccountData,
@@ -62,17 +62,33 @@ impl WalletCore {
 
         let PersistentStorage {
             accounts: persistent_accounts,
-            password,
             last_synced_block,
         } = fetch_persistent_storage().await?;
 
-        let storage = WalletChainStore::new(config, persistent_accounts, password)?;
+        let storage = WalletChainStore::new(config, persistent_accounts)?;
 
         Ok(Self {
             storage,
             poller: tx_poller,
             sequencer_client: client.clone(),
             last_synced_block,
+        })
+    }
+
+    pub async fn start_from_config_new_storage(
+        config: WalletConfig,
+        password: String,
+    ) -> Result<Self> {
+        let client = Arc::new(SequencerClient::new(config.sequencer_addr.clone())?);
+        let tx_poller = TxPoller::new(config.clone(), client.clone());
+
+        let storage = WalletChainStore::new_storage(config, password)?;
+
+        Ok(Self {
+            storage,
+            poller: tx_poller,
+            sequencer_client: client.clone(),
+            last_synced_block: 0,
         })
     }
 
@@ -233,6 +249,18 @@ pub enum Command {
     Config(ConfigSubcommand),
 }
 
+///Represents CLI command for a wallet with setup included
+#[derive(Debug, Subcommand, Clone)]
+#[clap(about)]
+pub enum OverCommand {
+    #[command(subcommand)]
+    Command(Command),
+    Setup {
+        #[arg(short, long)]
+        password: String,
+    },
+}
+
 ///To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
 ///
 /// All account adresses must be valid 32 byte base58 strings.
@@ -247,7 +275,7 @@ pub struct Args {
     pub continious_run: bool,
     /// Wallet command
     #[command(subcommand)]
-    pub command: Option<Command>,
+    pub command: Option<OverCommand>,
 }
 
 #[derive(Debug, Clone)]
@@ -341,8 +369,11 @@ pub async fn parse_block_range(
             if let NSSATransaction::PrivacyPreserving(tx) = nssa_tx {
                 let mut affected_accounts = vec![];
 
-                for (acc_addr, (key_chain, _)) in
-                    &wallet_core.storage.user_data.user_private_accounts
+                for (acc_addr, (key_chain, _)) in wallet_core
+                    .storage
+                    .user_data
+                    .default_user_private_accounts
+                    .iter()
                 {
                     let view_tag = EncryptedAccountData::compute_view_tag(
                         key_chain.nullifer_public_key.clone(),
@@ -374,6 +405,51 @@ pub async fn parse_block_range(
                                 );
 
                                 affected_accounts.push((*acc_addr, res_acc));
+                            }
+                        }
+                    }
+                }
+
+                for (_, keys_node) in wallet_core
+                    .storage
+                    .user_data
+                    .private_key_tree
+                    .key_map
+                    .iter()
+                {
+                    let acc_addr = keys_node.address();
+                    let key_chain = &keys_node.value.0;
+
+                    let view_tag = EncryptedAccountData::compute_view_tag(
+                        key_chain.nullifer_public_key.clone(),
+                        key_chain.incoming_viewing_public_key.clone(),
+                    );
+
+                    for (ciph_id, encrypted_data) in tx
+                        .message()
+                        .encrypted_private_post_states
+                        .iter()
+                        .enumerate()
+                    {
+                        if encrypted_data.view_tag == view_tag {
+                            let ciphertext = &encrypted_data.ciphertext;
+                            let commitment = &tx.message.new_commitments[ciph_id];
+                            let shared_secret = key_chain
+                                .calculate_shared_secret_receiver(encrypted_data.epk.clone());
+
+                            let res_acc = nssa_core::EncryptionScheme::decrypt(
+                                ciphertext,
+                                &shared_secret,
+                                commitment,
+                                ciph_id as u32,
+                            );
+
+                            if let Some(res_acc) = res_acc {
+                                println!(
+                                    "Received new account for addr {acc_addr:#?} with account object {res_acc:#?}"
+                                );
+
+                                affected_accounts.push((acc_addr, res_acc));
                             }
                         }
                     }
@@ -425,4 +501,13 @@ pub async fn execute_continious_run() -> Result<()> {
 
         latest_block_num = seq_client.get_last_block().await?.last_block;
     }
+}
+
+pub async fn execute_setup(password: String) -> Result<()> {
+    let config = fetch_config().await?;
+    let wallet_core = WalletCore::start_from_config_new_storage(config.clone(), password).await?;
+
+    wallet_core.store_persistent_data().await?;
+
+    Ok(())
 }

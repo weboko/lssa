@@ -19,8 +19,6 @@ pub struct NSSAUserData {
     ///Default private accounts
     pub default_user_private_accounts:
         HashMap<nssa::Address, (KeyChain, nssa_core::account::Account)>,
-    ///Mnemonic passphrase
-    pub password: String,
     /// Tree of public keys
     pub public_key_tree: KeyTreePublic,
     /// Tree of private keys
@@ -82,38 +80,6 @@ impl NSSAUserData {
             default_user_private_accounts: default_accounts_key_chains,
             public_key_tree,
             private_key_tree,
-            password: "mnemonic".to_string(),
-        })
-    }
-
-    pub fn new_with_accounts_and_password(
-        default_accounts_keys: HashMap<nssa::Address, nssa::PrivateKey>,
-        default_accounts_key_chains: HashMap<
-            nssa::Address,
-            (KeyChain, nssa_core::account::Account),
-        >,
-        public_key_tree: KeyTreePublic,
-        private_key_tree: KeyTreePrivate,
-        password: String,
-    ) -> Result<Self> {
-        if !Self::valid_public_key_transaction_pairing_check(&default_accounts_keys) {
-            anyhow::bail!(
-                "Key transaction pairing check not satisfied, there is addresses, which is not derived from keys"
-            );
-        }
-
-        if !Self::valid_private_key_transaction_pairing_check(&default_accounts_key_chains) {
-            anyhow::bail!(
-                "Key transaction pairing check not satisfied, there is addresses, which is not derived from keys"
-            );
-        }
-
-        Ok(Self {
-            default_pub_account_signing_keys: default_accounts_keys,
-            default_user_private_accounts: default_accounts_key_chains,
-            public_key_tree,
-            private_key_tree,
-            password,
         })
     }
 
@@ -137,9 +103,7 @@ impl NSSAUserData {
             Some(key)
         //Then seek in tree
         } else {
-            self.public_key_tree
-                .get_node(*address)
-                .and_then(|chain_keys| Some(chain_keys.into()))
+            self.public_key_tree.get_node(*address).map(Into::into)
         }
     }
 
@@ -163,9 +127,7 @@ impl NSSAUserData {
             Some(key)
         //Then seek in tree
         } else {
-            self.private_key_tree
-                .get_node(*address)
-                .and_then(|chain_keys| Some(chain_keys.into()))
+            self.private_key_tree.get_node(*address).map(Into::into)
         }
     }
 
@@ -179,9 +141,7 @@ impl NSSAUserData {
             Some(key)
         //Then seek in tree
         } else {
-            self.private_key_tree
-                .get_node_mut(*address)
-                .and_then(|chain_keys| Some(chain_keys.into()))
+            self.private_key_tree.get_node_mut(*address).map(Into::into)
         }
     }
 }

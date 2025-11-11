@@ -54,6 +54,8 @@ fn make_private_account_input_from_str(addr: &str) -> String {
 pub async fn pre_test(
     home_dir: PathBuf,
 ) -> Result<(ServerHandle, JoinHandle<Result<()>>, TempDir)> {
+    wallet::execute_setup("test_pass".to_string()).await?;
+
     let home_dir_sequencer = home_dir.join("sequencer");
 
     let mut sequencer_config =
