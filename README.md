@@ -236,11 +236,10 @@ Account owned by authenticated transfer program
 
 ### Funding the account: executing the Piñata program
 
-Now that we have a public account initialized by the authenticated transfer program, we need to fund it. For that, the testnet provides the Piñata program.
+Now that we have a public account initialized by the authenticated transfer program, we need to fund it. For that, the testnet provides the Piñata program. See the [Pinata](#piñata-program) section for instructions on how to use it.
 
 ```bash
 # Complete with your address and the correct solution for your case
-# TODO: Explain how to find the solution
 wallet pinata claim --to-addr Public/9ypzv6GGr3fwsgxY7EZezg5rz6zj52DPCkmf1vVujEiJ --solution 989106
 ```
 
@@ -573,6 +572,41 @@ Holding account owned by token program
 {"account_type":"Token holding","definition_id":"GQ3C8rbprTtQUCvkuVBRu3v9wvUvjafCMFqoSPvTEVii","balance":10}
 ```
 
+### Piñata program
+
+The testnet comes with a program that serves as a faucet for native tokens. We call it the Piñata. Use the command `wallet pinata claim` to get native tokens from it. This requires two parameters:
+- `--to-addr` is the address of the account that will receive the tokens. **Use only initialized accounts here.**
+- `--solution` a solution to the Pinata challenge. This will change every time the Pinata is successfully claimed.
+
+To find the solution to the challenge, first query the Pinata account. This is always at the address: `Public/EfQhKQAkX2FJiwNii2WFQsGndjvF1Mzd7RuVe7QdPLw7`.
+
+```bash
+wallet account get --addr Public/EfQhKQAkX2FJiwNii2WFQsGndjvF1Mzd7RuVe7QdPLw7
+
+# Output:
+{"balance":750,"program_owner_b64":"/SQ9PX+NYQgXm7YMP7VMUBRwvU/Bq4pHTTZcCpTC5FM=","data_b64":"A939OBnG9OhvzOocqfCAJKSYvtcuV15OHDIVNg34MC8i","nonce":0}
+```
+
+Copy the `data_b64` value and run the following python script:
+
+```python
+import base64, hashlib
+
+def find_16byte_prefix(data: str, max_attempts: int) -> bytes:
+    data = base64.b64decode(data_b64)[1:]
+    for attempt in range(max_attempts):
+        suffix = attempt.to_bytes(16, 'little')
+        h = hashlib.sha256(data + suffix).digest()
+        if h[:3] == b"\x00\x00\x00":
+            solution = int.from_bytes(suffix, 'little')
+            return f"Solution: {solution}"
+    raise RuntimeError(f"No suffix found in {max_attempts} attempts")
+
+
+data_b64 = "A939OBnG9OhvzOocqfCAJKSYvtcuV15OHDIVNg34MC8i" # <- Change with the value from the Piñata account
+print(find_16byte_prefix(data_b64, 50000000))
+```
+
 ### Chain information
 
 The wallet provides some commands to query information about the chain. These are under the `wallet chain-info` command.
@@ -592,4 +626,5 @@ wallet chain-info current-block-id
 # Output:
 Last block id is 65537
 ```
+
 
