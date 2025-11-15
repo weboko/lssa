@@ -224,7 +224,7 @@ Account owned by authenticated transfer program
 {"balance":0}
 ```
 
-#### Funding the account: executing the Piñata program
+### Funding the account: executing the Piñata program
 
 Now that we have a public account initialized by the authenticated transfer program, we need to fund it. For that, the testnet provides the Piñata program.
 
@@ -244,7 +244,7 @@ Account owned by authenticated transfer program
 {"balance":150}
 ```
 
-#### Token transfer: executing the Authenticated transfers program
+### Native token transfers: executing the Authenticated transfers program
 
 The wallet CLI provides commands to execute the `Transfer` function of the authenticated program. Let's create another account for the recipient of the transfer.
 
@@ -299,7 +299,8 @@ With npk e6366f79d026c8bd64ae6b3d601f0506832ec682ab54897f205fffe64ec0d951
 With ipk 02ddc96d0eb56e00ce14994cfdaec5ae1f76244180a919545983156e3519940a17
 ```
 
-For now, focus only on the account address. Ignore the `npk` and `ipk` values. These are stored locally in the wallet and are used internally to build privacy-preserving transactions. We won't need them yet.
+For now, focus only on the account address. Ignore the `npk` and `ipk` values. These are stored locally in the wallet and are used internally to build privacy-preserving transactions.
+Also, the account id for private accounts is derived from the `npk` and `ipk` values. But we won't need them now.
 
 Just like public accounts, new private accounts start out uninitialized:
 
@@ -313,7 +314,8 @@ Unlike public accounts, private accounts are never visible to the network. They 
 
 #### Sending tokens from the public account to the private account
 
-Sending tokens to an uninitialized private account causes the Authenticated-Transfers program to claim it. This happens because program execution logic does not depend on whether the involved accounts are public or private.
+Sending tokens to an uninitialized private account causes the Authenticated-Transfers program to claim it. Just like with public accounts.
+This happens because program execution logic does not depend on whether the involved accounts are public or private.
 
 Let’s send 17 tokens to the new private account.
 
@@ -350,4 +352,198 @@ Account owned by authenticated transfer program
 
 Note: the last command does not query the network.
 It works even offline because private account data lives only in your wallet storage. Other users cannot read your private balances.
+
+#### Digression: modifying private accounts
+
+As a general rule, private accounts can only be modified through a program execution performed by their owner. That is, the person who holds the private key for that account. There is one exception: an uninitialized private account may be initialized by any user, without requiring the private key. After initialization, only the owner can modify it.
+
+This mechanism enables a common use case: transferring funds from any account (public or private) to a private account owned by someone else. For such transfers, the recipient’s private account must be uninitialized.
+
+
+#### Sending tokens from the public account to a private account owned by someone else
+
+For this tutorial, we’ll simulate that scenario by creating a new private account that we own, but we’ll treat it as if it belonged to someone else. 
+
+Let's create a new (uninitialized) private account like before:
+
+```bash
+wallet account new private
+
+# Output:
+Generated new account with addr Private/AukXPRBmrYVqoqEW2HTs7N3hvTn3qdNFDcxDHVr5hMm5
+With npk 0c95ebc4b3830f53da77bb0b80a276a776cdcf6410932acc718dcdb3f788a00e
+With ipk 039fd12a3674a880d3e917804129141e4170d419d1f9e28a3dcf979c1f2369cb72
+```
+
+Now we'll ignore the private account address and focus on the `npk` and `ipk` values. We'll need this to send tokens to a foreign private account. Syntax is very similar.
+
+```bash
+wallet auth-transfer send \
+    --from Public/Ev1JprP9BmhbFVQyBcbznU8bAXcwrzwRoPTetXdQPAWS \
+    --to-npk 0c95ebc4b3830f53da77bb0b80a276a776cdcf6410932acc718dcdb3f788a00e \
+    --to-ipk 039fd12a3674a880d3e917804129141e4170d419d1f9e28a3dcf979c1f2369cb72 \
+    --amount 3
+```
+
+The command above produces a privacy-preserving transaction, which may take a few minutes to complete. The updated values of the private account are encrypted and included in the transaction.
+
+Once the transaction is accepted, the recipient must run `wallet account sync-private`. This command scans the chain for encrypted values that belong to their private accounts and updates the local versions accordingly.
+
+
+#### Transfers in other combinations of public and private accounts
+
+We’ve shown how to use the authenticated-transfers program for transfers between two public accounts, and for transfers from a public sender to a private recipient. Sending tokens from a private account (whether to a public account or to another private account) works in essentially the same way.
+
+### The token program
+
+So far, we’ve made transfers using the authenticated-transfers program, which handles native token transfers. The Token program, on the other hand, is used for creating and managing custom tokens.
+
+The Token program manages its accounts in two categories. Meaning, all accounts owned by the Token program fall into one of these types.
+- Token definition accounts: these accounts store metadata about a token, such as its name, total supply, and other identifying properties. They act as the token’s unique identifier.
+- Token holding accounts: these accounts hold actual token balances. In addition to the balance, they also record which token definition they belong to.
+
+#### Creating a new token
+
+To create a new token, simply run `wallet token new`. This will create a transaction to execute the `New` function of the token program.
+The command expects a name, the desired total supply, and two uninitialized accounts:
+- One that will be initialized as the token definition account for the new token.
+- Another that will be initialized as a token holding account and receive the token’s entire initial supply.
+
+
+##### New token with both definition and supply accounts set as public
+
+For example, let's create two new (uninitialized) public accounts and then use them to create a new token.
+
+```bash
+wallet account new public
+
+# Output:
+Generated new account with addr Public/4X9kAcnCZ1Ukkbm3nywW9xfCNPK8XaMWCk3zfs1sP4J7
+```
+
+```bash
+wallet account new public
+
+# Output:
+Generated new account with addr Public/9RRSMm3w99uCD2Jp2Mqqf6dfc8me2tkFRE9HeU2DFftw
+```
+
+Now we use them to create a new token. Let's call it the "Token A"
+
+```bash
+wallet token new \
+    --name TOKENA \
+    --total-supply 1337 \
+    --definition-addr Public/4X9kAcnCZ1Ukkbm3nywW9xfCNPK8XaMWCk3zfs1sP4J7 \
+    --supply-addr Public/9RRSMm3w99uCD2Jp2Mqqf6dfc8me2tkFRE9HeU2DFftw
+```
+
+After it succeeds, we can inspect the two accounts to see how they were initialized.
+
+```bash
+wallet account get --addr Public/4X9kAcnCZ1Ukkbm3nywW9xfCNPK8XaMWCk3zfs1sP4J7
+
+# Output:
+Definition account owned by token program
+{"account_type":"Token definition","name":"TOKENA","total_supply":1337}
+```
+
+```bash
+wallet account get --addr Public/9RRSMm3w99uCD2Jp2Mqqf6dfc8me2tkFRE9HeU2DFftw
+
+# Output:
+Holding account owned by token program
+{"account_type":"Token holding","definition_id":"4X9kAcnCZ1Ukkbm3nywW9xfCNPK8XaMWCk3zfs1sP4J7","balance":1337}
+```
+
+##### New token with both definition and supply accounts set as public
+
+Let’s create a new token, but this time using a public definition account and a private holding account to store the entire supply.
+
+Since we can’t reuse the accounts from the previous example, we need to create fresh ones for this case.
+
+```bash
+wallet account new public
+
+# Output:
+Generated new account with addr Public/GQ3C8rbprTtQUCvkuVBRu3v9wvUvjafCMFqoSPvTEVii
+```
+
+```bash
+wallet account new private
+
+
+# Output:
+Generated new account with addr Private/HMRHZdPw4pbyPVZHNGrV6K5AA95wACFsHTRST84fr3CF
+With npk 6a2dfe433cf28e525aa0196d719be3c16146f7ee358ca39595323f94fde38f93
+With ipk 03d59abf4bee974cc12ddb44641c19f0b5441fef39191f047c988c29a77252a577
+```
+
+And we use them to create the token.
+
+Now we use them to create a new token. Let's call it "Token B".
+
+```bash
+wallet token new \
+    --name TOKENB \
+    --total-supply 7331 \
+    --definition-addr Public/GQ3C8rbprTtQUCvkuVBRu3v9wvUvjafCMFqoSPvTEVii \
+    --supply-addr Private/HMRHZdPw4pbyPVZHNGrV6K5AA95wACFsHTRST84fr3CF
+```
+
+After it succeeds, we can check their values
+
+
+```bash
+wallet account get --addr Public/GQ3C8rbprTtQUCvkuVBRu3v9wvUvjafCMFqoSPvTEVii
+
+# Output:
+Definition account owned by token program
+{"account_type":"Token definition","name":"TOKENB","total_supply":7331}
+```
+
+```bash
+wallet account get --addr Private/HMRHZdPw4pbyPVZHNGrV6K5AA95wACFsHTRST84fr3CF
+
+# Output:
+Holding account owned by token program
+{"account_type":"Token holding","definition_id":"GQ3C8rbprTtQUCvkuVBRu3v9wvUvjafCMFqoSPvTEVii","balance":7331}
+```
+
+Like any other private account owned by us, it cannot be seen by other users.
+
+#### Custom token transfers
+
+The Token program has a function to move funds from one token holding account to another one. If executed with an uninitialized account as the recipient, this will be automatically claimed by the token program.
+
+The transfer function can be executed with the `wallet token send` command.
+
+Let's create a new public account for the recipient.
+
+```bash
+wallet account new public
+
+# Output:
+Generated new account with addr Public/88f2zeTgiv9LUthQwPJbrmufb9SiDfmpCs47B7vw6Gd6
+```
+
+Let's send 10 B tokens to this new account. We'll debit this from the supply account used in the creation of the token.
+
+```bash
+wallet token send \
+    --from Private/HMRHZdPw4pbyPVZHNGrV6K5AA95wACFsHTRST84fr3CF \
+    --to Public/88f2zeTgiv9LUthQwPJbrmufb9SiDfmpCs47B7vw6Gd6 \
+    --amount 10
+```
+
+Let's inspect the public account:
+
+```bash
+wallet account get --addr Public/88f2zeTgiv9LUthQwPJbrmufb9SiDfmpCs47B7vw6Gd6
+
+# Output:
+Holding account owned by token program
+{"account_type":"Token holding","definition_id":"GQ3C8rbprTtQUCvkuVBRu3v9wvUvjafCMFqoSPvTEVii","balance":10}
+```
+
 
