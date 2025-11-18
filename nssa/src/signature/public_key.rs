@@ -1,10 +1,11 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::address::Address;
 
 use crate::{PrivateKey, error::NssaError};
 
 use sha2::{Digest, Sha256};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct PublicKey([u8; 32]);
 
 impl PublicKey {

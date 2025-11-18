@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "host")]
@@ -6,7 +7,7 @@ use std::{fmt::Display, str::FromStr};
 #[cfg(feature = "host")]
 use base58::{FromBase58, ToBase58};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(
     any(feature = "host", test),
     derive(Debug, Copy, PartialOrd, Ord, Default)
