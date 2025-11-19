@@ -1,9 +1,19 @@
-use std::{collections::HashMap, path::PathBuf, pin::Pin, time::Duration};
+use anyhow::Result;
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    pin::Pin,
+    time::{Duration, Instant},
+};
 
+use actix_web::dev::ServerHandle;
 use common::{PINATA_BASE58, sequencer_client::SequencerClient};
 use log::info;
 use nssa::{Address, ProgramDeploymentTransaction, program::Program};
 use nssa_core::{NullifierPublicKey, encryption::shared_key_derivation::Secp256k1Point};
+use sequencer_runner::startup_sequencer;
+use tempfile::TempDir;
+use tokio::task::JoinHandle;
 use wallet::{
     Command, SubcommandReturnValue, WalletCore,
     cli::{
@@ -21,7 +31,8 @@ use crate::{
     ACC_RECEIVER, ACC_RECEIVER_PRIVATE, ACC_SENDER, ACC_SENDER_PRIVATE,
     NSSA_PROGRAM_FOR_TEST_DATA_CHANGER, TIME_TO_WAIT_FOR_BLOCK_SECONDS,
     fetch_privacy_preserving_tx, make_private_account_input_from_str,
-    make_public_account_input_from_str,
+    make_public_account_input_from_str, replace_home_dir_with_temp_dir_in_configs,
+    tps_test_utils::TpsTestManager,
 };
 use crate::{post_test, pre_test, verify_commitment_is_in_state};
 
@@ -1610,4 +1621,84 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     println!("{function_map:#?}");
 
     function_map
+}
+
+#[allow(clippy::type_complexity)]
+async fn pre_tps_test(
+    test: &TpsTestManager,
+) -> Result<(ServerHandle, JoinHandle<Result<()>>, TempDir)> {
+    info!("Generating tps test config");
+    let mut sequencer_config = test.generate_tps_test_config();
+    info!("Done");
+
+    let temp_dir_sequencer = replace_home_dir_with_temp_dir_in_configs(&mut sequencer_config);
+
+    let (seq_http_server_handle, sequencer_loop_handle) =
+        startup_sequencer(sequencer_config).await?;
+
+    Ok((
+        seq_http_server_handle,
+        sequencer_loop_handle,
+        temp_dir_sequencer,
+    ))
+}
+
+pub async fn tps_test() {
+    let num_transactions = 300 * 5;
+    let target_tps = 12;
+    let tps_test = TpsTestManager::new(target_tps, num_transactions);
+
+    let target_time = tps_test.target_time();
+    info!("Target time: {:?} seconds", target_time.as_secs());
+    let res = pre_tps_test(&tps_test).await.unwrap();
+
+    let wallet_config = fetch_config().await.unwrap();
+    let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+    info!("TPS test begin");
+    let txs = tps_test.build_public_txs();
+    let now = Instant::now();
+
+    let mut tx_hashes = vec![];
+    for (i, tx) in txs.into_iter().enumerate() {
+        let tx_hash = seq_client.send_tx_public(tx).await.unwrap().tx_hash;
+        info!("Sent tx {i}");
+        tx_hashes.push(tx_hash);
+    }
+
+    for (i, tx_hash) in tx_hashes.iter().enumerate() {
+        loop {
+            if now.elapsed().as_millis() > target_time.as_millis() {
+                panic!("TPS test failed by timout");
+            }
+
+            let tx_obj = seq_client
+                .get_transaction_by_hash(tx_hash.clone())
+                .await
+                .inspect_err(|err| {
+                    log::warn!(
+                        "Failed to get transaction by hash {tx_hash:#?} with error: {err:#?}"
+                    )
+                });
+
+            if let Ok(tx_obj) = tx_obj
+                && tx_obj.transaction.is_some()
+            {
+                info!("Found tx {i} with hash {tx_hash}");
+                break;
+            }
+        }
+    }
+    let time_elapsed = now.elapsed().as_secs();
+
+    info!("TPS test finished successfully");
+    info!("Target TPS: {}", target_tps);
+    info!(
+        "Processed {} transactions in {}s",
+        tx_hashes.len(),
+        time_elapsed
+    );
+    info!("Target time: {:?}s", target_time.as_secs());
+
+    post_test(res).await;
 }
