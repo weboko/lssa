@@ -321,10 +321,7 @@ mod tests {
     use crate::{JsonHandler, rpc_handler};
     use base58::ToBase58;
     use base64::{Engine, engine::general_purpose};
-    use common::{
-        rpc_primitives::RpcPollingConfig, test_utils::sequencer_sign_key_for_testing,
-        transaction::EncodedTransaction,
-    };
+    use common::{test_utils::sequencer_sign_key_for_testing, transaction::EncodedTransaction};
 
     use sequencer_core::{
         SequencerCore,
@@ -405,7 +402,6 @@ mod tests {
 
         (
             JsonHandler {
-                polling_config: RpcPollingConfig::default(),
                 sequencer_state: sequencer_core,
                 mempool_handle,
             },

@@ -5,10 +5,7 @@ pub mod types;
 use std::sync::Arc;
 
 use common::{
-    rpc_primitives::{
-        RpcPollingConfig,
-        errors::{RpcError, RpcErrorKind},
-    },
+    rpc_primitives::errors::{RpcError, RpcErrorKind},
     transaction::EncodedTransaction,
 };
 use mempool::MemPoolHandle;
@@ -23,11 +20,6 @@ use self::types::err_rpc::RpcErr;
 
 //ToDo: Add necessary fields
 pub struct JsonHandler {
-    #[expect(
-        dead_code,
-        reason = "Decided to keep it just in case, should we remove it?"
-    )]
-    polling_config: RpcPollingConfig,
     sequencer_state: Arc<Mutex<SequencerCore>>,
     mempool_handle: MemPoolHandle<EncodedTransaction>,
 }
