@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::program_methods::{AUTHENTICATED_TRANSFER_ELF, PINATA_ELF, TOKEN_ELF};
 use nssa_core::{
     account::AccountWithMetadata,
@@ -93,6 +95,27 @@ impl Program {
         // This unwrap won't panic since the `TOKEN_ELF` comes from risc0 build of
         // `program_methods`
         Self::new(TOKEN_ELF.to_vec()).unwrap()
+    }
+}
+
+pub struct ProgramWithDependencies {
+    pub program: Program,
+    // TODO: this will have a copy of each dependency bytecode in each program
+    pub dependencies: HashMap<ProgramId, Program>,
+}
+
+impl ProgramWithDependencies {
+    pub fn new(program: Program, dependencies: HashMap<ProgramId, Program>) -> Self {
+        Self {
+            program,
+            dependencies,
+        }
+    }
+}
+
+impl From<Program> for ProgramWithDependencies {
+    fn from(program: Program) -> Self {
+        ProgramWithDependencies::new(program, HashMap::new())
     }
 }
 

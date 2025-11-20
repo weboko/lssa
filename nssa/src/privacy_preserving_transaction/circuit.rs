@@ -8,7 +8,11 @@ use nssa_core::{
 };
 use risc0_zkvm::{ExecutorEnv, InnerReceipt, Receipt, default_prover};
 
-use crate::{error::NssaError, program::Program, state::MAX_NUMBER_CHAINED_CALLS};
+use crate::{
+    error::NssaError,
+    program::{Program, ProgramWithDependencies},
+    state::MAX_NUMBER_CHAINED_CALLS,
+};
 
 use crate::program_methods::{PRIVACY_PRESERVING_CIRCUIT_ELF, PRIVACY_PRESERVING_CIRCUIT_ID};
 
@@ -25,17 +29,17 @@ pub fn execute_and_prove(
     private_account_nonces: &[u128],
     private_account_keys: &[(NullifierPublicKey, SharedSecretKey)],
     private_account_auth: &[(NullifierSecretKey, MembershipProof)],
-    program: &Program,
-    programs: &HashMap<ProgramId, Program>,
+    program_with_dependencies: &ProgramWithDependencies,
 ) -> Result<(PrivacyPreservingCircuitOutput, Proof), NssaError> {
-    let mut program = program;
+    let mut program = &program_with_dependencies.program;
+    let dependencies = &program_with_dependencies.dependencies;
     let mut instruction_data = instruction_data.clone();
     let mut pre_states = pre_states.to_vec();
     let mut env_builder = ExecutorEnv::builder();
     let mut program_outputs = Vec::new();
 
     for _i in 0..MAX_NUMBER_CHAINED_CALLS {
-        let inner_receipt = execute_and_prove_program(program, &pre_states, &instruction_data)?;
+        let inner_receipt = execute_and_prove_program(&program, &pre_states, &instruction_data)?;
 
         let program_output: ProgramOutput = inner_receipt
             .journal
@@ -49,8 +53,9 @@ pub fn execute_and_prove(
         env_builder.add_assumption(inner_receipt);
 
         if let Some(next_call) = program_output.chained_call {
-            // TODO: remove unwrap
-            program = programs.get(&next_call.program_id).unwrap();
+            program = dependencies
+                .get(&next_call.program_id)
+                .ok_or(NssaError::InvalidProgramBehavior)?;
             instruction_data = next_call.instruction_data.clone();
             // Build post states with metadata for next call
             let mut post_states_with_metadata = Vec::new();
@@ -85,7 +90,7 @@ pub fn execute_and_prove(
         private_account_nonces: private_account_nonces.to_vec(),
         private_account_keys: private_account_keys.to_vec(),
         private_account_auth: private_account_auth.to_vec(),
-        program_id: program.id(),
+        program_id: program_with_dependencies.program.id(),
     };
 
     env_builder.write(&circuit_input).unwrap();
@@ -198,7 +203,7 @@ mod tests {
             &[0xdeadbeef],
             &[(recipient_keys.npk(), shared_secret.clone())],
             &[],
-            &Program::authenticated_transfer_program(),
+            &Program::authenticated_transfer_program().into(),
         )
         .unwrap();
 
@@ -299,7 +304,7 @@ mod tests {
                 sender_keys.nsk,
                 commitment_set.get_proof_for(&commitment_sender).unwrap(),
             )],
-            &program,
+            &program.into(),
         )
         .unwrap();
 

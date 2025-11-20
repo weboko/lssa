@@ -110,7 +110,7 @@ impl WalletCore {
                 (from_nsk.unwrap(), from_proof.unwrap()),
                 (to_nsk.unwrap(), to_proof),
             ],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -184,7 +184,7 @@ impl WalletCore {
                 (to_npk.clone(), shared_secret_to.clone()),
             ],
             &[(from_nsk.unwrap(), from_proof.unwrap())],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -254,7 +254,7 @@ impl WalletCore {
                 (to_npk.clone(), shared_secret_to.clone()),
             ],
             &[(from_nsk.unwrap(), from_proof.unwrap())],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -321,7 +321,7 @@ impl WalletCore {
             &produce_random_nonces(1),
             &[(from_npk.clone(), shared_secret.clone())],
             &[(from_nsk.unwrap(), from_proof.unwrap())],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -382,7 +382,7 @@ impl WalletCore {
             &produce_random_nonces(1),
             &[(to_npk.clone(), shared_secret.clone())],
             &[(to_nsk.unwrap(), to_proof)],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -448,7 +448,7 @@ impl WalletCore {
             &produce_random_nonces(1),
             &[(to_npk.clone(), shared_secret.clone())],
             &[],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -510,7 +510,7 @@ impl WalletCore {
             &produce_random_nonces(1),
             &[(to_npk.clone(), shared_secret.clone())],
             &[],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -562,7 +562,7 @@ impl WalletCore {
             &produce_random_nonces(1),
             &[(from_npk.clone(), shared_secret_from.clone())],
             &[],
-            &Program::authenticated_transfer_program(),
+            &Program::authenticated_transfer_program().into(),
         )
         .unwrap();
 
