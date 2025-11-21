@@ -1195,6 +1195,11 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             info!("{addr} :: {acc:#?}");
         }
 
+        let new_commitment1 = wallet_storage
+            .get_private_account_commitment(&from)
+            .unwrap();
+        assert_eq!(tx.message.new_commitments[0], new_commitment1);
+
         assert_eq!(tx.message.new_commitments.len(), 2);
         for commitment in tx.message.new_commitments.into_iter() {
             assert!(verify_commitment_is_in_state(commitment, &seq_client).await);
