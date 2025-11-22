@@ -18,7 +18,7 @@ pub struct Proof(pub(crate) Vec<u8>);
 
 pub struct ProgramWithDependencies {
     pub program: Program,
-    // TODO: this will have a copy of each dependency bytecode in each program
+    // TODO: avoid having a copy of the bytecode of each dependency.
     pub dependencies: HashMap<ProgramId, Program>,
 }
 
