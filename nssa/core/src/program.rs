@@ -18,7 +18,9 @@ pub struct ProgramInput<T> {
 #[derive(Serialize, Deserialize, Clone)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct ChainedCall {
+    /// The program ID of the program to execute
     pub program_id: ProgramId,
+    /// The instruction data to pass
     pub instruction_data: InstructionData,
     pub account_indices: Vec<usize>,
 }
@@ -26,9 +28,13 @@ pub struct ChainedCall {
 #[derive(Serialize, Deserialize, Clone)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct ProgramOutput {
+    /// The instruction data the program received to produce this output
     pub instruction_data: InstructionData,
+    /// The account pre states the program received to produce this output
     pub pre_states: Vec<AccountWithMetadata>,
+    /// The account post states produced with the given pre states and instruction data
     pub post_states: Vec<Account>,
+    /// The optional next call of a program
     pub chained_call: Option<ChainedCall>,
 }
 
