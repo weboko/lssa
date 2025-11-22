@@ -56,7 +56,7 @@ pub fn execute_and_prove(
     let mut program_outputs = Vec::new();
 
     for _i in 0..MAX_NUMBER_CHAINED_CALLS {
-        let inner_receipt = execute_and_prove_program(&program, &pre_states, &instruction_data)?;
+        let inner_receipt = execute_and_prove_program(program, &pre_states, &instruction_data)?;
 
         let program_output: ProgramOutput = inner_receipt
             .journal
