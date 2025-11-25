@@ -5,8 +5,22 @@ use crate::{PrivateKey, error::NssaError};
 
 use sha2::{Digest, Sha256};
 
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize)]
 pub struct PublicKey([u8; 32]);
+
+impl BorshDeserialize for PublicKey {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut buf = [0u8; 32];
+        reader.read_exact(&mut buf)?;
+
+        Self::try_new(buf).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid public key: not a valid point",
+            )
+        })
+    }
+}
 
 impl PublicKey {
     pub fn new_from_private_key(key: &PrivateKey) -> Self {
@@ -93,5 +107,15 @@ mod test {
                 "Failed test vector at index {i}"
             );
         }
+    }
+
+    #[test]
+    fn test_correct_ser_deser_roundtrip() {
+        let pub_key = PublicKey::try_new([42; 32]).unwrap();
+
+        let pub_key_borsh_ser = borsh::to_vec(&pub_key).unwrap();
+        let pub_key_new: PublicKey = borsh::from_slice(&pub_key_borsh_ser).unwrap();
+
+        assert_eq!(pub_key, pub_key_new);
     }
 }

@@ -2,7 +2,7 @@ use crate::{ProgramDeploymentTransaction, error::NssaError};
 
 impl ProgramDeploymentTransaction {
     pub fn to_bytes(&self) -> Vec<u8> {
-        borsh::to_vec(&self).unwrap()
+        borsh::to_vec(&self).expect("Autoderived borsh serialization failure")
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, NssaError> {
