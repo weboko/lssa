@@ -50,7 +50,9 @@ struct PoolDefinition{
 
 impl PoolDefinition {
     fn into_data(self) -> Vec<u8> {
-        let u8_token_program_id : [u8;32] = bytemuck::cast(self.token_program_id);
+        //let u8_token_program_id : [u8;32] = bytemuck::cast(self.token_program_id);
+        //TODO: fix to include token Program
+
 
         let mut bytes = [0; POOL_DEFINITION_DATA_SIZE];
         bytes[0..32].copy_from_slice(&self.definition_token_a_id.to_bytes());
@@ -61,7 +63,7 @@ impl PoolDefinition {
         bytes[160..176].copy_from_slice(&self.liquidity_pool_cap.to_le_bytes());
         bytes[176..192].copy_from_slice(&self.reserve_a.to_le_bytes());
         bytes[192..208].copy_from_slice(&self.reserve_b.to_le_bytes());
-        bytes[208..].copy_from_slice(&u8_token_program_id);
+        //bytes[208..].copy_from_slice(&u8_token_program_id);
         bytes.into()
     }
 
@@ -131,6 +133,12 @@ impl TokenHolding {
     }
 }
 
+/*
+ //TODO-useful
+fn convert_u8_vec_to_u32_vec() {
+
+}
+*/
 
 fn new_definition(
         pre_states: &[AccountWithMetadata],
@@ -157,9 +165,12 @@ fn new_definition(
     let user_b = &pre_states[5];
     let user_lp = &pre_states[6];
 
+    /*
+    //TODO: fix?
     if pool.account == Account::default() || !pool.is_authorized {
         panic!("Pool account is uninitiated or not authorized");
     }
+    */
 
     // TODO: temporary band-aid to prevent vault's from being
     // owned by the amm program.
@@ -204,16 +215,27 @@ fn new_definition(
 
     let mut chained_call = Vec::new();
 
+    /*
     let mut instruction_data = [0; 23];
-    instruction_data[0] = 1;
-
+    instruction_data[0] = 1;      
     instruction_data[1..17].copy_from_slice(&amount_a.to_le_bytes());
+*/
+    /*
+let mut token_program_id: [u32;8] = [0];
+            token_program_id[0] = u32::from_le_bytes(instruction[0..8].try_into().unwrap());
+            token_program_id[1] = u32::from_le_bytes(instruction[8..16].try_into().unwrap());
+            token_program_id[2] = u32::from_le_bytes(instruction[16..24].try_into().unwrap());
+ 
+    */
+
+    let instruction_data = to_vec(&amount_a).unwrap();
     let call_token_a = ChainedCall{
             program_id: token_program,
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
+            instruction_data: instruction_data,//bytemuck::cast_slice(&instruction_data).to_vec(),
             pre_states: vec![user_a.clone(), vault_a.clone()]
         };
 
+    /*
     instruction_data[1..17].copy_from_slice(&amount_b.to_le_bytes());
     let call_token_b = ChainedCall{
             program_id: token_program,
@@ -231,7 +253,7 @@ fn new_definition(
     chained_call.push(call_token_lp);
     chained_call.push(call_token_b);
     chained_call.push(call_token_a);
-
+    */
 
     let post_states = vec![pool_post.clone(), 
         pre_states[1].account.clone(),
@@ -256,10 +278,16 @@ fn main() {
         0 => {
             let balance_a: u128 = u128::from_le_bytes(instruction[1..17].try_into().unwrap());
             let balance_b: u128 = u128::from_le_bytes(instruction[17..33].try_into().unwrap());
-        
-
-            let token_program_id : &[u32] = bytemuck::cast_slice(&instruction[33..65]);
-            let token_program_id : [u32;8] = token_program_id.try_into().unwrap();
+            
+            let mut token_program_id: [u32;8] = [0;8];
+            token_program_id[0] = u32::from_le_bytes(instruction[33..37].try_into().unwrap());
+            token_program_id[1] = u32::from_le_bytes(instruction[37..41].try_into().unwrap());
+            token_program_id[2] = u32::from_le_bytes(instruction[41..45].try_into().unwrap());
+            token_program_id[3] = u32::from_le_bytes(instruction[45..49].try_into().unwrap());
+            token_program_id[4] = u32::from_le_bytes(instruction[49..53].try_into().unwrap());
+            token_program_id[5] = u32::from_le_bytes(instruction[53..57].try_into().unwrap());
+            token_program_id[6] = u32::from_le_bytes(instruction[57..61].try_into().unwrap());
+            token_program_id[7] = u32::from_le_bytes(instruction[61..65].try_into().unwrap());
 
             let (post_states, chained_call) = new_definition(&pre_states,
                 &[balance_a, balance_b],
