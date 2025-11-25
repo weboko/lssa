@@ -29,7 +29,7 @@ fn main() {
         panic!("Max depth is exceeded");
     }
 
-    if program_outputs[num_calls - 1].chained_call.is_some() {
+    if program_outputs.last().and_then(|last| last.chained_call.as_ref()).is_some() {
         panic!("Call stack is incomplete");
     }
 
