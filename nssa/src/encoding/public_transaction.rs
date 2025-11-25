@@ -16,8 +16,10 @@ const MESSAGE_ENCODING_PREFIX: &[u8; MESSAGE_ENCODING_PREFIX_LEN] =
 
 impl Message {
     /// Serializes a `Message` into bytes in the following layout:
-    /// PREFIX || <program_id>  (4 bytes LE) * 8 || account_ids_len (4 bytes LE) || account_ids (32 bytes * N) || nonces_len (4 bytes LE) || nonces (16 bytes LE * M) || instruction_data_len || instruction_data (4 bytes LE * K)
-    /// Integers and words are encoded in little-endian byte order, and fields appear in the above order.
+    /// PREFIX || <program_id>  (4 bytes LE) * 8 || account_ids_len (4 bytes LE) || account_ids (32
+    /// bytes * N) || nonces_len (4 bytes LE) || nonces (16 bytes LE * M) || instruction_data_len ||
+    /// instruction_data (4 bytes LE * K) Integers and words are encoded in little-endian byte
+    /// order, and fields appear in the above order.
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = MESSAGE_ENCODING_PREFIX.to_vec();
         // program_id: [u32; 8]

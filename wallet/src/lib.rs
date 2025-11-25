@@ -1,22 +1,20 @@
 use std::{path::PathBuf, sync::Arc};
 
+use anyhow::Result;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use chain_storage::WalletChainStore;
+use clap::{Parser, Subcommand};
 use common::{
     block::HashableBlockData,
     sequencer_client::SequencerClient,
     transaction::{EncodedTransaction, NSSATransaction},
 };
-
-use anyhow::Result;
-use chain_storage::WalletChainStore;
 use config::WalletConfig;
 use log::info;
 use nssa::{
     Account, AccountId, privacy_preserving_transaction::message::EncryptedAccountData,
     program::Program,
 };
-
-use clap::{Parser, Subcommand};
 use nssa_core::{Commitment, MembershipProof};
 use tokio::io::AsyncWriteExt;
 
@@ -28,10 +26,7 @@ use crate::{
         token_program::TokenProgramAgnosticSubcommand,
     },
     config::PersistentStorage,
-    helperfunctions::fetch_persistent_storage,
-};
-use crate::{
-    helperfunctions::{fetch_config, get_home, produce_data_for_storage},
+    helperfunctions::{fetch_config, fetch_persistent_storage, get_home, produce_data_for_storage},
     poller::TxPoller,
 };
 
@@ -77,7 +72,7 @@ impl WalletCore {
         })
     }
 
-    ///Store persistent data at home
+    /// Store persistent data at home
     pub async fn store_persistent_data(&self) -> Result<PathBuf> {
         let home = get_home()?;
         let storage_path = home.join("storage.json");
@@ -93,7 +88,7 @@ impl WalletCore {
         Ok(storage_path)
     }
 
-    ///Store persistent data at home
+    /// Store persistent data at home
     pub async fn store_config_changes(&self) -> Result<PathBuf> {
         let home = get_home()?;
         let config_path = home.join("wallet_config.json");
@@ -119,7 +114,7 @@ impl WalletCore {
             .generate_new_privacy_preserving_transaction_key_chain()
     }
 
-    ///Get account balance
+    /// Get account balance
     pub async fn get_account_balance(&self, acc: AccountId) -> Result<u128> {
         Ok(self
             .sequencer_client
@@ -128,7 +123,7 @@ impl WalletCore {
             .balance)
     }
 
-    ///Get accounts nonces
+    /// Get accounts nonces
     pub async fn get_accounts_nonces(&self, accs: Vec<AccountId>) -> Result<Vec<u128>> {
         Ok(self
             .sequencer_client
@@ -137,7 +132,7 @@ impl WalletCore {
             .nonces)
     }
 
-    ///Get account
+    /// Get account
     pub async fn get_account_public(&self, account_id: AccountId) -> Result<Account> {
         let response = self
             .sequencer_client
@@ -163,7 +158,7 @@ impl WalletCore {
         Some(Commitment::new(&keys.nullifer_public_key, account))
     }
 
-    ///Poll transactions
+    /// Poll transactions
     pub async fn poll_native_token_transfer(&self, hash: String) -> Result<NSSATransaction> {
         let transaction_encoded = self.poller.poll_tx(hash).await?;
         let tx_base64_decode = BASE64.decode(transaction_encoded)?;
@@ -215,23 +210,23 @@ impl WalletCore {
     }
 }
 
-///Represents CLI command for a wallet
+/// Represents CLI command for a wallet
 #[derive(Subcommand, Debug, Clone)]
 #[clap(about)]
 pub enum Command {
-    ///Authenticated transfer subcommand
+    /// Authenticated transfer subcommand
     #[command(subcommand)]
     AuthTransfer(AuthTransferSubcommand),
-    ///Generic chain info subcommand
+    /// Generic chain info subcommand
     #[command(subcommand)]
     ChainInfo(ChainSubcommand),
-    ///Account view and sync subcommand
+    /// Account view and sync subcommand
     #[command(subcommand)]
     Account(AccountSubcommand),
-    ///Pinata program interaction subcommand
+    /// Pinata program interaction subcommand
     #[command(subcommand)]
     Pinata(PinataProgramAgnosticSubcommand),
-    ///Token program interaction subcommand
+    /// Token program interaction subcommand
     #[command(subcommand)]
     Token(TokenProgramAgnosticSubcommand),
     /// Check the wallet can connect to the node and builtin local programs
@@ -242,7 +237,7 @@ pub enum Command {
     Config(ConfigSubcommand),
 }
 
-///To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
+/// To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
 ///
 /// All account adresses must be valid 32 byte base58 strings.
 ///

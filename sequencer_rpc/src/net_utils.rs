@@ -1,15 +1,13 @@
-use std::io;
-use std::sync::Arc;
+use std::{io, sync::Arc};
 
 use actix_cors::Cors;
 use actix_web::{App, Error as HttpError, HttpResponse, HttpServer, http, middleware, web};
-use common::transaction::EncodedTransaction;
-use futures::Future;
-use futures::FutureExt;
+use common::{
+    rpc_primitives::{RpcConfig, message::Message},
+    transaction::EncodedTransaction,
+};
+use futures::{Future, FutureExt};
 use log::info;
-
-use common::rpc_primitives::RpcConfig;
-use common::rpc_primitives::message::Message;
 use mempool::MemPoolHandle;
 use sequencer_core::SequencerCore;
 use tokio::sync::Mutex;

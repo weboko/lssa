@@ -53,8 +53,8 @@ impl SequencerCore {
         let signing_key = nssa::PrivateKey::try_new(config.signing_key).unwrap();
         let genesis_block = hashable_data.into_block(&signing_key);
 
-        //Sequencer should panic if unable to open db,
-        //as fixing this issue may require actions non-native to program scope
+        // Sequencer should panic if unable to open db,
+        // as fixing this issue may require actions non-native to program scope
         let block_store = SequencerBlockStore::open_db_with_genesis(
             &config.home.join("rocksdb"),
             Some(genesis_block),
@@ -100,8 +100,9 @@ impl SequencerCore {
         (this, mempool_handle)
     }
 
-    /// If there are stored blocks ahead of the current height, this method will load and process all transaction
-    /// in them in the order they are stored. The NSSA state will be updated accordingly.
+    /// If there are stored blocks ahead of the current height, this method will load and process
+    /// all transaction in them in the order they are stored. The NSSA state will be updated
+    /// accordingly.
     fn sync_state_with_stored_blocks(&mut self) {
         let mut next_block_id = self.sequencer_config.genesis_id + 1;
         while let Ok(block) = self.block_store.get_block_at_id(next_block_id) {
@@ -181,10 +182,15 @@ impl SequencerCore {
 
         self.chain_height = new_block_height;
 
-        // TODO: Consider switching to `tracing` crate to have more structured and consistent logs e.g.
+        // TODO: Consider switching to `tracing` crate to have more structured and consistent logs
+        // e.g.
         //
         // ```
-        // info!(num_txs = num_txs_in_block, time = now.elapsed(), "Created block");
+        // info!(
+        //     num_txs = num_txs_in_block,
+        //     time = now.elapsed(),
+        //     "Created block"
+        // );
         // ```
         log::info!(
             "Created block with {} transactions in {} seconds",
@@ -244,9 +250,8 @@ mod tests {
     use common::test_utils::sequencer_sign_key_for_testing;
     use nssa::PrivateKey;
 
-    use crate::config::AccountInitialData;
-
     use super::*;
+    use crate::config::AccountInitialData;
 
     fn parse_unwrap_tx_body_into_nssa_tx(tx_body: EncodedTransaction) -> NSSATransaction {
         NSSATransaction::try_from(&tx_body)

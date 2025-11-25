@@ -3,7 +3,7 @@ use clap::Subcommand;
 
 use crate::{SubcommandReturnValue, WalletCore, cli::WalletSubcommand};
 
-///Represents generic config CLI subcommand
+/// Represents generic config CLI subcommand
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConfigSubcommand {
     /// Command to explicitly setup config and storage

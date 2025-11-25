@@ -43,9 +43,9 @@ impl<T> MemPoolHandle<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tokio::test;
+
+    use super::*;
 
     #[test]
     async fn test_mempool_new() {

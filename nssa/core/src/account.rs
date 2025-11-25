@@ -1,11 +1,11 @@
-use crate::program::ProgramId;
-use serde::{Deserialize, Serialize};
-
 #[cfg(feature = "host")]
 use std::{fmt::Display, str::FromStr};
 
 #[cfg(feature = "host")]
 use base58::{FromBase58, ToBase58};
+use serde::{Deserialize, Serialize};
+
+use crate::program::ProgramId;
 
 pub type Nonce = u128;
 pub type Data = Vec<u8>;
@@ -99,9 +99,8 @@ impl Display for AccountId {
 
 #[cfg(test)]
 mod tests {
-    use crate::program::DEFAULT_PROGRAM_ID;
-
     use super::*;
+    use crate::program::DEFAULT_PROGRAM_ID;
 
     #[test]
     fn test_zero_balance_account_data_creation() {

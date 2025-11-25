@@ -13,7 +13,7 @@ pub struct SequencerBlockStore {
 }
 
 impl SequencerBlockStore {
-    ///Starting database at the start of new chain.
+    /// Starting database at the start of new chain.
     /// Creates files if necessary.
     ///
     /// ATTENTION: Will overwrite genesis block.
@@ -40,7 +40,7 @@ impl SequencerBlockStore {
         })
     }
 
-    ///Reopening existing database
+    /// Reopening existing database
     pub fn open_db_restart(location: &Path, signing_key: nssa::PrivateKey) -> Result<Self> {
         SequencerBlockStore::open_db_with_genesis(location, None, signing_key)
     }
@@ -94,10 +94,10 @@ pub(crate) fn block_to_transactions_map(block: &Block) -> HashMap<HashType, u64>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use common::{block::HashableBlockData, test_utils::sequencer_sign_key_for_testing};
     use tempfile::tempdir;
+
+    use super::*;
 
     #[test]
     fn test_get_transaction_by_hash() {

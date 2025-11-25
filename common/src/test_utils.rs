@@ -3,15 +3,15 @@ use crate::{
     transaction::{EncodedTransaction, NSSATransaction},
 };
 
-//Helpers
+// Helpers
 
 pub fn sequencer_sign_key_for_testing() -> nssa::PrivateKey {
     nssa::PrivateKey::try_new([37; 32]).unwrap()
 }
 
-//Dummy producers
+// Dummy producers
 
-///Produce dummy block with
+/// Produce dummy block with
 ///
 /// `id` - block id, provide zero for genesis
 ///

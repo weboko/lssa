@@ -24,7 +24,5 @@ pub use privacy_preserving_transaction::{
 pub use program_deployment_transaction::ProgramDeploymentTransaction;
 pub use program_methods::PRIVACY_PRESERVING_CIRCUIT_ID;
 pub use public_transaction::PublicTransaction;
-pub use signature::PrivateKey;
-pub use signature::PublicKey;
-pub use signature::Signature;
+pub use signature::{PrivateKey, PublicKey, Signature};
 pub use state::V02State;

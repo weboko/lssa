@@ -15,7 +15,8 @@ impl WalletCore {
         Program,
         impl FnOnce(&Account, &Account) -> Result<(), ExecutionFailureKind>,
     ) {
-        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
+        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 ||
+        // 0x00 || 0x00 || 0x00].
         let mut instruction = [0; 23];
         instruction[0] = 0x01;
         instruction[1..17].copy_from_slice(&amount.to_le_bytes());
@@ -103,7 +104,8 @@ impl WalletCore {
     ) -> Result<SendTxResponse, ExecutionFailureKind> {
         let account_ids = vec![sender_account_id, recipient_account_id];
         let program_id = nssa::program::Program::token().id();
-        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
+        // Instruction must be: [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 ||
+        // 0x00 || 0x00 || 0x00].
         let mut instruction = [0; 23];
         instruction[0] = 0x01;
         instruction[1..17].copy_from_slice(&amount.to_le_bytes());

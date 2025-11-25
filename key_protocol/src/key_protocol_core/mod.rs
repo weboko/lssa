@@ -10,9 +10,9 @@ pub type PublicKey = AffinePoint;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NSSAUserData {
-    ///Map for all user public accounts
+    /// Map for all user public accounts
     pub pub_account_signing_keys: HashMap<nssa::AccountId, nssa::PrivateKey>,
-    ///Map for all user private accounts
+    /// Map for all user private accounts
     pub user_private_accounts: HashMap<nssa::AccountId, (KeyChain, nssa_core::account::Account)>,
 }
 
@@ -124,7 +124,7 @@ impl NSSAUserData {
 
 impl Default for NSSAUserData {
     fn default() -> Self {
-        //Safe unwrap as maps are empty
+        // Safe unwrap as maps are empty
         Self::new_with_accounts(HashMap::default(), HashMap::default()).unwrap()
     }
 }

@@ -1,14 +1,17 @@
+use std::collections::{HashMap, HashSet};
+
+use nssa_core::{
+    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT, MembershipProof, Nullifier,
+    account::{Account, AccountId},
+    program::ProgramId,
+};
+
 use crate::{
     error::NssaError, merkle_tree::MerkleTree,
     privacy_preserving_transaction::PrivacyPreservingTransaction, program::Program,
     program_deployment_transaction::ProgramDeploymentTransaction,
     public_transaction::PublicTransaction,
 };
-use nssa_core::{
-    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT, MembershipProof, Nullifier,
-    account::Account, account::AccountId, program::ProgramId,
-};
-use std::collections::{HashMap, HashSet};
 
 pub(crate) struct CommitmentSet {
     merkle_tree: MerkleTree,
@@ -241,6 +244,13 @@ pub mod tests {
 
     use std::collections::HashMap;
 
+    use nssa_core::{
+        Commitment, Nullifier, NullifierPublicKey, NullifierSecretKey, SharedSecretKey,
+        account::{Account, AccountId, AccountWithMetadata, Nonce},
+        encryption::{EphemeralPublicKey, IncomingViewingPublicKey, Scalar},
+        program::ProgramId,
+    };
+
     use crate::{
         PublicKey, PublicTransaction, V02State,
         error::NssaError,
@@ -251,13 +261,6 @@ pub mod tests {
         program::Program,
         public_transaction,
         signature::PrivateKey,
-    };
-
-    use nssa_core::{
-        Commitment, Nullifier, NullifierPublicKey, NullifierSecretKey, SharedSecretKey,
-        account::{Account, AccountId, AccountWithMetadata, Nonce},
-        encryption::{EphemeralPublicKey, IncomingViewingPublicKey, Scalar},
-        program::ProgramId,
     };
 
     fn transfer_transaction(
@@ -577,7 +580,8 @@ pub mod tests {
             V02State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
         let account_id = AccountId::new([1; 32]);
         let account = state.get_account_by_id(&account_id);
-        // Assert the target account only differs from the default account in the program owner field
+        // Assert the target account only differs from the default account in the program owner
+        // field
         assert_ne!(account.program_owner, Account::default().program_owner);
         assert_eq!(account.balance, Account::default().balance);
         assert_eq!(account.nonce, Account::default().nonce);
@@ -2103,7 +2107,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             program.id(),
-            vec![to, from], //The chain_caller program permutes the account order in the chain call
+            vec![to, from], // The chain_caller program permutes the account order in the call
             vec![0],
             instruction,
         )

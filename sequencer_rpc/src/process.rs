@@ -3,11 +3,6 @@ use std::collections::HashMap;
 use actix_web::Error as HttpError;
 use base58::FromBase58;
 use base64::{Engine, engine::general_purpose};
-use log::warn;
-use nssa::{self, program::Program};
-use sequencer_core::{TransactionMalformationError, config::AccountInitialData};
-use serde_json::Value;
-
 use common::{
     HashType,
     block::HashableBlockData,
@@ -18,19 +13,20 @@ use common::{
         requests::{
             GetAccountBalanceRequest, GetAccountBalanceResponse, GetAccountRequest,
             GetAccountResponse, GetAccountsNoncesRequest, GetAccountsNoncesResponse,
-            GetInitialTestnetAccountsRequest, GetProgramIdsRequest, GetProgramIdsResponse,
-            GetProofForCommitmentRequest, GetProofForCommitmentResponse,
-            GetTransactionByHashRequest, GetTransactionByHashResponse,
+            GetBlockDataRequest, GetBlockDataResponse, GetGenesisIdRequest, GetGenesisIdResponse,
+            GetInitialTestnetAccountsRequest, GetLastBlockRequest, GetLastBlockResponse,
+            GetProgramIdsRequest, GetProgramIdsResponse, GetProofForCommitmentRequest,
+            GetProofForCommitmentResponse, GetTransactionByHashRequest,
+            GetTransactionByHashResponse, HelloRequest, HelloResponse, SendTxRequest,
+            SendTxResponse,
         },
     },
     transaction::{EncodedTransaction, NSSATransaction},
 };
-
-use common::rpc_primitives::requests::{
-    GetBlockDataRequest, GetBlockDataResponse, GetGenesisIdRequest, GetGenesisIdResponse,
-    GetLastBlockRequest, GetLastBlockResponse, HelloRequest, HelloResponse, SendTxRequest,
-    SendTxResponse,
-};
+use log::warn;
+use nssa::{self, program::Program};
+use sequencer_core::{TransactionMalformationError, config::AccountInitialData};
+use serde_json::Value;
 
 use super::{JsonHandler, respond, types::err_rpc::RpcErr};
 
@@ -91,7 +87,8 @@ impl JsonHandler {
         let authenticated_tx = sequencer_core::transaction_pre_check(transaction)
             .inspect_err(|err| warn!("Error at pre_check {err:#?}"))?;
 
-        // TODO: Do we need a timeout here? It will be usable if we have too many transactions to process
+        // TODO: Do we need a timeout here? It will be usable if we have too many transactions to
+        // process
         self.mempool_handle
             .push(authenticated_tx.into())
             .await
@@ -318,11 +315,9 @@ impl JsonHandler {
 mod tests {
     use std::sync::Arc;
 
-    use crate::{JsonHandler, rpc_handler};
     use base58::ToBase58;
     use base64::{Engine, engine::general_purpose};
     use common::{test_utils::sequencer_sign_key_for_testing, transaction::EncodedTransaction};
-
     use sequencer_core::{
         SequencerCore,
         config::{AccountInitialData, SequencerConfig},
@@ -330,6 +325,8 @@ mod tests {
     use serde_json::Value;
     use tempfile::tempdir;
     use tokio::sync::Mutex;
+
+    use crate::{JsonHandler, rpc_handler};
 
     fn sequencer_config_for_tests() -> SequencerConfig {
         let tempdir = tempdir().unwrap();

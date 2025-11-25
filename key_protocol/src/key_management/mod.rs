@@ -11,7 +11,7 @@ pub mod ephemeral_key_holder;
 pub mod secret_holders;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-///Entrypoint to key management
+/// Entrypoint to key management
 pub struct KeyChain {
     secret_spending_key: SecretSpendingKey,
     pub private_key_holder: PrivateKeyHolder,
@@ -21,8 +21,8 @@ pub struct KeyChain {
 
 impl KeyChain {
     pub fn new_os_random() -> Self {
-        //Currently dropping SeedHolder at the end of initialization.
-        //Now entirely sure if we need it in the future.
+        // Currently dropping SeedHolder at the end of initialization.
+        // Now entirely sure if we need it in the future.
         let seed_holder = SeedHolder::new_os_random();
         let secret_spending_key = seed_holder.produce_top_secret_key_holder();
 
@@ -56,8 +56,7 @@ impl KeyChain {
 mod tests {
     use aes_gcm::aead::OsRng;
     use base58::ToBase58;
-    use k256::AffinePoint;
-    use k256::elliptic_curve::group::GroupEncoding;
+    use k256::{AffinePoint, elliptic_curve::group::GroupEncoding};
     use rand::RngCore;
 
     use super::*;

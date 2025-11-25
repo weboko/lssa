@@ -9,15 +9,15 @@ use crate::{
     helperfunctions::{AccountPrivacyKind, parse_addr_with_privacy_prefix},
 };
 
-///Represents generic CLI subcommand for a wallet working with pinata program
+/// Represents generic CLI subcommand for a wallet working with pinata program
 #[derive(Subcommand, Debug, Clone)]
 pub enum PinataProgramAgnosticSubcommand {
-    ///Claim pinata
+    /// Claim pinata
     Claim {
-        ///to_account_id - valid 32 byte base58 string with privacy prefix
+        /// to_account_id - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         to_account_id: String,
-        ///solution - solution to pinata challenge
+        /// solution - solution to pinata challenge
         #[arg(long)]
         solution: u128,
     },
@@ -59,48 +59,48 @@ impl WalletSubcommand for PinataProgramAgnosticSubcommand {
     }
 }
 
-///Represents generic CLI subcommand for a wallet working with pinata program
+/// Represents generic CLI subcommand for a wallet working with pinata program
 #[derive(Subcommand, Debug, Clone)]
 pub enum PinataProgramSubcommand {
-    ///Public execution
+    /// Public execution
     #[command(subcommand)]
     Public(PinataProgramSubcommandPublic),
-    ///Private execution
+    /// Private execution
     #[command(subcommand)]
     Private(PinataProgramSubcommandPrivate),
 }
 
-///Represents generic public CLI subcommand for a wallet working with pinata program
+/// Represents generic public CLI subcommand for a wallet working with pinata program
 #[derive(Subcommand, Debug, Clone)]
 pub enum PinataProgramSubcommandPublic {
     // TODO: Testnet only. Refactor to prevent compilation on mainnet.
     // Claim piñata prize
     Claim {
-        ///pinata_account_id - valid 32 byte hex string
+        /// pinata_account_id - valid 32 byte hex string
         #[arg(long)]
         pinata_account_id: String,
-        ///winner_account_id - valid 32 byte hex string
+        /// winner_account_id - valid 32 byte hex string
         #[arg(long)]
         winner_account_id: String,
-        ///solution - solution to pinata challenge
+        /// solution - solution to pinata challenge
         #[arg(long)]
         solution: u128,
     },
 }
 
-///Represents generic private CLI subcommand for a wallet working with pinata program
+/// Represents generic private CLI subcommand for a wallet working with pinata program
 #[derive(Subcommand, Debug, Clone)]
 pub enum PinataProgramSubcommandPrivate {
     // TODO: Testnet only. Refactor to prevent compilation on mainnet.
     // Claim piñata prize
     ClaimPrivateOwned {
-        ///pinata_account_id - valid 32 byte hex string
+        /// pinata_account_id - valid 32 byte hex string
         #[arg(long)]
         pinata_account_id: String,
-        ///winner_account_id - valid 32 byte hex string
+        /// winner_account_id - valid 32 byte hex string
         #[arg(long)]
         winner_account_id: String,
-        ///solution - solution to pinata challenge
+        /// solution - solution to pinata challenge
         #[arg(long)]
         solution: u128,
     },

@@ -27,8 +27,9 @@ pub struct PersistentAccountDataPrivate {
     pub key_chain: KeyChain,
 }
 
-//Big difference in enum variants sizes
-//however it is improbable, that we will have that much accounts, that it will substantialy affect memory
+// Big difference in enum variants sizes
+// however it is improbable, that we will have that much accounts, that it will substantialy affect
+// memory
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InitialAccountData {
@@ -36,8 +37,9 @@ pub enum InitialAccountData {
     Private(InitialAccountDataPrivate),
 }
 
-//Big difference in enum variants sizes
-//however it is improbable, that we will have that much accounts, that it will substantialy affect memory
+// Big difference in enum variants sizes
+// however it is improbable, that we will have that much accounts, that it will substantialy affect
+// memory
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PersistentAccountData {
@@ -113,19 +115,19 @@ pub struct GasConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletConfig {
-    ///Override rust log (env var logging level)
+    /// Override rust log (env var logging level)
     pub override_rust_log: Option<String>,
-    ///Sequencer URL
+    /// Sequencer URL
     pub sequencer_addr: String,
-    ///Sequencer polling duration for new blocks in milliseconds
+    /// Sequencer polling duration for new blocks in milliseconds
     pub seq_poll_timeout_millis: u64,
-    ///Sequencer polling max number of blocks
+    /// Sequencer polling max number of blocks
     pub seq_poll_max_blocks: usize,
-    ///Sequencer polling max number error retries
+    /// Sequencer polling max number error retries
     pub seq_poll_max_retries: u64,
-    ///Sequencer polling error retry delay in milliseconds
+    /// Sequencer polling error retry delay in milliseconds
     pub seq_poll_retry_delay_millis: u64,
-    ///Initial accounts for wallet
+    /// Initial accounts for wallet
     pub initial_accounts: Vec<InitialAccountData>,
 }
 

@@ -9,17 +9,17 @@ use crate::{
     helperfunctions::{AccountPrivacyKind, parse_addr_with_privacy_prefix},
 };
 
-///Represents generic CLI subcommand for a wallet working with token program
+/// Represents generic CLI subcommand for a wallet working with token program
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramAgnosticSubcommand {
-    ///Produce a new token
+    /// Produce a new token
     ///
-    ///Currently the only supported privacy options is for public definition
+    /// Currently the only supported privacy options is for public definition
     New {
-        ///definition_account_id - valid 32 byte base58 string with privacy prefix
+        /// definition_account_id - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         definition_account_id: String,
-        ///supply_account_id - valid 32 byte base58 string with privacy prefix
+        /// supply_account_id - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         supply_account_id: String,
         #[arg(short, long)]
@@ -27,25 +27,26 @@ pub enum TokenProgramAgnosticSubcommand {
         #[arg(short, long)]
         total_supply: u128,
     },
-    ///Send tokens from one account to another with variable privacy
+    /// Send tokens from one account to another with variable privacy
     ///
-    ///If receiver is private, then `to` and (`to_npk` , `to_ipk`) is a mutually exclusive patterns.
+    /// If receiver is private, then `to` and (`to_npk` , `to_ipk`) is a mutually exclusive
+    /// patterns.
     ///
-    ///First is used for owned accounts, second otherwise.
+    /// First is used for owned accounts, second otherwise.
     Send {
-        ///from - valid 32 byte base58 string with privacy prefix
+        /// from - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         from: String,
-        ///to - valid 32 byte base58 string with privacy prefix
+        /// to - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         to: Option<String>,
-        ///to_npk - valid 32 byte hex string
+        /// to_npk - valid 32 byte hex string
         #[arg(long)]
         to_npk: Option<String>,
-        ///to_ipk - valid 33 byte hex string
+        /// to_ipk - valid 33 byte hex string
         #[arg(long)]
         to_ipk: Option<String>,
-        ///amount - amount of balance to move
+        /// amount - amount of balance to move
         #[arg(long)]
         amount: u128,
     },
@@ -90,11 +91,13 @@ impl WalletSubcommand for TokenProgramAgnosticSubcommand {
                         )
                     }
                     (AccountPrivacyKind::Private, AccountPrivacyKind::Private) => {
-                        //ToDo: maybe implement this one. It is not immediately clear why definition should be private.
+                        // ToDo: maybe implement this one. It is not immediately clear why
+                        // definition should be private.
                         anyhow::bail!("Unavailable privacy pairing")
                     }
                     (AccountPrivacyKind::Private, AccountPrivacyKind::Public) => {
-                        //ToDo: Probably valid. If definition is not public, but supply is it is very suspicious.
+                        // ToDo: Probably valid. If definition is not public, but supply is it is
+                        // very suspicious.
                         anyhow::bail!("Unavailable privacy pairing")
                     }
                 };
@@ -195,27 +198,27 @@ impl WalletSubcommand for TokenProgramAgnosticSubcommand {
     }
 }
 
-///Represents generic CLI subcommand for a wallet working with token_program
+/// Represents generic CLI subcommand for a wallet working with token_program
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramSubcommand {
-    ///Public execution
+    /// Public execution
     #[command(subcommand)]
     Public(TokenProgramSubcommandPublic),
-    ///Private execution
+    /// Private execution
     #[command(subcommand)]
     Private(TokenProgramSubcommandPrivate),
-    ///Deshielded execution
+    /// Deshielded execution
     #[command(subcommand)]
     Deshielded(TokenProgramSubcommandDeshielded),
-    ///Shielded execution
+    /// Shielded execution
     #[command(subcommand)]
     Shielded(TokenProgramSubcommandShielded),
 }
 
-///Represents generic public CLI subcommand for a wallet working with token_program
+/// Represents generic public CLI subcommand for a wallet working with token_program
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramSubcommandPublic {
-    //Create a new token using the token program
+    // Create a new token using the token program
     CreateNewToken {
         #[arg(short, long)]
         definition_account_id: String,
@@ -226,7 +229,7 @@ pub enum TokenProgramSubcommandPublic {
         #[arg(short, long)]
         total_supply: u128,
     },
-    //Transfer tokens using the token program
+    // Transfer tokens using the token program
     TransferToken {
         #[arg(short, long)]
         sender_account_id: String,
@@ -237,10 +240,10 @@ pub enum TokenProgramSubcommandPublic {
     },
 }
 
-///Represents generic private CLI subcommand for a wallet working with token_program
+/// Represents generic private CLI subcommand for a wallet working with token_program
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramSubcommandPrivate {
-    //Create a new token using the token program
+    // Create a new token using the token program
     CreateNewTokenPrivateOwned {
         #[arg(short, long)]
         definition_account_id: String,
@@ -251,7 +254,7 @@ pub enum TokenProgramSubcommandPrivate {
         #[arg(short, long)]
         total_supply: u128,
     },
-    //Transfer tokens using the token program
+    // Transfer tokens using the token program
     TransferTokenPrivateOwned {
         #[arg(short, long)]
         sender_account_id: String,
@@ -260,14 +263,14 @@ pub enum TokenProgramSubcommandPrivate {
         #[arg(short, long)]
         balance_to_move: u128,
     },
-    //Transfer tokens using the token program
+    // Transfer tokens using the token program
     TransferTokenPrivateForeign {
         #[arg(short, long)]
         sender_account_id: String,
-        ///recipient_npk - valid 32 byte hex string
+        /// recipient_npk - valid 32 byte hex string
         #[arg(long)]
         recipient_npk: String,
-        ///recipient_ipk - valid 33 byte hex string
+        /// recipient_ipk - valid 33 byte hex string
         #[arg(long)]
         recipient_ipk: String,
         #[arg(short, long)]
@@ -275,10 +278,10 @@ pub enum TokenProgramSubcommandPrivate {
     },
 }
 
-///Represents deshielded public CLI subcommand for a wallet working with token_program
+/// Represents deshielded public CLI subcommand for a wallet working with token_program
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramSubcommandDeshielded {
-    //Transfer tokens using the token program
+    // Transfer tokens using the token program
     TransferTokenDeshielded {
         #[arg(short, long)]
         sender_account_id: String,
@@ -289,10 +292,10 @@ pub enum TokenProgramSubcommandDeshielded {
     },
 }
 
-///Represents generic shielded CLI subcommand for a wallet working with token_program
+/// Represents generic shielded CLI subcommand for a wallet working with token_program
 #[derive(Subcommand, Debug, Clone)]
 pub enum TokenProgramSubcommandShielded {
-    //Transfer tokens using the token program
+    // Transfer tokens using the token program
     TransferTokenShieldedOwned {
         #[arg(short, long)]
         sender_account_id: String,
@@ -301,14 +304,14 @@ pub enum TokenProgramSubcommandShielded {
         #[arg(short, long)]
         balance_to_move: u128,
     },
-    //Transfer tokens using the token program
+    // Transfer tokens using the token program
     TransferTokenShieldedForeign {
         #[arg(short, long)]
         sender_account_id: String,
-        ///recipient_npk - valid 32 byte hex string
+        /// recipient_npk - valid 32 byte hex string
         #[arg(long)]
         recipient_npk: String,
-        ///recipient_ipk - valid 33 byte hex string
+        /// recipient_ipk - valid 33 byte hex string
         #[arg(long)]
         recipient_ipk: String,
         #[arg(short, long)]

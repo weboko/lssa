@@ -66,31 +66,31 @@ impl TokenHolding {
     }
 }
 
-///Represents generic chain CLI subcommand
+/// Represents generic chain CLI subcommand
 #[derive(Subcommand, Debug, Clone)]
 pub enum AccountSubcommand {
-    ///Get account data
+    /// Get account data
     Get {
-        ///Flag to get raw account data
+        /// Flag to get raw account data
         #[arg(short, long)]
         raw: bool,
-        ///Valid 32 byte base58 string with privacy prefix
+        /// Valid 32 byte base58 string with privacy prefix
         #[arg(short, long)]
         account_id: String,
     },
-    ///Produce new public or private account
+    /// Produce new public or private account
     #[command(subcommand)]
     New(NewSubcommand),
-    ///Sync private accounts
+    /// Sync private accounts
     SyncPrivate {},
 }
 
-///Represents generic register CLI subcommand
+/// Represents generic register CLI subcommand
 #[derive(Subcommand, Debug, Clone)]
 pub enum NewSubcommand {
-    ///Register new public account
+    /// Register new public account
     Public {},
-    ///Register new private account
+    /// Register new private account
     Private {},
 }
 

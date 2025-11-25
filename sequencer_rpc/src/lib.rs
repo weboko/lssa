@@ -9,16 +9,15 @@ use common::{
     transaction::EncodedTransaction,
 };
 use mempool::MemPoolHandle;
+pub use net_utils::*;
 use sequencer_core::SequencerCore;
 use serde::Serialize;
 use serde_json::Value;
-
-pub use net_utils::*;
 use tokio::sync::Mutex;
 
 use self::types::err_rpc::RpcErr;
 
-//ToDo: Add necessary fields
+// ToDo: Add necessary fields
 pub struct JsonHandler {
     sequencer_state: Arc<Mutex<SequencerCore>>,
     mempool_handle: MemPoolHandle<EncodedTransaction>,

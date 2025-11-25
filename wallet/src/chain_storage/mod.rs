@@ -72,9 +72,8 @@ impl WalletChainStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::InitialAccountData;
-
     use super::*;
+    use crate::config::InitialAccountData;
 
     fn create_initial_accounts() -> Vec<InitialAccountData> {
         let initial_acc1 = serde_json::from_str(

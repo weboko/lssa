@@ -1,4 +1,3 @@
-use anyhow::Result;
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -7,6 +6,7 @@ use std::{
 };
 
 use actix_web::dev::ServerHandle;
+use anyhow::Result;
 use common::{PINATA_BASE58, sequencer_client::SequencerClient};
 use log::info;
 use nssa::{AccountId, ProgramDeploymentTransaction, program::Program};
@@ -31,10 +31,10 @@ use crate::{
     ACC_RECEIVER, ACC_RECEIVER_PRIVATE, ACC_SENDER, ACC_SENDER_PRIVATE,
     NSSA_PROGRAM_FOR_TEST_DATA_CHANGER, TIME_TO_WAIT_FOR_BLOCK_SECONDS,
     fetch_privacy_preserving_tx, make_private_account_input_from_str,
-    make_public_account_input_from_str, replace_home_dir_with_temp_dir_in_configs,
-    tps_test_utils::TpsTestManager,
+    make_public_account_input_from_str, post_test, pre_test,
+    replace_home_dir_with_temp_dir_in_configs, tps_test_utils::TpsTestManager,
+    verify_commitment_is_in_state,
 };
-use crate::{post_test, pre_test, verify_commitment_is_in_state};
 
 type TestFunction = fn(PathBuf) -> Pin<Box<dyn Future<Output = ()>>>;
 
@@ -276,8 +276,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         assert_eq!(account.nonce, 0);
     }
 
-    /// This test creates a new token using the token program. After creating the token, the test executes a
-    /// token transfer to a new account.
+    /// This test creates a new token using the token program. After creating the token, the test
+    /// executes a token transfer to a new account.
     #[nssa_integration_test]
     pub async fn test_success_token_program() {
         info!("########## test_success_token_program ##########");
@@ -364,7 +364,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             ]
         );
 
-        // Check the status of the token holding account with the total supply is the expected after the execution
+        // Check the status of the token holding account with the total supply is the expected after
+        // the execution
         let supply_acc = seq_client
             .get_account(supply_account_id.to_string())
             .await
@@ -374,8 +375,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The account must be owned by the token program
         assert_eq!(supply_acc.program_owner, Program::token().id());
         // The data of a token definition account has the following layout:
-        // [ 0x01 || corresponding_token_definition_id (32 bytes) || balance (little endian 16 bytes) ]
-        // First byte of the data equal to 1 means it's a token holding account
+        // [ 0x01 || corresponding_token_definition_id (32 bytes) || balance (little endian 16
+        // bytes) ] First byte of the data equal to 1 means it's a token holding account
         assert_eq!(supply_acc.data[0], 1);
         // Bytes from 1 to 33 represent the id of the token this account is associated with.
         // In this example, this is a token account of the newly created token, so it is expected
@@ -403,7 +404,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
 
-        // Check the status of the account at `supply_account_id` is the expected after the execution
+        // Check the status of the account at `supply_account_id` is the expected after the
+        // execution
         let supply_acc = seq_client
             .get_account(supply_account_id.to_string())
             .await
@@ -420,7 +422,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             30
         );
 
-        // Check the status of the account at `recipient_account_id` is the expected after the execution
+        // Check the status of the account at `recipient_account_id` is the expected after the
+        // execution
         let recipient_acc = seq_client
             .get_account(recipient_account_id.to_string())
             .await
@@ -439,8 +442,9 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         );
     }
 
-    /// This test creates a new private token using the token program. After creating the token, the test executes a
-    /// private token transfer to a new account. All accounts are owned except definition.
+    /// This test creates a new private token using the token program. After creating the token, the
+    /// test executes a private token transfer to a new account. All accounts are owned except
+    /// definition.
     #[nssa_integration_test]
     pub async fn test_success_token_program_private_owned() {
         info!("########## test_success_token_program_private_owned ##########");
@@ -559,7 +563,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .unwrap();
         assert!(verify_commitment_is_in_state(new_commitment2, &seq_client).await);
 
-        // Transfer additional 7 tokens from `supply_acc` to the account at account_id `recipient_account_id`
+        // Transfer additional 7 tokens from `supply_acc` to the account at account_id
+        // `recipient_account_id`
         let subcommand = TokenProgramAgnosticSubcommand::Send {
             from: make_private_account_input_from_str(&supply_account_id.to_string()),
             to: Some(make_private_account_input_from_str(
@@ -593,8 +598,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         assert!(verify_commitment_is_in_state(new_commitment2, &seq_client).await);
     }
 
-    /// This test creates a new private token using the token program. After creating the token, the test executes a
-    /// private token transfer to a new account.
+    /// This test creates a new private token using the token program. After creating the token, the
+    /// test executes a private token transfer to a new account.
     #[nssa_integration_test]
     pub async fn test_success_token_program_private_claiming_path() {
         info!("########## test_success_token_program_private_claiming_path ##########");
@@ -728,8 +733,9 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         assert!(verify_commitment_is_in_state(new_commitment2, &seq_client).await);
     }
 
-    /// This test creates a new public token using the token program. After creating the token, the test executes a
-    /// shielded token transfer to a new account. All accounts are owned except definition.
+    /// This test creates a new public token using the token program. After creating the token, the
+    /// test executes a shielded token transfer to a new account. All accounts are owned except
+    /// definition.
     #[nssa_integration_test]
     pub async fn test_success_token_program_shielded_owned() {
         info!("########## test_success_token_program_shielded_owned ##########");
@@ -833,7 +839,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .unwrap();
         assert!(verify_commitment_is_in_state(new_commitment2, &seq_client).await);
 
-        // Transfer additional 7 tokens from `supply_acc` to the account at account_id `recipient_account_id`
+        // Transfer additional 7 tokens from `supply_acc` to the account at account_id
+        // `recipient_account_id`
         let subcommand = TokenProgramAgnosticSubcommand::Send {
             from: make_public_account_input_from_str(&supply_account_id.to_string()),
             to: Some(make_private_account_input_from_str(
@@ -862,8 +869,9 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         assert!(verify_commitment_is_in_state(new_commitment2, &seq_client).await);
     }
 
-    /// This test creates a new private token using the token program. After creating the token, the test executes a
-    /// deshielded token transfer to a new account. All accounts are owned except definition.
+    /// This test creates a new private token using the token program. After creating the token, the
+    /// test executes a deshielded token transfer to a new account. All accounts are owned
+    /// except definition.
     #[nssa_integration_test]
     pub async fn test_success_token_program_deshielded_owned() {
         info!("########## test_success_token_program_deshielded_owned ##########");
@@ -977,7 +985,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .unwrap();
         assert!(verify_commitment_is_in_state(new_commitment1, &seq_client).await);
 
-        // Transfer additional 7 tokens from `supply_acc` to the account at account_id `recipient_account_id`
+        // Transfer additional 7 tokens from `supply_acc` to the account at account_id
+        // `recipient_account_id`
         let subcommand = TokenProgramAgnosticSubcommand::Send {
             from: make_private_account_input_from_str(&supply_account_id.to_string()),
             to: Some(make_public_account_input_from_str(
@@ -1425,7 +1434,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         // The program is the data changer and takes one account as input.
         // We pass an uninitialized account and we expect after execution to be owned by the data
-        // changer program (NSSA account claiming mechanism) with data equal to [0] (due to program logic)
+        // changer program (NSSA account claiming mechanism) with data equal to [0] (due to program
+        // logic)
         let data_changer = Program::new(bytecode).unwrap();
         let account_id: AccountId = "11".repeat(16).parse().unwrap();
         let message = nssa::public_transaction::Message::try_new(
@@ -1617,7 +1627,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let wallet_config = fetch_config().await.unwrap();
         let old_seq_poll_retry_delay_millis = wallet_config.seq_poll_retry_delay_millis;
 
-        //Change config field
+        // Change config field
         let command = Command::Config(ConfigSubcommand::Set {
             key: "seq_poll_retry_delay_millis".to_string(),
             value: "1000".to_string(),
@@ -1628,7 +1638,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         assert_eq!(wallet_config.seq_poll_retry_delay_millis, 1000);
 
-        //Return how it was at the beginning
+        // Return how it was at the beginning
         let command = Command::Config(ConfigSubcommand::Set {
             key: "seq_poll_retry_delay_millis".to_string(),
             value: old_seq_poll_retry_delay_millis.to_string(),

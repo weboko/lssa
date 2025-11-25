@@ -39,9 +39,8 @@ impl WitnessSet {
 
 #[cfg(test)]
 mod tests {
-    use crate::AccountId;
-
     use super::*;
+    use crate::AccountId;
 
     #[test]
     fn test_for_message_constructor() {

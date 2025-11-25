@@ -1,8 +1,8 @@
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use std::path::PathBuf;
 
 use actix_web::dev::ServerHandle;
 use anyhow::Result;
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use clap::Parser;
 use common::{
     sequencer_client::SequencerClient,
@@ -96,13 +96,13 @@ pub async fn post_test(residual: (ServerHandle, JoinHandle<Result<()>>, TempDir)
     let wallet_home = wallet::helperfunctions::get_home().unwrap();
     let persistent_data_home = wallet_home.join("storage.json");
 
-    //Removing persistent accounts after run to not affect other executions
-    //Not necessary an error, if fails as there is tests for failure scenario
+    // Removing persistent accounts after run to not affect other executions
+    // Not necessary an error, if fails as there is tests for failure scenario
     let _ = std::fs::remove_file(persistent_data_home)
         .inspect_err(|err| warn!("Failed to remove persistent data with err {err:#?}"));
 
-    //At this point all of the references to sequencer_core must be lost.
-    //So they are dropped and tempdirs will be dropped too,
+    // At this point all of the references to sequencer_core must be lost.
+    // So they are dropped and tempdirs will be dropped too,
 }
 
 pub async fn main_tests_runner() -> Result<()> {
