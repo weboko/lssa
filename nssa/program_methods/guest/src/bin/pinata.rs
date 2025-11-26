@@ -1,6 +1,5 @@
 use nssa_core::program::{ProgramInput, read_nssa_inputs, write_nssa_outputs};
 use risc0_zkvm::{
-    serde::to_vec,
     sha::{Impl, Sha256},
 };
 

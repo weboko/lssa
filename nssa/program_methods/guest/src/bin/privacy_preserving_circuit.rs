@@ -37,13 +37,16 @@ fn main() {
         panic!("Call stack is incomplete");
     }
 
-    for i in 0..(program_outputs.len() - 1) {
-        let Some(chained_call) = &program_outputs[i].chained_call else {
+    for window in program_outputs.windows(2) {
+        let caller = &window[0];
+        let callee = &window[1];
+
+        let Some(chained_call) = &caller.chained_call else {
             panic!("Expected chained call");
         };
 
         // Check that instruction data in caller is the instruction data in callee
-        if chained_call.instruction_data != program_outputs[i + 1].instruction_data {
+        if chained_call.instruction_data != callee.instruction_data {
             panic!("Invalid instruction data");
         }
     }
