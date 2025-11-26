@@ -59,16 +59,16 @@ fn main() {
         instruction_words,
     ) = read_nssa_inputs();
 
-    match (pre_states.as_slice(), balance_to_move) {
+    let (pre_states, post_states) = match (pre_states.as_slice(), balance_to_move) {
         ([account_to_claim], 0) => {
             let (pre, post) = initialize_account(account_to_claim.clone());
-            write_nssa_outputs(instruction_words, vec![pre], vec![post]);
+            (vec![pre], vec![post])
         }
         ([sender, recipient], balance_to_move) => {
-            let (pre_states, post_states) =
-                transfer(sender.clone(), recipient.clone(), balance_to_move);
-            write_nssa_outputs(instruction_words, pre_states, post_states);
+            transfer(sender.clone(), recipient.clone(), balance_to_move)
         }
         _ => panic!("invalid params"),
-    }
+    };
+
+    write_nssa_outputs(instruction_words, pre_states, post_states);
 }
