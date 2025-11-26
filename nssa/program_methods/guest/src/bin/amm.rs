@@ -1,4 +1,5 @@
 use nssa_core::{
+    address::Address,
     account::{Account, AccountId, AccountWithMetadata, Data},
     program::{ProgramId, ProgramInput, ChainedCall, read_nssa_inputs, write_nssa_outputs_with_chained_call},
 };
@@ -36,8 +37,8 @@ use bytemuck;
 const POOL_DEFINITION_DATA_SIZE: usize = 240;
 
 struct PoolDefinition{
-    definition_token_a_id: AccountId,
-    definition_token_b_id: AccountId,
+    definition_token_a_id: Address,
+    definition_token_b_id: Address,
     vault_a_addr: AccountId,
     vault_b_addr: AccountId,
     liquidity_pool_id: AccountId,
@@ -50,9 +51,7 @@ struct PoolDefinition{
 
 impl PoolDefinition {
     fn into_data(self) -> Vec<u8> {
-        //let u8_token_program_id : [u8;32] = bytemuck::cast(self.token_program_id);
-        //TODO: fix to include token Program
-
+        let u8_token_program_id : [u8;32] = bytemuck::cast(self.token_program_id);
 
         let mut bytes = [0; POOL_DEFINITION_DATA_SIZE];
         bytes[0..32].copy_from_slice(&self.definition_token_a_id.to_bytes());
@@ -63,7 +62,7 @@ impl PoolDefinition {
         bytes[160..176].copy_from_slice(&self.liquidity_pool_cap.to_le_bytes());
         bytes[176..192].copy_from_slice(&self.reserve_a.to_le_bytes());
         bytes[192..208].copy_from_slice(&self.reserve_b.to_le_bytes());
-        //bytes[208..].copy_from_slice(&u8_token_program_id);
+        bytes[208..].copy_from_slice(&u8_token_program_id);
         bytes.into()
     }
 
@@ -133,148 +132,6 @@ impl TokenHolding {
     }
 }
 
-/*
- //TODO-useful
-fn convert_u8_vec_to_u32_vec() {
-
-}
-*/
-
-fn new_definition(
-        pre_states: &[AccountWithMetadata],
-        balance_in: &[u128],
-        token_program: ProgramId,
-    ) -> (Vec<Account>, Vec<ChainedCall>) {
-
-    //Pool accounts: pool itself, and its 2 vaults and LP token
-    //2 accounts for funding tokens
-    //initial funder's LP account
-    if pre_states.len() != 7 {
-        panic!("Invalid number of input accounts")
-    }
-
-    if balance_in.len() != 2 {
-        panic!("Invalid number of balance")
-    }
-
-    let pool = &pre_states[0];
-    let vault_a = &pre_states[1];
-    let vault_b = &pre_states[2];
-    let pool_lp = &pre_states[3];
-    let user_a = &pre_states[4];
-    let user_b = &pre_states[5];
-    let user_lp = &pre_states[6];
-
-    /*
-    //TODO: fix?
-    if pool.account == Account::default() || !pool.is_authorized {
-        panic!("Pool account is uninitiated or not authorized");
-    }
-    */
-
-    // TODO: temporary band-aid to prevent vault's from being
-    // owned by the amm program.
-    if vault_a.account == Account::default() || vault_b.account == Account::default() {
-        panic!("Vault accounts uninitialized")
-    }
-    if pool_lp.account == Account::default() {
-        panic!("Pool LP must be initialized first")
-    }
-
-    let amount_a = balance_in[0];
-    let amount_b = balance_in[1];
-
-    // Prevents pool constant coefficient (k) from being 0.
-    if amount_a == 0 || amount_b == 0 {
-        panic!("Balances must be nonzero")
-    }
-
-    // Verify token_a and token_b are different
-    let definition_token_a_id = TokenHolding::parse(&vault_a.account.data).unwrap().definition_id;
-    let definition_token_b_id = TokenHolding::parse(&vault_b.account.data).unwrap().definition_id;
-   
-    if definition_token_a_id == definition_token_b_id {
-        panic!("Vaults are for the same token")
-    }
-
-    // 5. Update pool account
-    let mut pool_post = Account::default();
-    let pool_post_definition = PoolDefinition {
-            definition_token_a_id,
-            definition_token_b_id,
-            vault_a_addr: vault_a.account_id.clone(),
-            vault_b_addr: vault_b.account_id.clone(),
-            liquidity_pool_id: pool_lp.account_id.clone(),
-            liquidity_pool_cap: amount_a,
-            reserve_a: amount_a,
-            reserve_b: amount_b,
-            token_program_id: token_program,  
-    };
-
-    pool_post.data = pool_post_definition.into_data();
-
-    let mut chained_call = Vec::new();
-
-   
-    let mut instruction: [u8;32] = [0; 32];
-    instruction[0] = 1;      
-    instruction[1..17].copy_from_slice(&amount_a.to_le_bytes());
-
-    //works?
-    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).unwrap();
-    /*
-    //works?
-    let mut instruction_data: [u32;8] = [0; 8];
-            instruction_data[0] = u32::from_le_bytes(instruction[0..4].try_into().unwrap());
-            instruction_data[1] = u32::from_le_bytes(instruction[4..8].try_into().unwrap());
-            instruction_data[2] = u32::from_le_bytes(instruction[8..12].try_into().unwrap());
-            instruction_data[3] = u32::from_le_bytes(instruction[12..16].try_into().unwrap());
-            instruction_data[4] = u32::from_le_bytes(instruction[16..20].try_into().unwrap());
-            instruction_data[5] = u32::from_le_bytes(instruction[20..24].try_into().unwrap());
-            instruction_data[6] = u32::from_le_bytes(instruction[24..28].try_into().unwrap());
-            instruction_data[7] = u32::from_le_bytes(instruction[28..32].try_into().unwrap());       
-*/
-    //TODO bytemuck seems to cause issues (non-deterministic)
-//    instruction_data = bytemuck::try_cast_slice(&instruction);
-   
-    //TODO: current testing location issue
-    let call_token_a = ChainedCall{
-            program_id: token_program, // This is likely the issue
-            instruction_data: &instruction_data,//bytemuck::try_cast_slice(&instruction),//.to_vec(),
-            pre_states: vec![user_a.clone(), vault_a.clone()]
-        };
-        
-    /*
-    instruction_data[1..17].copy_from_slice(&amount_b.to_le_bytes());
-    let call_token_b = ChainedCall{
-            program_id: token_program,
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
-            pre_states: vec![user_b.clone(), vault_b.clone()]
-        };
-
-    instruction_data[1..17].copy_from_slice(&amount_a.to_le_bytes());
-    let call_token_lp = ChainedCall{
-            program_id: token_program,
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
-            pre_states: vec![pool_lp.clone(), user_lp.clone()]
-        };
-
-    chained_call.push(call_token_lp);
-    chained_call.push(call_token_b);
-    chained_call.push(call_token_a);
-    */
-
-    let post_states = vec![pool_post.clone(), 
-        pre_states[1].account.clone(),
-        pre_states[2].account.clone(),
-        pre_states[3].account.clone(),
-        pre_states[4].account.clone(),
-        pre_states[5].account.clone(),
-        pre_states[6].account.clone()];
-
-    (post_states.clone(), chained_call)
-}
-
 
 type Instruction = Vec<u8>;
 fn main() {
@@ -306,18 +163,28 @@ fn main() {
             write_nssa_outputs_with_chained_call(pre_states, post_states, chained_call);
         }
         1 => {
-            let token_id = AccountId::new(instruction[1..33].try_into().unwrap());
-            let amount = u128::from_le_bytes(instruction[33..49].try_into().unwrap());
+            let mut token_addr: [u8;32] = [0;32];
+            token_addr[0..].copy_from_slice(&instruction[17..49]);
+            
+            let token_addr = Address::new(token_addr);
+            
+            let amount = u128::from_le_bytes(instruction[1..17].try_into().unwrap());
 
-            let (post_states, chained_call) = swap(&pre_states, amount, token_id);
+            let (post_states, chained_call) = swap(&pre_states, amount, token_addr);
 
             write_nssa_outputs_with_chained_call(pre_states, post_states, chained_call);
         }
         2 => {
+
+            let balance_a = u128::from_le_bytes(instruction[1..17].try_into().unwrap());
+            let balance_b = u128::from_le_bytes(instruction[17..33].try_into().unwrap());
+
+            let mut token_addr: [u8;32] = [0;32];
+            token_addr[0..].copy_from_slice(&instruction[33..65]);
+            let token_addr = Address::new(token_addr);
+
             let (post_states, chained_call) = add_liquidity(&pre_states,
-                        &[u128::from_le_bytes(instruction[1..17].try_into().unwrap()),
-                            u128::from_le_bytes(instruction[16..33].try_into().unwrap()),],
-                        AccountId::new(instruction[33..65].try_into().unwrap()));
+                        &[balance_a, balance_b], token_addr.clone());
            write_nssa_outputs_with_chained_call(pre_states, post_states, chained_call);
         }
         3 => {
@@ -330,10 +197,127 @@ fn main() {
     };
 }
 
+fn new_definition(
+        pre_states: &[AccountWithMetadata],
+        balance_in: &[u128],
+        token_program: ProgramId,
+    ) -> (Vec<Account>, Vec<ChainedCall>) {
+
+    //Pool accounts: pool itself, and its 2 vaults and LP token
+    //2 accounts for funding tokens
+    //initial funder's LP account
+    if pre_states.len() != 7 {
+        panic!("Invalid number of input accounts")
+    }
+
+    if balance_in.len() != 2 {
+        panic!("Invalid number of balance")
+    }
+
+    let pool = &pre_states[0];
+    let vault_a = &pre_states[1];
+    let vault_b = &pre_states[2];
+    let pool_lp = &pre_states[3];
+    let user_a = &pre_states[4];
+    let user_b = &pre_states[5];
+    let user_lp = &pre_states[6];
+
+    if pool.account != Account::default() || !pool.is_authorized {
+        panic!("Pool account is initiated or not authorized");
+    }
+
+    // TODO: temporary band-aid to prevent vault's from being
+    // owned by the amm program.
+    if vault_a.account == Account::default() || vault_b.account == Account::default() {
+        panic!("Vault accounts uninitialized")
+    }
+    if pool_lp.account == Account::default() {
+        panic!("Pool LP must be initialized first")
+    }
+
+    let amount_a = balance_in[0];
+    let amount_b = balance_in[1];
+
+    // Prevents pool constant coefficient (k) from being 0.
+    if amount_a == 0 || amount_b == 0 {
+        panic!("Balances must be nonzero")
+    }
+
+    // Verify token_a and token_b are different
+    let definition_token_a_id = TokenHolding::parse(&user_a.account.data).unwrap().definition_id;
+    let definition_token_b_id = TokenHolding::parse(&user_b.account.data).unwrap().definition_id;
+   
+    if definition_token_a_id == definition_token_b_id {
+        panic!("Cannot set up a swap for a token with itself.")
+    }
+
+    // 5. Update pool account
+    let mut pool_post = Account::default();
+    let pool_post_definition = PoolDefinition {
+            definition_token_a_id,
+            definition_token_b_id,
+            vault_a_addr: vault_a.account_id.clone(),
+            vault_b_addr: vault_b.account_id.clone(),
+            liquidity_pool_id: pool_lp.account_id.clone(),
+            liquidity_pool_cap: amount_a,
+            reserve_a: amount_a,
+            reserve_b: amount_b,
+            token_program_id: token_program,  
+    };
+
+    pool_post.data = pool_post_definition.into_data();
+
+    let mut chained_call = Vec::new();
+   
+    let mut instruction: [u8;32] = [0; 32];
+    instruction[0] = 1;      
+    instruction[1..17].copy_from_slice(&amount_a.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).unwrap();
+
+    let call_token_a = ChainedCall{
+            program_id: token_program,
+            instruction_data: instruction_data,
+            pre_states: vec![user_a.clone(), vault_a.clone()]
+        };
+        
+    instruction[1..17].copy_from_slice(&amount_b.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).unwrap();
+
+    let call_token_b = ChainedCall{
+            program_id: token_program,
+            instruction_data: instruction_data,
+            pre_states: vec![user_b.clone(), vault_b.clone()]
+        };
+
+    instruction[1..17].copy_from_slice(&amount_a.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).unwrap();
+
+    let call_token_lp = ChainedCall{
+            program_id: token_program,
+            instruction_data: instruction_data,
+            pre_states: vec![pool_lp.clone(), user_lp.clone()]
+        };
+
+    chained_call.push(call_token_lp);
+    chained_call.push(call_token_b);
+    chained_call.push(call_token_a);
+
+    let post_states = vec![
+        pool_post.clone(), 
+        pre_states[1].account.clone(),
+        pre_states[2].account.clone(),
+        pre_states[3].account.clone(),
+        pre_states[4].account.clone(),
+        pre_states[5].account.clone(),
+        pre_states[6].account.clone()];
+
+    (post_states.clone(), chained_call)
+}
+
 fn swap(
         pre_states: &[AccountWithMetadata],
         amount: u128,
-        token_id: AccountId,
+        token_id: Address,
     ) -> (Vec<Account>, Vec<ChainedCall>) {
 
     if pre_states.len() != 5 {
@@ -350,7 +334,6 @@ fn swap(
     let pool_def_data = PoolDefinition::parse(&pool.account.data).unwrap();
     let vault1_data = TokenHolding::parse(&vault1.account.data).unwrap();
     let vault2_data = TokenHolding::parse(&vault2.account.data).unwrap();
-
 
     let mut vault_a = AccountWithMetadata::default();
     let mut vault_b = AccountWithMetadata::default();
@@ -387,8 +370,8 @@ fn swap(
 
     // 2. fetch pool reserves
     //validates reserves is at least the vaults' balances
-    assert!(vault_a.account.balance >= pool_def_data.reserve_a);
-    assert!(vault_b.account.balance >= pool_def_data.reserve_b);
+    assert!(TokenHolding::parse(&vault_a.account.data).unwrap().balance >= pool_def_data.reserve_a);
+    assert!(TokenHolding::parse(&vault_b.account.data).unwrap().balance >= pool_def_data.reserve_b);
     //Cannot swap if a reserve is 0
     assert!(pool_def_data.reserve_a > 0);
     assert!(pool_def_data.reserve_b > 0);
@@ -404,9 +387,9 @@ fn swap(
 
     // 4. Slippage check
     if a_to_b {
-        assert!(withdraw_b == 0); }
-    else{
         assert!(withdraw_a == 0); }
+    else {
+        assert!(withdraw_b == 0); }
 
     // 5. Update pool account
     let mut pool_post = pool.account.clone();
@@ -425,47 +408,63 @@ fn swap(
     pool_post.data = pool_post_definition.into_data();
 
     let mut chained_call = Vec::new();
+    
+    let call_token_a = ChainedCall::default();
+    let call_token_b = ChainedCall::default();
 
-    let mut instruction_data = [0; 23];
-    instruction_data[0] = 1;
-
-    let call_token_a = if a_to_b {
+    if a_to_b {
+        let mut instruction_data = [0; 23];
+        instruction_data[0] = 1;
         instruction_data[1..17].copy_from_slice(&deposit_a.to_le_bytes());
-        ChainedCall{
-            program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
-            pre_states: vec![user_a.clone(), vault_a.clone()]
-        }
-    } else {
-        instruction_data[1..17].copy_from_slice(&withdraw_a.to_le_bytes());
-        ChainedCall{
-            program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
-            pre_states: vec![vault_a.clone(), user_a.clone()]
-        }
-    };
+        let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).unwrap();
 
-    let call_token_b = if a_to_b {
-        instruction_data[1..17].copy_from_slice(&deposit_b.to_le_bytes());
-        ChainedCall{
-            program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
-            pre_states: vec![user_b.clone(), vault_b.clone()]
-        }
-    } else {
+        let call_token_a = ChainedCall{
+                program_id: pool_def_data.token_program_id,
+                instruction_data: instruction_data,
+                pre_states: vec![user_a.clone(), vault_a.clone()]
+            };
+
+        let mut instruction_data = [0; 23];
+        instruction_data[0] = 1;
         instruction_data[1..17].copy_from_slice(&withdraw_b.to_le_bytes());
-        ChainedCall{
-            program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
-            pre_states: vec![vault_b.clone(), user_b.clone()]
-        }
-    };
+        let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).unwrap();
 
+        let call_token_b = ChainedCall{
+                program_id: pool_def_data.token_program_id,
+                instruction_data: instruction_data,
+                pre_states: vec![user_b.clone(), vault_b.clone()]
+            };
+     
+    } else {
+        let mut instruction_data = [0; 23];
+        instruction_data[0] = 1;
+        instruction_data[1..17].copy_from_slice(&withdraw_a.to_le_bytes());
+        let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).unwrap();
+
+        let call_token_a = ChainedCall{
+                program_id: pool_def_data.token_program_id,
+                instruction_data: instruction_data,
+                pre_states: vec![vault_a.clone(), user_a.clone()]
+            };
+
+        let mut instruction_data = [0; 23];
+        instruction_data[0] = 1;
+        instruction_data[1..17].copy_from_slice(&deposit_b.to_le_bytes());
+        let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).unwrap();
+
+        let call_token_b = ChainedCall{
+                program_id: pool_def_data.token_program_id,
+                instruction_data: instruction_data,
+                pre_states: vec![vault_b.clone(), user_b.clone()]
+            };
+    }
+    
+    
     chained_call.push(call_token_a);
     chained_call.push(call_token_b);
-
+    
     let post_states = vec![
-        pool_post.clone(), 
+        pool_post.clone(),
         pre_states[1].account.clone(),
         pre_states[2].account.clone(),
         pre_states[3].account.clone(),
@@ -474,10 +473,9 @@ fn swap(
     (post_states.clone(), chained_call)
 }
 
-
 fn add_liquidity(pre_states: &[AccountWithMetadata],
     max_balance_in: &[u128],
-    main_token: AccountId) -> (Vec<Account>, Vec<ChainedCall>) {
+    main_token: Address) -> (Vec<Account>, Vec<ChainedCall>) {
 
     if pre_states.len() != 7 {
        panic!("Invalid number of input accounts");
@@ -528,15 +526,16 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     // 2. Determine deposit amounts
     let mut actual_amount_a = 0;
     let mut actual_amount_b = 0;
-    
-    if vault_b.account.balance == 0 || vault_a.account.balance == 0 {
+
+    let vault_b_balance = TokenHolding::parse(&vault_b.account.data).unwrap().balance;
+    let vault_a_balance = TokenHolding::parse(&vault_a.account.data).unwrap().balance;
+    if vault_a_balance == 0 || vault_b_balance == 0 {
         panic!("Vaults must have nonzero balances");
     }
-
+    
     if pool_def_data.reserve_a == 0 || pool_def_data.reserve_b == 0 {
         panic!("Reserves must be nonzero");
     }
-
 
     if main_token == pool_def_data.definition_token_a_id {
         actual_amount_a += max_amount_a;
@@ -548,14 +547,15 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
         panic!("Mismatch of token types"); //main token does not match with vaults.
     }
 
-    
     // 3. Validate amounts
+    let user_a_balance = TokenHolding::parse(&user_a.account.data).unwrap().balance;
+    let user_b_balance = TokenHolding::parse(&user_b.account.data).unwrap().balance;
     assert!(max_amount_a >= actual_amount_a && max_amount_b >= actual_amount_b);
-    if user_a.account.balance < actual_amount_a {
+    if user_a_balance < actual_amount_a {
         panic!("Insufficient balance");
     }
 
-    if user_b.account.balance < actual_amount_b {
+    if  user_b_balance < actual_amount_b {
         panic!("Insufficient balance");
     }
     
@@ -563,9 +563,8 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
         panic!("A trade amount is 0");
     }
     
-
     // 4. Calculate LP to mint
-    let delta_lp = (pool_def_data.liquidity_pool_cap *actual_amount_b)/pool_def_data.reserve_b;
+    let delta_lp = (pool_def_data.liquidity_pool_cap * actual_amount_b)/pool_def_data.reserve_b;
 
     // 5. Update pool account
     let mut pool_post = pool.account.clone();
@@ -580,40 +579,44 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
             reserve_b: pool_def_data.reserve_b + actual_amount_b,
             token_program_id: pool_def_data.token_program_id.clone(),  
     };
-
+    
     pool_post.data = pool_post_definition.into_data();
-
     let mut chained_call = Vec::new();
 
     let mut instruction_data = [0; 23];
     instruction_data[0] = 1;
-
     instruction_data[1..17].copy_from_slice(&actual_amount_a.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).unwrap();
     let call_token_a = ChainedCall{
-            program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
+            program_id: pool_def_data.token_program_id,
+            instruction_data: instruction_data,
             pre_states: vec![user_a.clone(), vault_a]
         };
 
-
+    let mut instruction_data = [0; 23];
+    instruction_data[0] = 1;
     instruction_data[1..17].copy_from_slice(&actual_amount_b.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).unwrap();
     let call_token_b = ChainedCall{
-            program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
+            program_id: pool_def_data.token_program_id,
+            instruction_data: instruction_data,
             pre_states: vec![user_b.clone(), vault_b]
         };
-
+        
+    let mut instruction_data = [0; 23];
+    instruction_data[0] = 1;
     instruction_data[1..17].copy_from_slice(&delta_lp.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).unwrap();
     let call_token_lp = ChainedCall{
-            program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
+            program_id: pool_def_data.token_program_id,
+            instruction_data: instruction_data,
             pre_states: vec![pool_lp.clone(), user_lp.clone()]
         };
+
 
     chained_call.push(call_token_lp);
     chained_call.push(call_token_b);
     chained_call.push(call_token_a);
-
 
     let post_states = vec![
         pool_post.clone(), 
@@ -627,7 +630,6 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     (post_states.clone(), chained_call)
 
 }
-
 
 fn remove_liquidity(pre_states: &[AccountWithMetadata]) -> (Vec<Account>, Vec<ChainedCall>) {
 
@@ -667,8 +669,9 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata]) -> (Vec<Account>, Vec<Ch
     }
 
     // 2. Determine deposit amounts
-    let withdraw_amount_a = pool_def_data.reserve_a * (user_lp.account.balance/pool_def_data.liquidity_pool_cap);
-    let withdraw_amount_b = pool_def_data.reserve_b * (user_lp.account.balance/pool_def_data.liquidity_pool_cap);
+    let user_lp_amt = TokenHolding::parse(&user_lp.account.data).unwrap().balance;
+    let withdraw_amount_a = pool_def_data.reserve_a * (user_lp_amt/pool_def_data.liquidity_pool_cap);
+    let withdraw_amount_b = pool_def_data.reserve_b * (user_lp_amt/pool_def_data.liquidity_pool_cap);
 
     //3. Validate amounts handled by token programs
 
@@ -676,7 +679,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata]) -> (Vec<Account>, Vec<Ch
     if pool_def_data.liquidity_pool_cap == 0 {
         panic!("Liquidity pool must be nonzero");
     }
-    let delta_lp : u128 = (pool_def_data.liquidity_pool_cap*pool_def_data.liquidity_pool_cap - user_lp.account.balance)/pool_def_data.liquidity_pool_cap;
+    let delta_lp : u128 = (pool_def_data.liquidity_pool_cap*user_lp_amt)/pool_def_data.liquidity_pool_cap;
 
     // 5. Update pool account
     let mut pool_post = pool.account.clone();
@@ -699,25 +702,33 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata]) -> (Vec<Account>, Vec<Ch
     let mut instruction_data = [0; 23];
     instruction_data[0] = 1;
 
-    instruction_data[1..17].copy_from_slice(&withdraw_amount_a.to_le_bytes());
+    let mut instruction: [u8;32] = [0; 32];
+    instruction[0] = 1;      
+    instruction[1..17].copy_from_slice(&withdraw_amount_a.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).unwrap();
     let call_token_a = ChainedCall{
             program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
+            instruction_data: instruction_data,
             pre_states: vec![vault_a, user_a.clone()]
         };
 
-
-    instruction_data[1..17].copy_from_slice(&withdraw_amount_b.to_le_bytes());
+    let mut instruction: [u8;32] = [0; 32];
+    instruction[0] = 1;      
+    instruction[1..17].copy_from_slice(&withdraw_amount_b.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).unwrap();
     let call_token_b = ChainedCall{
             program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
+            instruction_data: instruction_data,
             pre_states: vec![vault_b, user_b.clone()]
         };
 
-    instruction_data[1..17].copy_from_slice(&delta_lp.to_le_bytes());
+    let mut instruction: [u8;32] = [0; 32];
+    instruction[0] = 1;      
+    instruction[1..17].copy_from_slice(&delta_lp.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).unwrap();
     let call_token_lp = ChainedCall{
             program_id: pool_def_data.token_program_id.clone(),
-            instruction_data: bytemuck::cast_slice(&instruction_data).to_vec(),
+            instruction_data: instruction_data,
             pre_states: vec![user_lp.clone(), pool_lp.clone()]
         };
 
@@ -741,7 +752,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata]) -> (Vec<Account>, Vec<Ch
 
 #[cfg(test)]
 mod tests {
-    use nssa_core::account::{Account, AccountId, AccountWithMetadata};
+    use nssa_core::{account::{Account, AccountId, AccountWithMetadata}, address::Address};
 
     use crate::{PoolDefinition, TOKEN_HOLDING_TYPE, TokenHolding, add_liquidity, new_definition, remove_liquidity, swap};
 
@@ -926,13 +937,20 @@ mod tests {
         let _post_states = new_definition(&pre_states, &[balance_a], token_program_id);
     }
     
-    #[should_panic(expected = "Pool account is uninitiated or not authorized")]
+    #[should_panic(expected = "Pool account is initiated or not authorized")]
     #[test]
-    fn test_call_new_definition_with_uninitiated_pool() {
+    fn test_call_new_definition_with_initiated_pool() {
+        let mut pool = Account::default();
+
+        pool.data = vec![
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ];
+
         let pre_states = vec![AccountWithMetadata {
-            account: Account::default(),
+            account: pool,
             is_authorized: true,
-            account_id: AccountId::new([0; 32])},
+            account_id: AccountId::default()},
             AccountWithMetadata {
             account: Account::default(),
             is_authorized: true,
@@ -964,7 +982,7 @@ mod tests {
         let _post_states = new_definition(&pre_states, &[balance_a, balance_b], token_program_id);
     }
 
-    #[should_panic(expected = "Pool account is uninitiated or not authorized")]
+    #[should_panic(expected = "Pool account is initiated or not authorized")]
     #[test]
     fn test_call_new_definition_with_unauthorized_pool() {
         let pre_states = vec![AccountWithMetadata {
@@ -1009,10 +1027,6 @@ mod tests {
         let mut vault_a = Account::default();
         let mut vault_b = Account::default();
 
-        pool.data = vec![
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ];
         vault_a.data = vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -1065,10 +1079,6 @@ mod tests {
         let mut vault_b = Account::default();
         let mut pool_lp = Account::default();
 
-        pool.data = vec![
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ];
         vault_a.data = vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -1125,10 +1135,6 @@ mod tests {
         let mut vault_b = Account::default();
         let mut pool_lp = Account::default();
 
-        pool.data = vec![
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ];
         vault_a.data = vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -1177,106 +1183,41 @@ mod tests {
         let _post_states = new_definition(&pre_states, &[balance_a, balance_b], token_program_id);
     }
 
-    #[should_panic(expected = "Vaults are for the same token")]
+    #[should_panic(expected = "Cannot set up a swap for a token with itself.")]
     #[test]
     fn test_call_new_definition_same_token() {
         let mut pool = Account::default();
         let mut vault_a = Account::default();
         let mut vault_b = Account::default();
+        let mut user_a = Account::default();
+        let mut user_b = Account::default();
         let mut pool_lp = Account::default();
 
+        user_a.data = TokenHolding::into_data(
+            TokenHolding{
+                account_type: 0u8,
+                definition_id: AccountId::new([1;32]),
+                balance: 200u128,
+            }
+        );
+        user_b.data = TokenHolding::into_data(
+            TokenHolding{
+                account_type: 0u8,
+                definition_id: AccountId::new([1;32]),
+                balance: 100u128,
+            }
+        );
+        
         vault_a.data = vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ];
+
         vault_b.data = vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ];
-        pool_lp.data = vec![
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ];
 
-        let definition_token_a_id = AccountId::new([1;32]);
-        let definition_token_b_id = AccountId::new([2;32]);
-        let vault_a_addr = AccountId::new([5;32]);
-        let vault_b_addr = AccountId::new([6;32]);
-        let liquidity_pool_id = AccountId::new([7;32]);
-        let liquidity_pool_cap: u128 = 30u128;
-        let reserve_a: u128 = 10;
-        let reserve_b: u128 = 20;
-        let token_program_id: [u32;8] = [0; 8];
-
-        pool.data = PoolDefinition::into_data( PoolDefinition {
-            definition_token_a_id,
-            definition_token_b_id,
-            vault_a_addr: vault_a_addr.clone(),
-            vault_b_addr: vault_b_addr.clone(),
-            liquidity_pool_id,
-            liquidity_pool_cap,
-            reserve_a,
-            reserve_b,
-            token_program_id,
-        });
-
-        let pre_states = vec![AccountWithMetadata {
-            account: pool,
-            is_authorized: true,
-            account_id: AccountId::new([0; 32])},
-            AccountWithMetadata {
-            account: vault_a,
-            is_authorized: true,
-            account_id: vault_b_addr.clone()},
-            AccountWithMetadata {
-            account: vault_b,
-            is_authorized: true,
-            account_id: vault_b_addr},
-            AccountWithMetadata {
-            account: pool_lp,
-            is_authorized: true,
-            account_id: AccountId::new([4; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([5; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([6; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([7; 32])},
-        ];
-        
-        let balance_a = 15u128;
-        let balance_b = 15u128;
-        let token_program_id: [u32;8] = [0; 8];
-        
-        let _post_states = new_definition(&pre_states, &[balance_a, balance_b], token_program_id);
-    }
-
-    #[should_panic(expected = "Vaults are for the same token")]
-    #[test]
-    fn test_call_new_definition_success() {
-        let mut pool = Account::default();
-        let mut vault_a = Account::default();
-        let mut vault_b = Account::default();
-        let mut pool_lp = Account::default();
-
-        pool.data = vec![
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ];
-        vault_a.data = vec![
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ];
-        vault_b.data = vec![
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ];
         pool_lp.data = vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -1299,11 +1240,88 @@ mod tests {
             is_authorized: true,
             account_id: AccountId::new([4; 32])},
             AccountWithMetadata {
-            account: Account::default(),
+            account: user_a,
             is_authorized: true,
             account_id: AccountId::new([5; 32])},
             AccountWithMetadata {
+            account: user_b,
+            is_authorized: true,
+            account_id: AccountId::new([6; 32])},
+            AccountWithMetadata {
             account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([7; 32])},
+        ];
+
+        let balance_a = 15u128;
+        let balance_b = 15u128;
+        let token_program_id: [u32;8] = [0; 8];
+        
+        let _post_states = new_definition(&pre_states, &[balance_a, balance_b], token_program_id);
+    }
+
+    #[test]
+    fn test_call_new_definition_success() {
+        let mut pool = Account::default();
+        let mut vault_a = Account::default();
+        let mut vault_b = Account::default();
+        let mut user_a = Account::default();
+        let mut user_b = Account::default();
+        let mut pool_lp = Account::default();
+
+        user_a.data = TokenHolding::into_data(
+            TokenHolding{
+                account_type: 0u8,
+                definition_id: AccountId::new([1;32]),
+                balance: 200u128,
+            }
+        );
+        user_b.data = TokenHolding::into_data(
+            TokenHolding{
+                account_type: 0u8,
+                definition_id: AccountId::new([2;32]),
+                balance: 100u128,
+            }
+        );
+        
+        vault_a.data = vec![
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ];
+
+        vault_b.data = vec![
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ];
+
+        pool_lp.data = vec![
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ];
+
+
+        let pre_states = vec![AccountWithMetadata {
+            account: pool,
+            is_authorized: true,
+            account_id: AccountId::new([0; 32])},
+            AccountWithMetadata {
+            account: vault_a,
+            is_authorized: true,
+            account_id: AccountId::new([2; 32])},
+            AccountWithMetadata {
+            account: vault_b,
+            is_authorized: true,
+            account_id: AccountId::new([3; 32])},
+            AccountWithMetadata {
+            account: pool_lp,
+            is_authorized: true,
+            account_id: AccountId::new([4; 32])},
+            AccountWithMetadata {
+            account: user_a,
+            is_authorized: true,
+            account_id: AccountId::new([5; 32])},
+            AccountWithMetadata {
+            account: user_b,
             is_authorized: true,
             account_id: AccountId::new([6; 32])},
             AccountWithMetadata {
@@ -1605,83 +1623,6 @@ mod tests {
         ];
         
         let _post_states = remove_liquidity(&pre_states);
-    }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]    
-    fn test_call_swap_with_invalid_number_of_accounts_1() {
-        let pre_states = vec![AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([1; 32]),
-        }];
-
-        let amount = 15u128;
-        let vault_addr = AccountId::new([1;32]);
-        let _post_states = swap(&pre_states, amount, vault_addr);
-    }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_swap_with_invalid_number_of_accounts_2() {
-        let pre_states = vec![AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([1; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([2; 32])},
-        ];
-        let amount = 15u128;
-        let vault_addr = AccountId::new([1;32]);
-        let _post_states = swap(&pre_states, amount, vault_addr);
-    }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_swap_with_invalid_number_of_accounts_3() {
-        let pre_states = vec![AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([1; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([2; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([3; 32])},
-        ];
-        let amount = 15u128;
-        let vault_addr = AccountId::new([1;32]);
-        let _post_states = swap(&pre_states, amount, vault_addr);
-    }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_swap_with_invalid_number_of_accounts_4() {
-        let pre_states = vec![AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([1; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([2; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([3; 32])},
-            AccountWithMetadata {
-            account: Account::default(),
-            is_authorized: true,
-            account_id: AccountId::new([4; 32])},
-        ];
-        let amount = 15u128;
-        let vault_addr = AccountId::new([1;32]);
-        let _post_states = swap(&pre_states, amount, vault_addr);
     }
 
     #[should_panic(expected = "Invalid number of input accounts")]
@@ -2004,7 +1945,6 @@ mod tests {
         let mut vault2 = Account::default();
         let mut pool_lp = Account::default();
 
-
         let definition_token_a_id = AccountId::new([1;32]);
         let definition_token_b_id = AccountId::new([2;32]); 
 
@@ -2259,10 +2199,8 @@ mod tests {
 
 
         let definition_token_a_id = AccountId::new([1;32]);
-        let definition_token_b_id = AccountId::new([2;32]); 
-
-        vault1.balance = 15u128;
-        vault2.balance = 15u128;
+        let definition_token_b_id = AccountId::new([2;32]);
+        
 
         vault1.data = TokenHolding::into_data(
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
@@ -2351,11 +2289,8 @@ mod tests {
         vault1.data = TokenHolding::into_data(
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
                 definition_id:definition_token_a_id.clone(),
-                balance: 15u128 }
+                balance: 0u128 }
         );
-
-        vault1.balance = 0;
-        vault2.balance = 15;
 
         vault2.data = TokenHolding::into_data(
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
@@ -2441,13 +2376,10 @@ mod tests {
                 balance: 15u128 }
         );
 
-        vault1.balance = 15;
-        vault2.balance = 0;
-
         vault2.data = TokenHolding::into_data(
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
                 definition_id:definition_token_b_id.clone(),
-                balance: 15u128 }
+                balance: 0u128 }
         );
 
         pool_lp.data = vec![
@@ -2517,6 +2449,8 @@ mod tests {
         let mut vault1 = Account::default();
         let mut vault2 = Account::default();
         let mut pool_lp = Account::default();
+        let mut user_a = Account::default();
+        let mut user_b = Account::default();
 
 
         let definition_token_a_id = AccountId::new([1;32]);
@@ -2528,6 +2462,12 @@ mod tests {
                 balance: 15u128 }
         );
 
+        user_a.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_a_id.clone(),
+                balance: 10u128 }
+        );
+
         vault1.balance = 15u128;
         vault2.balance = 15u128;
 
@@ -2535,6 +2475,12 @@ mod tests {
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
                 definition_id:definition_token_b_id.clone(),
                 balance: 15u128 }
+        );
+
+        user_b.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_b_id.clone(),
+                balance: 40u128 }
         );
 
         pool_lp.data = vec![
@@ -2579,11 +2525,11 @@ mod tests {
             is_authorized: true,
             account_id: AccountId::new([4; 32])},
             AccountWithMetadata {
-            account: Account::default(),
+            account: user_a,
             is_authorized: true,
             account_id: AccountId::new([5; 32])},
             AccountWithMetadata {
-            account: Account::default(),
+            account: user_b,
             is_authorized: true,
             account_id: AccountId::new([6; 32])},
             AccountWithMetadata {
@@ -2604,6 +2550,8 @@ mod tests {
         let mut vault1 = Account::default();
         let mut vault2 = Account::default();
         let mut pool_lp = Account::default();
+        let mut user_a = Account::default();
+        let mut user_b = Account::default();
 
 
         let definition_token_a_id = AccountId::new([1;32]);
@@ -2615,6 +2563,12 @@ mod tests {
                 balance: 15u128 }
         );
 
+        user_a.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_a_id.clone(),
+                balance: 40u128 }
+        );
+
         vault1.balance = 15u128;
         vault2.balance = 15u128;
 
@@ -2622,6 +2576,12 @@ mod tests {
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
                 definition_id:definition_token_b_id.clone(),
                 balance: 15u128 }
+        );
+
+        user_b.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_b_id.clone(),
+                balance: 10u128 }
         );
 
         pool_lp.data = vec![
@@ -2633,8 +2593,8 @@ mod tests {
         let vault_b_addr = AccountId::new([6;32]);
         let liquidity_pool_id = AccountId::new([7;32]);
         let liquidity_pool_cap: u128 = 30u128;
-        let reserve_a: u128 = 10;
-        let reserve_b: u128 = 20;
+        let reserve_a: u128 = 15;
+        let reserve_b: u128 = 15;
         let token_program_id: [u32;8] = [0; 8];
 
         pool.data = PoolDefinition::into_data( PoolDefinition {
@@ -2648,12 +2608,6 @@ mod tests {
             reserve_b,
             token_program_id,
         });
-
-        let mut user_a = Account::default();
-        let mut user_b = Account::default();
-
-        user_a.balance = 15u128;
-        user_b.balance = 12u128;
 
         let pre_states = vec![AccountWithMetadata {
             account: pool,
@@ -2686,7 +2640,7 @@ mod tests {
         ];
         let balance_a = 15u128;
         let balance_b = 15u128;
-        let main_token = definition_token_b_id.clone();
+        let main_token = definition_token_a_id.clone();
         let _post_states = add_liquidity(&pre_states, &[balance_a,balance_b], main_token);
     }
 
@@ -2697,24 +2651,41 @@ mod tests {
         let mut vault1 = Account::default();
         let mut vault2 = Account::default();
         let mut pool_lp = Account::default();
-
-
+        let mut user_a = Account::default();
+        let mut user_b = Account::default();
         let definition_token_a_id = AccountId::new([1;32]);
         let definition_token_b_id = AccountId::new([2;32]); 
 
         vault1.data = TokenHolding::into_data(
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
                 definition_id:definition_token_a_id.clone(),
-                balance: 15u128 }
+                balance: 1500u128 }
         );
 
-        vault1.balance = 1500u128;
-        vault2.balance = 2000u128;
+        user_a.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_a_id.clone(),
+                balance: 40u128 }
+        );
+
+        vault1.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_a_id.clone(),
+                balance: 1500u128 }
+        );
 
         vault2.data = TokenHolding::into_data(
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
                 definition_id:definition_token_b_id.clone(),
-                balance: 15u128 }
+                balance: 2000u128 }
+        );
+
+
+
+        user_b.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_a_id.clone(),
+                balance: 40u128 }
         );
 
         pool_lp.data = vec![
@@ -2741,12 +2712,6 @@ mod tests {
             reserve_b,
             token_program_id,
         });
-
-        let mut user_a = Account::default();
-        let mut user_b = Account::default();
-
-        user_a.balance = 150u128;
-        user_b.balance = 150u128;
 
         let pre_states = vec![AccountWithMetadata {
             account: pool,
@@ -2785,7 +2750,7 @@ mod tests {
 
     #[should_panic(expected = "Reserves must be nonzero")]
     #[test]
-    fn test_call_add_liquidity_reserves_zero() {
+    fn test_call_add_liquidity_reserves_zero_1() {
         let mut pool = Account::default();
         let mut vault1 = Account::default();
         let mut vault2 = Account::default();
@@ -2800,9 +2765,6 @@ mod tests {
                 definition_id:definition_token_a_id.clone(),
                 balance: 15u128 }
         );
-
-        vault1.balance = 15u128;
-        vault2.balance = 20u128;
 
         vault2.data = TokenHolding::into_data(
             TokenHolding { account_type: TOKEN_HOLDING_TYPE,
@@ -2838,8 +2800,91 @@ mod tests {
         let mut user_a = Account::default();
         let mut user_b = Account::default();
 
-        user_a.balance = 150u128;
-        user_b.balance = 150u128;
+        let pre_states = vec![AccountWithMetadata {
+            account: pool,
+            is_authorized: true,
+            account_id: AccountId::new([0; 32])},
+            AccountWithMetadata {
+            account: vault1,
+            is_authorized: true,
+            account_id: vault_a_addr.clone()},
+            AccountWithMetadata {
+            account: vault2,
+            is_authorized: true,
+            account_id: vault_b_addr.clone()},
+            AccountWithMetadata {
+            account: pool_lp,
+            is_authorized: true,
+            account_id: AccountId::new([4; 32])},
+            AccountWithMetadata {
+            account: user_a,
+            is_authorized: true,
+            account_id: AccountId::new([5; 32])},
+            AccountWithMetadata {
+            account: user_b,
+            is_authorized: true,
+            account_id: AccountId::new([6; 32])},
+            AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([7; 32])},
+        ];
+        let balance_a = 15u128;
+        let balance_b = 15u128;
+        let main_token = definition_token_b_id.clone();
+        let _post_states = add_liquidity(&pre_states, &[balance_a,balance_b], main_token);
+    }
+    #[should_panic(expected = "Reserves must be nonzero")]
+    #[test]
+    fn test_call_add_liquidity_reserves_zero() {
+        let mut pool = Account::default();
+        let mut vault1 = Account::default();
+        let mut vault2 = Account::default();
+        let mut pool_lp = Account::default();
+
+
+        let definition_token_a_id = AccountId::new([1;32]);
+        let definition_token_b_id = AccountId::new([2;32]); 
+
+        vault1.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_a_id.clone(),
+                balance: 15u128 }
+        );
+
+        vault2.data = TokenHolding::into_data(
+            TokenHolding { account_type: TOKEN_HOLDING_TYPE,
+                definition_id:definition_token_b_id.clone(),
+                balance: 15u128 }
+        );
+
+        pool_lp.data = vec![
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ];
+
+        let vault_a_addr = AccountId::new([5;32]);
+        let vault_b_addr = AccountId::new([6;32]);
+        let liquidity_pool_id = AccountId::new([7;32]);
+        let liquidity_pool_cap: u128 = 30u128;
+        let reserve_a: u128 = 0;
+        let reserve_b: u128 = 15;
+        let token_program_id: [u32;8] = [0; 8];
+
+        pool.data = PoolDefinition::into_data( PoolDefinition {
+            definition_token_a_id: definition_token_a_id.clone(),
+            definition_token_b_id: definition_token_b_id.clone(),
+            vault_a_addr: vault_a_addr.clone(),
+            vault_b_addr: vault_b_addr.clone(),
+            liquidity_pool_id,
+            liquidity_pool_cap,
+            reserve_a,
+            reserve_b,
+            token_program_id,
+        });
+
+        let mut user_a = Account::default();
+        let mut user_b = Account::default();
 
         let pre_states = vec![AccountWithMetadata {
             account: pool,
@@ -2874,6 +2919,83 @@ mod tests {
         let balance_b = 15u128;
         let main_token = definition_token_b_id.clone();
         let _post_states = add_liquidity(&pre_states, &[balance_a,balance_b], main_token);
+    }
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]    
+    fn test_call_swap_with_invalid_number_of_accounts_1() {
+        let pre_states = vec![AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([1; 32]),
+        }];
+
+        let amount = 15u128;
+        let vault_addr = AccountId::new([1;32]);
+        let _post_states = swap(&pre_states, amount, vault_addr);
+    }
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
+    fn test_call_swap_with_invalid_number_of_accounts_2() {
+        let pre_states = vec![AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([1; 32])},
+            AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([2; 32])},
+        ];
+        let amount = 15u128;
+        let vault_addr = AccountId::new([1;32]);
+        let _post_states = swap(&pre_states, amount, vault_addr);
+    }
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
+    fn test_call_swap_with_invalid_number_of_accounts_3() {
+        let pre_states = vec![AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([1; 32])},
+            AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([2; 32])},
+            AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([3; 32])},
+        ];
+        let amount = 15u128;
+        let vault_addr = AccountId::new([1;32]);
+        let _post_states = swap(&pre_states, amount, vault_addr);
+    }
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
+    fn test_call_swap_with_invalid_number_of_accounts_4() {
+        let pre_states = vec![AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([1; 32])},
+            AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([2; 32])},
+            AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([3; 32])},
+            AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: true,
+            account_id: AccountId::new([4; 32])},
+        ];
+        let amount = 15u128;
+        let vault_addr = AccountId::new([1;32]);
+        let _post_states = swap(&pre_states, amount, vault_addr);
     }
 
     #[should_panic(expected = "Address is not a token type for the pool")]
