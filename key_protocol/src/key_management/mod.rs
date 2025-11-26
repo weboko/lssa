@@ -41,8 +41,8 @@ impl KeyChain {
     }
 
     pub fn new_mnemonic(passphrase: String) -> Self {
-        //Currently dropping SeedHolder at the end of initialization.
-        //Now entirely sure if we need it in the future.
+        // Currently dropping SeedHolder at the end of initialization.
+        // Not entirely sure if we need it in the future.
         let seed_holder = SeedHolder::new_mnemonic(passphrase);
         let secret_spending_key = seed_holder.produce_top_secret_key_holder();
 

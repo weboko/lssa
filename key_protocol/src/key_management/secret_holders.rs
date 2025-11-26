@@ -45,7 +45,7 @@ impl SeedHolder {
     }
 
     pub fn new_mnemonic(passphrase: String) -> Self {
-        //Enthropy bytes must be deterministic as well
+        // Enthropy bytes must be deterministic as well
         let enthopy_bytes: [u8; 32] = [0; 32];
 
         let mnemonic = Mnemonic::from_entropy(&enthopy_bytes).unwrap();

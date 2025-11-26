@@ -1,7 +1,7 @@
 pub trait KeyNode {
     fn root(seed: [u8; 64]) -> Self;
 
-    fn n_th_child(&self, cci: u32) -> Self;
+    fn nth_child(&self, cci: u32) -> Self;
 
     fn chain_code(&self) -> &[u8; 32];
 

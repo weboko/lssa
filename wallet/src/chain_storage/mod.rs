@@ -126,17 +126,13 @@ impl WalletChainStore {
         addr: nssa::Address,
         account: nssa_core::account::Account,
     ) {
-        println!("inserting at address {}, this account {:?}", addr, account);
+        println!("inserting at address {addr}, this account {account:?}");
 
-        if self
-            .user_data
-            .default_user_private_accounts
-            .contains_key(&addr)
-        {
-            self.user_data
+        let entry = self.user_data
                 .default_user_private_accounts
                 .entry(addr)
                 .and_modify(|data| data.1 = account);
+        if matches!(entry, Entry::Vacant(_)) {
         } else {
             self.user_data
                 .private_key_tree
@@ -270,27 +266,21 @@ mod tests {
     }
 
     fn create_sample_persistent_accounts() -> Vec<PersistentAccountData> {
-        let mut accs = vec![];
-
         let public_data = ChildKeysPublic::root([42; 64]);
-
-        accs.push(PersistentAccountData::Public(PersistentAccountDataPublic {
-            address: public_data.address(),
-            chain_index: ChainIndex::root(),
-            data: public_data,
-        }));
-
         let private_data = ChildKeysPrivate::root([47; 64]);
-
-        accs.push(PersistentAccountData::Private(
-            PersistentAccountDataPrivate {
+        
+        vec![
+            PersistentAccountData::Public(PersistentAccountDataPublic {
+                address: public_data.address(),
+                chain_index: ChainIndex::root(),
+                data: public_data,
+            }),
+            PersistentAccountData::Private(PersistentAccountDataPrivate {
                 address: private_data.address(),
                 chain_index: ChainIndex::root(),
                 data: private_data,
-            },
-        ));
-
-        accs
+            })
+        ]
     }
 
     #[test]

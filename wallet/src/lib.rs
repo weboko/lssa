@@ -249,7 +249,7 @@ pub enum Command {
     Config(ConfigSubcommand),
 }
 
-///Represents CLI command for a wallet with setup included
+/// Represents CLI command for a wallet with setup included
 #[derive(Debug, Subcommand, Clone)]
 #[clap(about)]
 pub enum OverCommand {
@@ -410,12 +410,12 @@ pub async fn parse_block_range(
                     }
                 }
 
-                for (_, keys_node) in wallet_core
+                for keys_node in wallet_core
                     .storage
                     .user_data
                     .private_key_tree
                     .key_map
-                    .iter()
+                    .values()
                 {
                     let acc_addr = keys_node.address();
                     let key_chain = &keys_node.value.0;

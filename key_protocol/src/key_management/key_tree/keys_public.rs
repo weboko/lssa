@@ -7,7 +7,7 @@ pub struct ChildKeysPublic {
     pub csk: nssa::PrivateKey,
     pub cpk: nssa::PublicKey,
     pub ccc: [u8; 32],
-    ///Can be None if root
+    /// Can be [`None`] if root
     pub cci: Option<u32>,
 }
 
@@ -27,7 +27,7 @@ impl KeyNode for ChildKeysPublic {
         }
     }
 
-    fn n_th_child(&self, cci: u32) -> Self {
+    fn nth_child(&self, cci: u32) -> Self {
         let mut hash_input = vec![];
         hash_input.extend_from_slice(self.csk.value());
         hash_input.extend_from_slice(&cci.to_le_bytes());
@@ -50,8 +50,8 @@ impl KeyNode for ChildKeysPublic {
         &self.ccc
     }
 
-    fn child_index(&self) -> &Option<u32> {
-        &self.cci
+    fn child_index(&self) -> Option<u32> {
+        self.cci
     }
 
     fn address(&self) -> nssa::Address {

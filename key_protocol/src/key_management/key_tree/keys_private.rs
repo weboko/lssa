@@ -12,7 +12,7 @@ use crate::key_management::{
 pub struct ChildKeysPrivate {
     pub value: (KeyChain, nssa::Account),
     pub ccc: [u8; 32],
-    ///Can be None if root
+    /// Can be [`None`] if root
     pub cci: Option<u32>,
 }
 
@@ -49,7 +49,7 @@ impl KeyNode for ChildKeysPrivate {
         }
     }
 
-    fn n_th_child(&self, cci: u32) -> Self {
+    fn nth_child(&self, cci: u32) -> Self {
         let parent_pt = Scalar::from_repr(
             self.value
                 .0
@@ -109,8 +109,8 @@ impl KeyNode for ChildKeysPrivate {
         &self.ccc
     }
 
-    fn child_index(&self) -> &Option<u32> {
-        &self.cci
+    fn child_index(&self) -> Option<u32> {
+        self.cci
     }
 
     fn address(&self) -> nssa::Address {

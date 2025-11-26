@@ -14,9 +14,9 @@ pub type PublicKey = AffinePoint;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NSSAUserData {
-    ///Default public accounts
+    /// Default public accounts
     pub default_pub_account_signing_keys: HashMap<nssa::Address, nssa::PrivateKey>,
-    ///Default private accounts
+    /// Default private accounts
     pub default_user_private_accounts:
         HashMap<nssa::Address, (KeyChain, nssa_core::account::Account)>,
     /// Tree of public keys

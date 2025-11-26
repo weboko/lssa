@@ -17,25 +17,15 @@ impl FromStr for ChainIndex {
     type Err = ChainIndexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !s.starts_with("/") {
-            return Err(ChainIndexError::NoRootFound);
+        if !s.starts_with('/') {
+            return  Err(ChainIndexError:NoRootFound);
         }
-
-        if s == "/" {
-            return Ok(ChainIndex(vec![]));
-        }
-
-        let uprooted_substring = s.strip_prefix("/").unwrap();
-
-        let splitted_chain: Vec<&str> = uprooted_substring.split("/").collect();
-        let mut res = vec![];
-
-        for split_ch in splitted_chain {
-            let cci = split_ch.parse()?;
-            res.push(cci);
-        }
-
-        Ok(Self(res))
+        
+        s
+            .split("/")
+            .map(u32::from_str)
+            .collect()
+            .map_err(Into::into)
     }
 }
 
@@ -68,7 +58,7 @@ impl ChainIndex {
         ChainIndex(chain)
     }
 
-    pub fn n_th_child(&self, child_id: u32) -> ChainIndex {
+    pub fn nth_child(&self, child_id: u32) -> ChainIndex {
         let mut chain = self.0.clone();
         chain.push(child_id);
 

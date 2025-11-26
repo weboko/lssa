@@ -31,11 +31,8 @@ impl<Node: KeyNode> KeyTree<Node> {
         let root_keys = Node::root(seed_fit);
         let address = root_keys.address();
 
-        let mut key_map = BTreeMap::new();
-        let mut addr_map = HashMap::new();
-
-        key_map.insert(ChainIndex::root(), root_keys);
-        addr_map.insert(address, ChainIndex::root());
+        let key_map = BTreeMap::from_iter([(ChainIndex::root(), root_keys)]);
+        let addr_map = HashMap::from_iter([(address, ChainIndex::root())]);
 
         Self { key_map, addr_map }
     }
@@ -60,7 +57,8 @@ impl<Node: KeyNode> KeyTree<Node> {
         let leftmost_child = parent_id.n_th_child(u32::MIN);
 
         if !self.key_map.contains_key(&leftmost_child) {
-            Some(0)
+            return Some(0)
+        }
         } else {
             let mut right = u32::MAX - 1;
             let mut left_border = u32::MIN;
@@ -93,11 +91,7 @@ impl<Node: KeyNode> KeyTree<Node> {
     }
 
     pub fn generate_new_node(&mut self, parent_cci: ChainIndex) -> Option<nssa::Address> {
-        if !self.key_map.contains_key(&parent_cci) {
-            return None;
-        }
-
-        let father_keys = self.key_map.get(&parent_cci).unwrap();
+        let father_keys = self.key_map.get(&parent_cci)?;
         let next_child_id = self.find_next_last_child_of_id(&parent_cci).unwrap();
         let next_cci = parent_cci.n_th_child(next_child_id);
 
