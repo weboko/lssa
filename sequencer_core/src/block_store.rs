@@ -4,15 +4,15 @@ use anyhow::Result;
 use common::{HashType, block::Block, transaction::EncodedTransaction};
 use storage::RocksDBIO;
 
-pub struct SequecerBlockStore {
+pub struct SequencerBlockStore {
     dbio: RocksDBIO,
     // TODO: Consider adding the hashmap to the database for faster recovery.
-    pub tx_hash_to_block_map: HashMap<HashType, u64>,
-    pub genesis_id: u64,
-    pub signing_key: nssa::PrivateKey,
+    tx_hash_to_block_map: HashMap<HashType, u64>,
+    genesis_id: u64,
+    signing_key: nssa::PrivateKey,
 }
 
-impl SequecerBlockStore {
+impl SequencerBlockStore {
     ///Starting database at the start of new chain.
     /// Creates files if necessary.
     ///
@@ -42,7 +42,7 @@ impl SequecerBlockStore {
 
     ///Reopening existing database
     pub fn open_db_restart(location: &Path, signing_key: nssa::PrivateKey) -> Result<Self> {
-        SequecerBlockStore::open_db_with_genesis(location, None, signing_key)
+        SequencerBlockStore::open_db_with_genesis(location, None, signing_key)
     }
 
     pub fn get_block_at_id(&self, id: u64) -> Result<Block> {
@@ -68,6 +68,18 @@ impl SequecerBlockStore {
             }
         }
         None
+    }
+
+    pub fn insert(&mut self, tx: &EncodedTransaction, block_id: u64) {
+        self.tx_hash_to_block_map.insert(tx.hash(), block_id);
+    }
+
+    pub fn genesis_id(&self) -> u64 {
+        self.genesis_id
+    }
+
+    pub fn signing_key(&self) -> &nssa::PrivateKey {
+        &self.signing_key
     }
 }
 
@@ -104,7 +116,7 @@ mod tests {
         let genesis_block = genesis_block_hashable_data.into_block(&signing_key);
         // Start an empty node store
         let mut node_store =
-            SequecerBlockStore::open_db_with_genesis(path, Some(genesis_block), signing_key)
+            SequencerBlockStore::open_db_with_genesis(path, Some(genesis_block), signing_key)
                 .unwrap();
 
         let tx = common::test_utils::produce_dummy_empty_transaction();

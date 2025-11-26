@@ -3,12 +3,14 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_web::{App, Error as HttpError, HttpResponse, HttpServer, http, middleware, web};
+use common::transaction::EncodedTransaction;
 use futures::Future;
 use futures::FutureExt;
 use log::info;
 
 use common::rpc_primitives::RpcConfig;
 use common::rpc_primitives::message::Message;
+use mempool::MemPoolHandle;
 use sequencer_core::SequencerCore;
 use tokio::sync::Mutex;
 
@@ -46,17 +48,17 @@ fn get_cors(cors_allowed_origins: &[String]) -> Cors {
 pub fn new_http_server(
     config: RpcConfig,
     seuquencer_core: Arc<Mutex<SequencerCore>>,
+    mempool_handle: MemPoolHandle<EncodedTransaction>,
 ) -> io::Result<actix_web::dev::Server> {
     let RpcConfig {
         addr,
         cors_allowed_origins,
-        polling_config,
         limits_config,
     } = config;
     info!(target:NETWORK, "Starting http server at {addr}");
     let handler = web::Data::new(JsonHandler {
-        polling_config,
         sequencer_state: seuquencer_core.clone(),
+        mempool_handle,
     });
 
     // HTTP server

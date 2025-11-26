@@ -11,6 +11,7 @@ use crate::config::WalletConfig;
 pub struct TxPoller {
     pub polling_max_blocks_to_query: usize,
     pub polling_max_error_attempts: u64,
+    // TODO: This should be Duration
     pub polling_error_delay_millis: u64,
     pub polling_delay_millis: u64,
     pub client: Arc<SequencerClient>,
