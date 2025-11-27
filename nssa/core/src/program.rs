@@ -16,6 +16,12 @@ pub struct ProgramInput<T> {
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct PdaSeed([u8; 32]);
 
+impl PdaSeed {
+    pub fn new(value: [u8; 32]) -> Self {
+        Self(value)
+    }
+}
+
 #[cfg(feature = "host")]
 impl From<(&ProgramId, &PdaSeed)> for AccountId {
     fn from(value: (&ProgramId, &PdaSeed)) -> Self {
