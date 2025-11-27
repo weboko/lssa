@@ -3,30 +3,19 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::Result;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use chain_storage::WalletChainStore;
-use clap::{Parser, Subcommand};
 use common::{
-    block::HashableBlockData,
     sequencer_client::SequencerClient,
     transaction::{EncodedTransaction, NSSATransaction},
 };
 use config::WalletConfig;
 use log::info;
-use nssa::{
-    Account, AccountId, privacy_preserving_transaction::message::EncryptedAccountData,
-    program::Program,
-};
+use nssa::{Account, AccountId};
 use nssa_core::{Commitment, MembershipProof};
 use tokio::io::AsyncWriteExt;
 
 use crate::{
-    cli::{
-        WalletSubcommand, account::AccountSubcommand, chain::ChainSubcommand,
-        config::ConfigSubcommand, native_token_transfer_program::AuthTransferSubcommand,
-        pinata_program::PinataProgramAgnosticSubcommand,
-        token_program::TokenProgramAgnosticSubcommand,
-    },
     config::PersistentStorage,
-    helperfunctions::{fetch_config, fetch_persistent_storage, get_home, produce_data_for_storage},
+    helperfunctions::{fetch_persistent_storage, get_home, produce_data_for_storage},
     poller::TxPoller,
 };
 
@@ -36,9 +25,8 @@ pub mod chain_storage;
 pub mod cli;
 pub mod config;
 pub mod helperfunctions;
-pub mod pinata_interactions;
 pub mod poller;
-pub mod token_program_interactions;
+pub mod program_interactions;
 pub mod token_transfers;
 pub mod transaction_utils;
 
@@ -207,226 +195,5 @@ impl WalletCore {
         println!("Transaction data is {:?}", tx.message);
 
         Ok(())
-    }
-}
-
-/// Represents CLI command for a wallet
-#[derive(Subcommand, Debug, Clone)]
-#[clap(about)]
-pub enum Command {
-    /// Authenticated transfer subcommand
-    #[command(subcommand)]
-    AuthTransfer(AuthTransferSubcommand),
-    /// Generic chain info subcommand
-    #[command(subcommand)]
-    ChainInfo(ChainSubcommand),
-    /// Account view and sync subcommand
-    #[command(subcommand)]
-    Account(AccountSubcommand),
-    /// Pinata program interaction subcommand
-    #[command(subcommand)]
-    Pinata(PinataProgramAgnosticSubcommand),
-    /// Token program interaction subcommand
-    #[command(subcommand)]
-    Token(TokenProgramAgnosticSubcommand),
-    /// Check the wallet can connect to the node and builtin local programs
-    /// match the remote versions
-    CheckHealth {},
-    /// Command to setup config, get and set config fields
-    #[command(subcommand)]
-    Config(ConfigSubcommand),
-}
-
-/// To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
-///
-/// All account adresses must be valid 32 byte base58 strings.
-///
-/// All account account_ids must be provided as {privacy_prefix}/{account_id},
-/// where valid options for `privacy_prefix` is `Public` and `Private`
-#[derive(Parser, Debug)]
-#[clap(version, about)]
-pub struct Args {
-    /// Continious run flag
-    #[arg(short, long)]
-    pub continious_run: bool,
-    /// Wallet command
-    #[command(subcommand)]
-    pub command: Option<Command>,
-}
-
-#[derive(Debug, Clone)]
-pub enum SubcommandReturnValue {
-    PrivacyPreservingTransfer { tx_hash: String },
-    RegisterAccount { account_id: nssa::AccountId },
-    Account(nssa::Account),
-    Empty,
-    SyncedToBlock(u64),
-}
-
-pub async fn execute_subcommand(command: Command) -> Result<SubcommandReturnValue> {
-    let wallet_config = fetch_config().await?;
-    let mut wallet_core = WalletCore::start_from_config_update_chain(wallet_config).await?;
-
-    let subcommand_ret = match command {
-        Command::AuthTransfer(transfer_subcommand) => {
-            transfer_subcommand
-                .handle_subcommand(&mut wallet_core)
-                .await?
-        }
-        Command::ChainInfo(chain_subcommand) => {
-            chain_subcommand.handle_subcommand(&mut wallet_core).await?
-        }
-        Command::Account(account_subcommand) => {
-            account_subcommand
-                .handle_subcommand(&mut wallet_core)
-                .await?
-        }
-        Command::Pinata(pinata_subcommand) => {
-            pinata_subcommand
-                .handle_subcommand(&mut wallet_core)
-                .await?
-        }
-        Command::CheckHealth {} => {
-            let remote_program_ids = wallet_core
-                .sequencer_client
-                .get_program_ids()
-                .await
-                .expect("Error fetching program ids");
-            let Some(authenticated_transfer_id) = remote_program_ids.get("authenticated_transfer")
-            else {
-                panic!("Missing authenticated transfer ID from remote");
-            };
-            if authenticated_transfer_id != &Program::authenticated_transfer_program().id() {
-                panic!("Local ID for authenticated transfer program is different from remote");
-            }
-            let Some(token_id) = remote_program_ids.get("token") else {
-                panic!("Missing token program ID from remote");
-            };
-            if token_id != &Program::token().id() {
-                panic!("Local ID for token program is different from remote");
-            }
-            let Some(circuit_id) = remote_program_ids.get("privacy_preserving_circuit") else {
-                panic!("Missing privacy preserving circuit ID from remote");
-            };
-            if circuit_id != &nssa::PRIVACY_PRESERVING_CIRCUIT_ID {
-                panic!("Local ID for privacy preserving circuit is different from remote");
-            }
-
-            println!("✅All looks good!");
-
-            SubcommandReturnValue::Empty
-        }
-        Command::Token(token_subcommand) => {
-            token_subcommand.handle_subcommand(&mut wallet_core).await?
-        }
-        Command::Config(config_subcommand) => {
-            config_subcommand
-                .handle_subcommand(&mut wallet_core)
-                .await?
-        }
-    };
-
-    Ok(subcommand_ret)
-}
-
-pub async fn parse_block_range(
-    start: u64,
-    stop: u64,
-    seq_client: Arc<SequencerClient>,
-    wallet_core: &mut WalletCore,
-) -> Result<()> {
-    for block_id in start..(stop + 1) {
-        let block =
-            borsh::from_slice::<HashableBlockData>(&seq_client.get_block(block_id).await?.block)?;
-
-        for tx in block.transactions {
-            let nssa_tx = NSSATransaction::try_from(&tx)?;
-
-            if let NSSATransaction::PrivacyPreserving(tx) = nssa_tx {
-                let mut affected_accounts = vec![];
-
-                for (acc_account_id, (key_chain, _)) in
-                    &wallet_core.storage.user_data.user_private_accounts
-                {
-                    let view_tag = EncryptedAccountData::compute_view_tag(
-                        key_chain.nullifer_public_key.clone(),
-                        key_chain.incoming_viewing_public_key.clone(),
-                    );
-
-                    for (ciph_id, encrypted_data) in tx
-                        .message()
-                        .encrypted_private_post_states
-                        .iter()
-                        .enumerate()
-                    {
-                        if encrypted_data.view_tag == view_tag {
-                            let ciphertext = &encrypted_data.ciphertext;
-                            let commitment = &tx.message.new_commitments[ciph_id];
-                            let shared_secret = key_chain
-                                .calculate_shared_secret_receiver(encrypted_data.epk.clone());
-
-                            let res_acc = nssa_core::EncryptionScheme::decrypt(
-                                ciphertext,
-                                &shared_secret,
-                                commitment,
-                                ciph_id as u32,
-                            );
-
-                            if let Some(res_acc) = res_acc {
-                                println!(
-                                    "Received new account for account_id {acc_account_id:#?} with account object {res_acc:#?}"
-                                );
-
-                                affected_accounts.push((*acc_account_id, res_acc));
-                            }
-                        }
-                    }
-                }
-
-                for (affected_account_id, new_acc) in affected_accounts {
-                    wallet_core
-                        .storage
-                        .insert_private_account_data(affected_account_id, new_acc);
-                }
-            }
-        }
-
-        wallet_core.last_synced_block = block_id;
-        wallet_core.store_persistent_data().await?;
-
-        println!(
-            "Block at id {block_id} with timestamp {} parsed",
-            block.timestamp
-        );
-    }
-
-    Ok(())
-}
-
-pub async fn execute_continious_run() -> Result<()> {
-    let config = fetch_config().await?;
-    let seq_client = Arc::new(SequencerClient::new(config.sequencer_addr.clone())?);
-    let mut wallet_core = WalletCore::start_from_config_update_chain(config.clone()).await?;
-
-    let mut latest_block_num = seq_client.get_last_block().await?.last_block;
-    let mut curr_last_block = latest_block_num;
-
-    loop {
-        parse_block_range(
-            curr_last_block,
-            latest_block_num,
-            seq_client.clone(),
-            &mut wallet_core,
-        )
-        .await?;
-
-        curr_last_block = latest_block_num + 1;
-
-        tokio::time::sleep(std::time::Duration::from_millis(
-            config.seq_poll_timeout_millis,
-        ))
-        .await;
-
-        latest_block_num = seq_client.get_last_block().await?.last_block;
     }
 }

@@ -15,13 +15,15 @@ use sequencer_runner::startup_sequencer;
 use tempfile::TempDir;
 use tokio::task::JoinHandle;
 use wallet::{
-    Command, SubcommandReturnValue, WalletCore,
+    WalletCore,
     cli::{
+        Command, SubcommandReturnValue,
         account::{AccountSubcommand, NewSubcommand},
         config::ConfigSubcommand,
-        native_token_transfer_program::AuthTransferSubcommand,
-        pinata_program::PinataProgramAgnosticSubcommand,
-        token_program::TokenProgramAgnosticSubcommand,
+        programs::{
+            native_token_transfer::AuthTransferSubcommand, pinata::PinataProgramAgnosticSubcommand,
+            token::TokenProgramAgnosticSubcommand,
+        },
     },
     config::{PersistentAccountData, PersistentStorage},
     helperfunctions::{fetch_config, fetch_persistent_storage},
@@ -56,7 +58,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -89,7 +91,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         let PersistentStorage {
             accounts: persistent_accounts,
@@ -120,7 +122,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 100,
         });
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -159,7 +161,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
-        let failed_send = wallet::execute_subcommand(command).await;
+        let failed_send = wallet::cli::execute_subcommand(command).await;
 
         assert!(failed_send.is_err());
 
@@ -200,7 +202,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -231,7 +233,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 100,
         });
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -284,19 +286,19 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let wallet_config = fetch_config().await.unwrap();
 
         // Create new account for the token definition
-        wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
         .unwrap();
         // Create new account for the token supply holder
-        wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
         .unwrap();
         // Create new account for receiving a token transaction
-        wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
@@ -339,7 +341,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             name: "A NAME".to_string(),
             total_supply: 37,
         };
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
         info!("Waiting for next block creation");
@@ -398,7 +400,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 7,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
         info!("Waiting for next block creation");
@@ -453,7 +455,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token definition (public)
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
@@ -464,7 +466,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token supply holder (private)
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {},
         )))
         .await
@@ -475,7 +477,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for receiving a token transaction
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {},
         )))
         .await
@@ -494,7 +496,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             total_supply: 37,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -541,7 +543,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 7,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -575,7 +577,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 7,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -608,7 +610,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token definition (public)
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
@@ -619,7 +621,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token supply holder (private)
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {},
         )))
         .await
@@ -630,7 +632,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for receiving a token transaction
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {},
         )))
         .await
@@ -649,7 +651,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             total_supply: 37,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -703,7 +705,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         };
 
         let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash: _ } =
-            wallet::execute_subcommand(Command::Token(subcommand))
+            wallet::cli::execute_subcommand(Command::Token(subcommand))
                 .await
                 .unwrap()
         else {
@@ -715,7 +717,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         let command = Command::Account(AccountSubcommand::SyncPrivate {});
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         let wallet_config = fetch_config().await.unwrap();
         let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config)
@@ -744,7 +746,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token definition (public)
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
@@ -755,7 +757,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token supply holder (public)
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
@@ -766,7 +768,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for receiving a token transaction
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {},
         )))
         .await
@@ -785,7 +787,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             total_supply: 37,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -822,7 +824,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 7,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -851,7 +853,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 7,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -880,7 +882,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token definition (public)
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
@@ -891,7 +893,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token supply holder (private)
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {},
         )))
         .await
@@ -902,7 +904,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for receiving a token transaction
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {},
         )))
         .await
@@ -921,7 +923,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             total_supply: 37,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -968,7 +970,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 7,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -997,7 +999,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 7,
         };
 
-        wallet::execute_subcommand(Command::Token(subcommand))
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
             .await
             .unwrap();
 
@@ -1029,7 +1031,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 100,
         });
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -1068,7 +1070,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         });
 
         let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } =
-            wallet::execute_subcommand(command).await.unwrap()
+            wallet::cli::execute_subcommand(command).await.unwrap()
         else {
             panic!("invalid subcommand return value");
         };
@@ -1106,7 +1108,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {}));
 
-        let sub_ret = wallet::execute_subcommand(command).await.unwrap();
+        let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
         let SubcommandReturnValue::RegisterAccount {
             account_id: to_account_id,
         } = sub_ret
@@ -1136,7 +1138,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             amount: 100,
         });
 
-        let sub_ret = wallet::execute_subcommand(command).await.unwrap();
+        let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
         let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } = sub_ret else {
             panic!("FAILED TO SEND TX");
         };
@@ -1144,7 +1146,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let tx = fetch_privacy_preserving_tx(&seq_client, tx_hash.clone()).await;
 
         let command = Command::Account(AccountSubcommand::SyncPrivate {});
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
         let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config)
             .await
             .unwrap();
@@ -1171,13 +1173,13 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     //     info!(
     //         "########## test_success_private_transfer_to_another_owned_account_cont_run_path
     // ##########"     );
-    //     let continious_run_handle = tokio::spawn(wallet::execute_continious_run());
+    //     let continious_run_handle = tokio::spawn(wallet::cli::execute_continious_run());
 
     //     let from: AccountId = ACC_SENDER_PRIVATE.parse().unwrap();
 
     //     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {}));
 
-    //     let sub_ret = wallet::execute_subcommand(command).await.unwrap();
+    //     let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
     //     let SubcommandReturnValue::RegisterAccount {
     //         account_id: to_account_id,
     //     } = sub_ret
@@ -1207,7 +1209,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     //         amount: 100,
     //     });
 
-    //     let sub_ret = wallet::execute_subcommand(command).await.unwrap();
+    //     let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
     //     let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } = sub_ret else {
     //         panic!("FAILED TO SEND TX");
     //     };
@@ -1258,7 +1260,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let from_acc = wallet_storage.get_account_private(&from).unwrap();
         assert_eq!(from_acc.balance, 10000);
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -1301,7 +1303,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let wallet_config = fetch_config().await.unwrap();
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -1347,7 +1349,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
 
         let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash } =
-            wallet::execute_subcommand(command).await.unwrap()
+            wallet::cli::execute_subcommand(command).await.unwrap()
         else {
             panic!("invalid subcommand return value");
         };
@@ -1393,7 +1395,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .unwrap()
             .balance;
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -1470,7 +1472,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         info!("########## test initialize account for authenticated transfer ##########");
         let command = Command::Account(AccountSubcommand::New(NewSubcommand::Public {}));
         let SubcommandReturnValue::RegisterAccount { account_id } =
-            wallet::execute_subcommand(command).await.unwrap()
+            wallet::cli::execute_subcommand(command).await.unwrap()
         else {
             panic!("Error creating account");
         };
@@ -1478,7 +1480,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let command = Command::AuthTransfer(AuthTransferSubcommand::Init {
             account_id: make_public_account_input_from_str(&account_id.to_string()),
         });
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Checking correct execution");
         let wallet_config = fetch_config().await.unwrap();
@@ -1524,7 +1526,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .balance;
 
         let SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash: _ } =
-            wallet::execute_subcommand(command).await.unwrap()
+            wallet::cli::execute_subcommand(command).await.unwrap()
         else {
             panic!("invalid subcommand return value");
         };
@@ -1540,7 +1542,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .balance;
 
         let command = Command::Account(AccountSubcommand::SyncPrivate {});
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         let wallet_config = fetch_config().await.unwrap();
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
@@ -1568,7 +1570,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Create new account for the token supply holder (private)
         let SubcommandReturnValue::RegisterAccount {
             account_id: winner_account_id,
-        } = wallet::execute_subcommand(Command::Account(AccountSubcommand::New(
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {},
         )))
         .await
@@ -1592,7 +1594,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .unwrap()
             .balance;
 
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -1632,7 +1634,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             key: "seq_poll_retry_delay_millis".to_string(),
             value: "1000".to_string(),
         });
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         let wallet_config = fetch_config().await.unwrap();
 
@@ -1643,7 +1645,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             key: "seq_poll_retry_delay_millis".to_string(),
             value: old_seq_poll_retry_delay_millis.to_string(),
         });
-        wallet::execute_subcommand(command).await.unwrap();
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         info!("Success!");
     }

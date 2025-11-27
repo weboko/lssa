@@ -4,8 +4,8 @@ use common::transaction::NSSATransaction;
 use nssa::AccountId;
 
 use crate::{
-    SubcommandReturnValue, WalletCore,
-    cli::WalletSubcommand,
+    WalletCore,
+    cli::{SubcommandReturnValue, WalletSubcommand},
     helperfunctions::{AccountPrivacyKind, parse_addr_with_privacy_prefix},
 };
 

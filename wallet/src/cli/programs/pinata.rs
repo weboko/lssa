@@ -4,8 +4,8 @@ use common::{PINATA_BASE58, transaction::NSSATransaction};
 use log::info;
 
 use crate::{
-    SubcommandReturnValue, WalletCore,
-    cli::WalletSubcommand,
+    WalletCore,
+    cli::{SubcommandReturnValue, WalletSubcommand},
     helperfunctions::{AccountPrivacyKind, parse_addr_with_privacy_prefix},
 };
 
