@@ -3,6 +3,7 @@ use std::{fmt::Display, str::FromStr};
 
 #[cfg(feature = "host")]
 use base58::{FromBase58, ToBase58};
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::program::ProgramId;
@@ -11,7 +12,9 @@ pub type Nonce = u128;
 pub type Data = Vec<u8>;
 
 /// Account to be used both in public and private contexts
-#[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[derive(
+    Serialize, Deserialize, Clone, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize,
+)]
 #[cfg_attr(any(feature = "host", test), derive(Debug))]
 pub struct Account {
     pub program_owner: ProgramId,
@@ -39,7 +42,7 @@ impl AccountWithMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(
     any(feature = "host", test),
     derive(Debug, Copy, PartialOrd, Ord, Default)

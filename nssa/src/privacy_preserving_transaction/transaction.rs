@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::{
     Commitment, CommitmentSetDigest, Nullifier, PrivacyPreservingCircuitOutput,
     account::{Account, AccountWithMetadata},
@@ -12,7 +13,7 @@ use crate::{
     privacy_preserving_transaction::{circuit::Proof, message::EncryptedAccountData},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct PrivacyPreservingTransaction {
     pub message: Message,
     witness_set: WitnessSet,

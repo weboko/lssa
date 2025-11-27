@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::{
     account::Nonce,
     program::{InstructionData, ProgramId},
@@ -6,7 +7,7 @@ use serde::Serialize;
 
 use crate::{AccountId, error::NssaError, program::Program};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Message {
     pub(crate) program_id: ProgramId,
     pub(crate) account_ids: Vec<AccountId>,

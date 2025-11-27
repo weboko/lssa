@@ -1,12 +1,12 @@
-mod encoding;
 mod private_key;
 mod public_key;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use private_key::PrivateKey;
 pub use public_key::PublicKey;
 use rand::{RngCore, rngs::OsRng};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Signature {
     value: [u8; 64],
 }

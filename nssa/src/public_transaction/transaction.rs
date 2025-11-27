@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::{
     account::{Account, AccountId, AccountWithMetadata},
     program::{DEFAULT_PROGRAM_ID, validate_execution},
@@ -12,7 +13,7 @@ use crate::{
     public_transaction::{Message, WitnessSet},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct PublicTransaction {
     message: Message,
     witness_set: WitnessSet,

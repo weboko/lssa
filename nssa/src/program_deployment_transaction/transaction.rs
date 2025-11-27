@@ -1,8 +1,10 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 use crate::{
     V02State, error::NssaError, program::Program, program_deployment_transaction::message::Message,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct ProgramDeploymentTransaction {
     pub(crate) message: Message,
 }
