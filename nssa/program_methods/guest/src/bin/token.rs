@@ -45,6 +45,21 @@ impl TokenDefinition {
         bytes[7..].copy_from_slice(&self.total_supply.to_le_bytes());
         bytes.into()
     }
+
+    fn parse(data: &[u8]) -> Option<Self> {
+        if data.len() != TOKEN_DEFINITION_DATA_SIZE || data[0] != TOKEN_DEFINITION_TYPE {
+            None
+        } else {
+            let account_type = data[0];
+            let name = data[1..7].try_into().unwrap();
+            let total_supply = u128::from_le_bytes(data[7..].try_into().unwrap());
+            Some(Self {
+                account_type,
+                name,
+                total_supply,
+            })
+        }
+    }
 }
 
 impl TokenHolding {
@@ -196,15 +211,47 @@ fn main() {
             let post_states = transfer(&pre_states, balance_to_move);
             write_nssa_outputs(pre_states, post_states);
         }
+        2 => {
+            // Initialize account
+            assert_eq!(instruction[1..], [0; 22]);
+            let post_states = initialize(&pre_states);
+            write_nssa_outputs(pre_states, post_states);
+        }
         _ => panic!("Invalid instruction"),
     };
+}
+
+fn initialize(pre_states: &[AccountWithMetadata]) -> Vec<Account> {
+    if pre_states.len() != 2 {
+        panic!("Invalid number of accounts");
+    }
+
+    let definition = &pre_states[0];
+    let account_to_initialize = &pre_states[1];
+
+    if account_to_initialize.account != Account::default() {
+        panic!("Only uninitialized accounts can be initialized");
+    }
+
+    // TODO: We should check that this is an account owned by the token program.
+    // This check can't be done here since the ID of the program is known only after compiling it
+    // Check definition account is valid
+    let _definition_values =
+        TokenDefinition::parse(&definition.account.data).expect("Definition account must be valid");
+    let holding_for_definition = TokenHolding::new(&definition.account_id);
+
+    let definition_post = definition.account.clone();
+    let mut account_to_initialize_post = account_to_initialize.account.clone();
+    account_to_initialize_post.data = holding_for_definition.into_data();
+
+    vec![definition_post, account_to_initialize_post]
 }
 
 #[cfg(test)]
 mod tests {
     use nssa_core::account::{Account, AccountId, AccountWithMetadata};
 
-    use crate::{new_definition, transfer, TOKEN_HOLDING_DATA_SIZE, TOKEN_HOLDING_TYPE};
+    use crate::{TOKEN_HOLDING_DATA_SIZE, TOKEN_HOLDING_TYPE, new_definition, transfer};
 
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]

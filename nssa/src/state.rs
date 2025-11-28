@@ -239,6 +239,20 @@ impl V02State {
             },
         );
     }
+
+    pub fn add_pinata_token_program(&mut self, account_id: AccountId) {
+        self.insert_program(Program::pinata_token());
+
+        self.public_state.insert(
+            account_id,
+            Account {
+                program_owner: Program::pinata_token().id(),
+                // Difficulty: 3
+                data: vec![3; 33],
+                ..Account::default()
+            },
+        );
+    }
 }
 
 #[cfg(test)]
@@ -2209,5 +2223,82 @@ pub mod tests {
         // The `chain_caller` program calls the program twice
         assert_eq!(from_post.balance, initial_balance - amount);
         assert_eq!(to_post, expected_to_post);
+    }
+
+    #[test]
+    fn test_pda_mechanism_with_pinata_token_program() {
+        let pinata_token = Program::pinata_token();
+        let token = Program::token();
+
+        let pinata_definition_id = AccountId::new([1; 32]);
+        let pinata_token_definition_id = AccountId::new([2; 32]);
+        // Total supply of pinata token will be in an account under a PDA.
+        let pinata_token_holding_id = AccountId::from((&pinata_token.id(), &PdaSeed::new([0; 32])));
+        let winner_token_holding_id = AccountId::new([3; 32]);
+
+        let mut expected_winner_account_data = [0; 49];
+        expected_winner_account_data[0] = 1;
+        expected_winner_account_data[1..33].copy_from_slice(pinata_token_definition_id.value());
+        expected_winner_account_data[33..].copy_from_slice(&150u128.to_le_bytes());
+        let expected_winner_token_holding_post = Account {
+            program_owner: token.id(),
+            data: expected_winner_account_data.to_vec(),
+            ..Account::default()
+        };
+
+        let mut state = V02State::new_with_genesis_accounts(&[], &[]);
+        state.add_pinata_token_program(pinata_definition_id);
+
+        // Execution of the token program to create new token for the pinata token
+        // definition and supply accounts
+        let total_supply: u128 = 10_000_000;
+        // instruction: [0x00 || total_supply (little-endian 16 bytes) || name (6 bytes)]
+        let mut instruction: [u8; 23] = [0; 23];
+        instruction[1..17].copy_from_slice(&total_supply.to_le_bytes());
+        instruction[17..].copy_from_slice(b"PINATA");
+        let message = public_transaction::Message::try_new(
+            token.id(),
+            vec![pinata_token_definition_id, pinata_token_holding_id],
+            vec![],
+            instruction,
+        )
+        .unwrap();
+        let witness_set = public_transaction::WitnessSet::for_message(&message, &[]);
+        let tx = PublicTransaction::new(message, witness_set);
+        state.transition_from_public_transaction(&tx).unwrap();
+
+        // Execution of the token program transfer just to initialize the winner token account
+        let mut instruction: [u8; 23] = [0; 23];
+        instruction[0] = 2;
+        let message = public_transaction::Message::try_new(
+            token.id(),
+            vec![pinata_token_definition_id, winner_token_holding_id],
+            vec![],
+            instruction,
+        )
+        .unwrap();
+        let witness_set = public_transaction::WitnessSet::for_message(&message, &[]);
+        let tx = PublicTransaction::new(message, witness_set);
+        state.transition_from_public_transaction(&tx).unwrap();
+
+        // Submit a solution to the pinata program to claim the prize
+        let solution: u128 = 989106;
+        let message = public_transaction::Message::try_new(
+            pinata_token.id(),
+            vec![
+                pinata_definition_id,
+                pinata_token_holding_id,
+                winner_token_holding_id,
+            ],
+            vec![],
+            solution,
+        )
+        .unwrap();
+        let witness_set = public_transaction::WitnessSet::for_message(&message, &[]);
+        let tx = PublicTransaction::new(message, witness_set);
+        state.transition_from_public_transaction(&tx).unwrap();
+
+        let winner_token_holding_post = state.get_account_by_id(&winner_token_holding_id);
+        assert_eq!(winner_token_holding_post, expected_winner_token_holding_post);
     }
 }

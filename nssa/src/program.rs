@@ -104,6 +104,11 @@ impl Program {
         // `program_methods`
         Self::new(PINATA_ELF.to_vec()).unwrap()
     }
+
+    pub fn pinata_token() -> Self {
+        use crate::program_methods::PINATA_TOKEN_ELF;
+        Self::new(PINATA_TOKEN_ELF.to_vec()).unwrap()
+    }
 }
 
 #[cfg(test)]
