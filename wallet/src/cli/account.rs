@@ -1,8 +1,8 @@
 use anyhow::Result;
 use base58::ToBase58;
 use clap::Subcommand;
-use key_protocol::key_management::key_tree::chain_index::ChainIndex;
 use itertools::Itertools as _;
+use key_protocol::key_management::key_tree::chain_index::ChainIndex;
 use nssa::{Account, AccountId, program::Program};
 use serde::Serialize;
 
