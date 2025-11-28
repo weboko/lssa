@@ -2,6 +2,7 @@ use anyhow::Result;
 use base58::ToBase58;
 use clap::Subcommand;
 use key_protocol::key_management::key_tree::chain_index::ChainIndex;
+use itertools::Itertools as _;
 use nssa::{Account, AccountId, program::Program};
 use serde::Serialize;
 
@@ -84,6 +85,9 @@ pub enum AccountSubcommand {
     New(NewSubcommand),
     /// Sync private accounts
     SyncPrivate {},
+    /// List all accounts owned by the wallet
+    #[command(visible_alias = "ls")]
+    List {},
 }
 
 /// Represents generic register CLI subcommand
@@ -303,6 +307,37 @@ impl WalletSubcommand for AccountSubcommand {
                 }
 
                 Ok(SubcommandReturnValue::SyncedToBlock(curr_last_block))
+            }
+            AccountSubcommand::List {} => {
+                let user_data = &wallet_core.storage.user_data;
+                let accounts = user_data
+                    .default_pub_account_signing_keys
+                    .keys()
+                    .map(|id| format!("Preconfigured Public/{id}"))
+                    .chain(
+                        user_data
+                            .default_user_private_accounts
+                            .keys()
+                            .map(|id| format!("Preconfigured Private/{id}")),
+                    )
+                    .chain(
+                        user_data
+                            .public_key_tree
+                            .account_id_map
+                            .iter()
+                            .map(|(id, chain_index)| format!("{chain_index} Public/{id}")),
+                    )
+                    .chain(
+                        user_data
+                            .private_key_tree
+                            .account_id_map
+                            .iter()
+                            .map(|(id, chain_index)| format!("{chain_index} Private/{id}")),
+                    )
+                    .format(",\n");
+
+                println!("{accounts}");
+                Ok(SubcommandReturnValue::Empty)
             }
         }
     }
