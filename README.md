@@ -149,6 +149,18 @@ Run `wallet help` to check everything went well.
 
 ## Tutorial
 
+This tutorial walks you through creating accounts and executing NSSA programs in both public and private contexts.
+
+> [!NOTE]
+> The NSSA state is split into two separate but interconnected components: the public state and the private state.
+> The public state is an on-chain, publicly visible record of accounts indexed by their Account IDs
+> The private state mirrors this, but the actual account values are stored locally by each account owner. On-chain, only a hidden commitment to each private account state is recorded. This allows the chain to enforce freshness (i.e., prevent the reuse of stale private states) while preserving privacy and unlinkability across executions and private accounts.
+> 
+> Every piece of state in NSSA is stored in an account (public or private). Accounts are either uninitialized or are owned by a program, and programs can only modify the accounts they own.
+> 
+> In NSSA, accounts can only be modified through program execution. A program is the sole mechanism that can change an account’s value.
+> Programs run publicly when all involved accounts are public, and privately when at least one private account participates.
+
 ### Health-check
 
 Verify that the node is running and that the wallet can connect to it:
@@ -175,7 +187,7 @@ Commands:
 
 ### Accounts
 
-Every piece of state in NSSA is stored in an account. The CLI provides commands to manage accounts. Run `wallet account` to see the options available:
+The CLI provides commands to manage accounts. Run `wallet account` to see the options available:
 ```bash
 Commands:
   get           Get account data
@@ -196,6 +208,11 @@ Generated new account with addr Public/9ypzv6GGr3fwsgxY7EZezg5rz6zj52DPCkmf1vVuj
 ```
 
 This address is required when executing any program that interacts with the account.
+
+> [!NOTE]
+> Public accounts live on-chain and are identified by a 32-byte Account ID.
+> Running `wallet account new public` generates a fresh keypair for the fixed signature scheme used in NSSA.
+> The account ID is derived from the public key. The private key is used to sign transactions and to authorize the account in program executions.
 
 #### Account initialization
 
