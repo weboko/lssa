@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::Subcommand;
 use common::{PINATA_BASE58, transaction::NSSATransaction};
-use log::info;
 
 use crate::{
     WalletCore,
@@ -125,7 +124,19 @@ impl WalletSubcommand for PinataProgramSubcommandPublic {
                         solution,
                     )
                     .await?;
-                info!("Results of tx send is {res:#?}");
+
+                println!("Results of tx send is {res:#?}");
+
+                let tx_hash = res.tx_hash;
+                let transfer_tx = wallet_core
+                    .poll_native_token_transfer(tx_hash.clone())
+                    .await?;
+
+                println!("Transaction data is {transfer_tx:?}");
+
+                let path = wallet_core.store_persistent_data().await?;
+
+                println!("Stored persistent accounts at {path:#?}");
 
                 Ok(SubcommandReturnValue::Empty)
             }
@@ -151,12 +162,14 @@ impl WalletSubcommand for PinataProgramSubcommandPrivate {
                     .claim_private_owned_account(pinata_account_id, winner_account_id, solution)
                     .await?;
 
-                info!("Results of tx send is {res:#?}");
+                println!("Results of tx send is {res:#?}");
 
                 let tx_hash = res.tx_hash;
                 let transfer_tx = wallet_core
                     .poll_native_token_transfer(tx_hash.clone())
                     .await?;
+
+                println!("Transaction data is {transfer_tx:?}");
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
                     let acc_decode_data = vec![(secret_winner, winner_account_id)];
