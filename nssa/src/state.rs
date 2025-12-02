@@ -249,7 +249,7 @@ pub mod tests {
 
     use nssa_core::{
         Commitment, Nullifier, NullifierPublicKey, NullifierSecretKey, SharedSecretKey,
-        account::{Account, AccountId, AccountWithMetadata, Nonce},
+        account::{Account, AccountId, AccountWithMetadata, Data, Nonce},
         encryption::{EphemeralPublicKey, IncomingViewingPublicKey, Scalar},
         program::ProgramId,
     };
@@ -2288,58 +2288,58 @@ pub mod tests {
 
     /// Used for each amm test to initialize
     /// an AMM pool
-    fn initialize_amm() -> (V02State, Vec<PrivateKey>, Vec<Address>, Vec<u128>) {
+    fn initialize_amm() -> (V02State, Vec<PrivateKey>, Vec<AccountId>, Vec<u128>) {
         let initial_data = [];
         let mut state =
             V02State::new_with_genesis_accounts(&initial_data, &[]).with_test_programs();
 
         let token_a_holding_key = PrivateKey::try_new([1; 32]).unwrap();
         let token_a_definition_key = PrivateKey::try_new([2; 32]).unwrap();
-        let token_a_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&token_a_holding_key));
-        let token_a_definition_address =
-            Address::from(&PublicKey::new_from_private_key(&token_a_definition_key));
+        let token_a_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&token_a_holding_key));
+        let token_a_definition_id =
+            AccountId::from(&PublicKey::new_from_private_key(&token_a_definition_key));
         let token_a_supply: u128 = 30000;
 
         let token_b_holding_key = PrivateKey::try_new([3; 32]).unwrap();
         let token_b_definition_key = PrivateKey::try_new([4; 32]).unwrap();
-        let token_b_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&token_b_holding_key));
-        let token_b_definition_address =
-            Address::from(&PublicKey::new_from_private_key(&token_b_definition_key));
+        let token_b_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&token_b_holding_key));
+        let token_b_definition_id =
+            AccountId::from(&PublicKey::new_from_private_key(&token_b_definition_key));
         let token_b_supply: u128 = 50000;
 
         let pool_lp_holding_key = PrivateKey::try_new([5; 32]).unwrap();
         let pool_lp_definition_key = PrivateKey::try_new([6; 32]).unwrap();
-        let pool_lp_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&pool_lp_holding_key));
-        let pool_lp_definition_address =
-            Address::from(&PublicKey::new_from_private_key(&pool_lp_definition_key));
+        let pool_lp_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&pool_lp_holding_key));
+        let pool_lp_definition_id =
+            AccountId::from(&PublicKey::new_from_private_key(&pool_lp_definition_key));
         let token_lp_supply: u128 = 300000;
 
         let user_a_holding_key = PrivateKey::try_new([7; 32]).unwrap();
-        let user_a_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&user_a_holding_key));
+        let user_a_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&user_a_holding_key));
         let user_a_amount: u128 = 10000;
 
         let user_b_holding_key = PrivateKey::try_new([8; 32]).unwrap();
-        let user_b_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&user_b_holding_key));
+        let user_b_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&user_b_holding_key));
         let user_b_amount: u128 = 10000;
 
         let vault_a_key = PrivateKey::try_new([9; 32]).unwrap();
-        let vault_a_address = Address::from(&PublicKey::new_from_private_key(&vault_a_key));
+        let vault_a_id = AccountId::from(&PublicKey::new_from_private_key(&vault_a_key));
 
         let vault_b_key = PrivateKey::try_new([10; 32]).unwrap();
-        let vault_b_address = Address::from(&PublicKey::new_from_private_key(&vault_b_key));
+        let vault_b_id = AccountId::from(&PublicKey::new_from_private_key(&vault_b_key));
 
         let user_lp_holding_key = PrivateKey::try_new([11; 32]).unwrap();
-        let user_lp_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&user_lp_holding_key));
+        let user_lp_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&user_lp_holding_key));
 
 
         let pool_key = PrivateKey::try_new([13; 32]).unwrap();
-        let pool_address = Address::from(&PublicKey::new_from_private_key(&pool_key));
+        let pool_id = AccountId::from(&PublicKey::new_from_private_key(&pool_key));
 
         //initialize Token A
         let mut instruction: [u8; 23] = [0; 23];
@@ -2349,7 +2349,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_a_definition_address, token_a_holding_address],
+            vec![token_a_definition_id, token_a_holding_id],
             vec![],
             instruction,
         )
@@ -2366,7 +2366,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_b_definition_address, token_b_holding_address],
+            vec![token_b_definition_id, token_b_holding_id],
             vec![],
             instruction,
         )
@@ -2384,7 +2384,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![pool_lp_definition_address, pool_lp_holding_address],
+            vec![pool_lp_definition_id, pool_lp_holding_id],
             vec![],
             instruction,
         )
@@ -2401,7 +2401,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_a_holding_address, user_a_holding_address],
+            vec![token_a_holding_id, user_a_holding_id],
             vec![0],
             instruction,
         )
@@ -2419,7 +2419,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_b_holding_address, user_b_holding_address],
+            vec![token_b_holding_id, user_b_holding_id],
             vec![0],
             instruction,
         )
@@ -2439,7 +2439,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_a_holding_address, vault_a_address],
+            vec![token_a_holding_id, vault_a_id],
             vec![1],
             instruction,
         )
@@ -2456,7 +2456,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_b_holding_address, vault_b_address],
+            vec![token_b_holding_id, vault_b_id],
             vec![1],
             instruction,
         )
@@ -2473,7 +2473,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![pool_lp_holding_address, user_lp_holding_address],
+            vec![pool_lp_holding_id, user_lp_holding_id],
             vec![0],
             instruction,
         )
@@ -2498,13 +2498,13 @@ pub mod tests {
         let message = public_transaction::Message::try_new(
             Program::amm().id(),
             vec![
-                pool_address,
-                vault_a_address,
-                vault_b_address,
-                pool_lp_holding_address,
-                user_a_holding_address,
-                user_b_holding_address,
-                user_lp_holding_address,
+                pool_id,
+                vault_a_id,
+                vault_b_id,
+                pool_lp_holding_id,
+                user_a_holding_id,
+                user_b_holding_id,
+                user_lp_holding_id,
             ],
             vec![0, 1, 0, 0],
             instruction,
@@ -2524,19 +2524,19 @@ pub mod tests {
         let tx = PublicTransaction::new(message, witness_set);
         state.transition_from_public_transaction(&tx).unwrap();
 
-        let mut vec_address = Vec::new();
-        vec_address.push(token_a_holding_address);
-        vec_address.push(token_a_definition_address);
-        vec_address.push(token_b_holding_address);
-        vec_address.push(token_b_definition_address);
-        vec_address.push(pool_lp_definition_address);
-        vec_address.push(user_a_holding_address);
-        vec_address.push(user_b_holding_address);
-        vec_address.push(vault_a_address);
-        vec_address.push(vault_b_address);
-        vec_address.push(user_lp_holding_address);
-        vec_address.push(pool_address);
-        vec_address.push(pool_lp_holding_address);
+        let mut vec_id = Vec::new();
+        vec_id.push(token_a_holding_id);
+        vec_id.push(token_a_definition_id);
+        vec_id.push(token_b_holding_id);
+        vec_id.push(token_b_definition_id);
+        vec_id.push(pool_lp_definition_id);
+        vec_id.push(user_a_holding_id);
+        vec_id.push(user_b_holding_id);
+        vec_id.push(vault_a_id);
+        vec_id.push(vault_b_id);
+        vec_id.push(user_lp_holding_id);
+        vec_id.push(pool_id);
+        vec_id.push(pool_lp_holding_id);
 
         let mut vec_private_keys = Vec::new();
         vec_private_keys.push(token_a_holding_key);
@@ -2559,12 +2559,12 @@ pub mod tests {
         vec_amounts.push(user_a_amount);
         vec_amounts.push(user_b_amount);
 
-        (state, vec_private_keys, vec_address, vec_amounts)
+        (state, vec_private_keys, vec_id, vec_amounts)
     }
 
     #[test]
     fn test_simple_amm_initialize() {
-        let (state, _vec_private_keys, vec_address, vec_amounts) = initialize_amm();
+        let (state, _vec_private_keys, vec_id, vec_amounts) = initialize_amm();
 
         let temp_amt = vec_amounts[0];
         let init_balance_a = vec_amounts[1];
@@ -2572,36 +2572,36 @@ pub mod tests {
         let user_a_amount = vec_amounts[3];
         let user_b_amount = vec_amounts[4];
 
-        let token_a_holding_address = vec_address[0];
-        let token_a_definition_address = vec_address[1];
-        let token_b_holding_address = vec_address[2];
-        let token_b_definition_address = vec_address[3];
-        let token_lp_definition_address = vec_address[4];
-        let user_a_holding_address = vec_address[5];
-        let user_b_holding_address = vec_address[6];
-        let vault_a_address = vec_address[7];
-        let vault_b_address = vec_address[8];
-        let user_lp_holding_address = vec_address[9];
-        let pool_address = vec_address[10];
-        let pool_lp_holding_address = vec_address[11];
+        let token_a_holding_id = vec_id[0];
+        let token_a_definition_id = vec_id[1];
+        let token_b_holding_id = vec_id[2];
+        let token_b_definition_id = vec_id[3];
+        let token_lp_definition_id = vec_id[4];
+        let user_a_holding_id = vec_id[5];
+        let user_b_holding_id = vec_id[6];
+        let vault_a_id = vec_id[7];
+        let vault_b_id = vec_id[8];
+        let user_lp_holding_id = vec_id[9];
+        let pool_id = vec_id[10];
+        let pool_lp_holding_id = vec_id[11];
 
-        let pool_post = state.get_account_by_address(&pool_address);
-        let vault_a_post = state.get_account_by_address(&vault_a_address);
-        let vault_b_post = state.get_account_by_address(&vault_b_address);
-        let user_a_post = state.get_account_by_address(&user_a_holding_address);
-        let user_b_post = state.get_account_by_address(&user_b_holding_address);
-        let user_lp_post = state.get_account_by_address(&user_lp_holding_address);
+        let pool_post = state.get_account_by_id(&pool_id);
+        let vault_a_post = state.get_account_by_id(&vault_a_id);
+        let vault_b_post = state.get_account_by_id(&vault_b_id);
+        let user_a_post = state.get_account_by_id(&user_a_holding_id);
+        let user_b_post = state.get_account_by_id(&user_b_holding_id);
+        let user_lp_post = state.get_account_by_id(&user_lp_holding_id);
 
         let expected_pool = Account {
             program_owner: Program::amm().id(),
             balance: 0u128,
             data: PoolDefinition::into_data(
                 PoolDefinition {
-                    definition_token_a_id: token_a_definition_address,
-                    definition_token_b_id: token_b_definition_address,
-                    vault_a_addr: vault_a_address,
-                    vault_b_addr: vault_b_address,
-                    liquidity_pool_id: token_lp_definition_address,
+                    definition_token_a_id: token_a_definition_id,
+                    definition_token_b_id: token_b_definition_id,
+                    vault_a_addr: vault_a_id,
+                    vault_b_addr: vault_b_id,
+                    liquidity_pool_id: token_lp_definition_id,
                     liquidity_pool_cap: init_balance_a,
                     reserve_a: init_balance_a,
                     reserve_b: init_balance_b,
@@ -2616,7 +2616,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: init_balance_a + temp_amt,
             }),
             nonce: 0
@@ -2628,7 +2628,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: init_balance_b + temp_amt,
             }),
             nonce: 0
@@ -2640,7 +2640,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: user_a_amount - init_balance_a,
             }),
             nonce: 1
@@ -2652,7 +2652,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: user_b_amount - init_balance_b,
             }),
             nonce: 1
@@ -2664,7 +2664,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_lp_definition_address,
+                    definition_id: token_lp_definition_id,
                     balance: init_balance_a + temp_amt,
             }),
             nonce: 0
@@ -2680,7 +2680,7 @@ pub mod tests {
 
     #[test]
     fn test_simple_amm_remove() {
-        let (state, vec_private_keys, vec_address, vec_amounts) = initialize_amm();
+        let (state, vec_private_keys, vec_id, vec_amounts) = initialize_amm();
         let mut state: V02State = state;
 
         let temp_amt = vec_amounts[0];
@@ -2702,18 +2702,18 @@ pub mod tests {
         let pool_key = &vec_private_keys[10];
         let pool_lp_holding_key = &vec_private_keys[11];
 
-        let token_a_holding_address = vec_address[0];
-        let token_a_definition_address = vec_address[1];
-        let token_b_holding_address = vec_address[2];
-        let token_b_definition_address = vec_address[3];
-        let token_lp_definition_address = vec_address[4];
-        let user_a_holding_address = vec_address[5];
-        let user_b_holding_address = vec_address[6];
-        let vault_a_address = vec_address[7];
-        let vault_b_address = vec_address[8];
-        let user_lp_holding_address = vec_address[9];
-        let pool_address = vec_address[10];
-        let pool_lp_holding_address = vec_address[11];
+        let token_a_holding_id = vec_id[0];
+        let token_a_definition_id = vec_id[1];
+        let token_b_holding_id = vec_id[2];
+        let token_b_definition_id = vec_id[3];
+        let token_lp_definition_id = vec_id[4];
+        let user_a_holding_id = vec_id[5];
+        let user_b_holding_id = vec_id[6];
+        let vault_a_id = vec_id[7];
+        let vault_b_id = vec_id[8];
+        let user_lp_holding_id = vec_id[9];
+        let pool_id = vec_id[10];
+        let pool_lp_holding_id = vec_id[11];
 
         let mut instruction: Vec<u8> = Vec::new();
         instruction.push(3);
@@ -2721,19 +2721,19 @@ pub mod tests {
         let message = public_transaction::Message::try_new(
             Program::amm().id(),
             vec![
-                pool_address,
-                vault_a_address,
-                vault_b_address,
-                pool_lp_holding_address,
-                user_a_holding_address,
-                user_b_holding_address,
-                user_lp_holding_address,
+                pool_id,
+                vault_a_id,
+                vault_b_id,
+                pool_lp_holding_id,
+                user_a_holding_id,
+                user_b_holding_id,
+                user_lp_holding_id,
             ],
             vec![
-                state.get_account_by_address(&pool_address).nonce,
-                state.get_account_by_address(&user_lp_holding_address).nonce,
-                state.get_account_by_address(&vault_a_address).nonce,
-                state.get_account_by_address(&vault_b_address).nonce,
+                state.get_account_by_id(&pool_id).nonce,
+                state.get_account_by_id(&user_lp_holding_id).nonce,
+                state.get_account_by_id(&vault_a_id).nonce,
+                state.get_account_by_id(&vault_b_id).nonce,
             ],
             instruction,
         )
@@ -2747,12 +2747,12 @@ pub mod tests {
         let tx = PublicTransaction::new(message, witness_set);
         state.transition_from_public_transaction(&tx).unwrap();
 
-        let pool_post = state.get_account_by_address(&pool_address);
-        let vault_a_post = state.get_account_by_address(&vault_a_address);
-        let vault_b_post = state.get_account_by_address(&vault_b_address);
-        let user_a_post = state.get_account_by_address(&user_a_holding_address);
-        let user_b_post = state.get_account_by_address(&user_b_holding_address);
-        let user_lp_post = state.get_account_by_address(&user_lp_holding_address);
+        let pool_post = state.get_account_by_id(&pool_id);
+        let vault_a_post = state.get_account_by_id(&vault_a_id);
+        let vault_b_post = state.get_account_by_id(&vault_b_id);
+        let user_a_post = state.get_account_by_id(&user_a_holding_id);
+        let user_b_post = state.get_account_by_id(&user_b_holding_id);
+        let user_lp_post = state.get_account_by_id(&user_lp_holding_id);
 
         //TODO: this accounts for the initial balance for User_LP
         let delta_lp : u128 = (init_balance_a*(init_balance_a + temp_amt))/init_balance_a;
@@ -2762,11 +2762,11 @@ pub mod tests {
             balance: 0u128,
             data: PoolDefinition::into_data(
                 PoolDefinition {
-                    definition_token_a_id: token_a_definition_address,
-                    definition_token_b_id: token_b_definition_address,
-                    vault_a_addr: vault_a_address,
-                    vault_b_addr: vault_b_address,
-                    liquidity_pool_id: token_lp_definition_address,
+                    definition_token_a_id: token_a_definition_id,
+                    definition_token_b_id: token_b_definition_id,
+                    vault_a_addr: vault_a_id,
+                    vault_b_addr: vault_b_id,
+                    liquidity_pool_id: token_lp_definition_id,
                     liquidity_pool_cap: init_balance_a - delta_lp,
                     reserve_a: 0,
                     reserve_b: 0,
@@ -2781,7 +2781,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: temp_amt,
             }),
             nonce: 1
@@ -2793,7 +2793,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: temp_amt,
             }),
             nonce: 1
@@ -2805,7 +2805,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: user_a_amount,
             }),
             nonce: 1
@@ -2817,7 +2817,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: user_b_amount,
             }),
             nonce: 1
@@ -2829,7 +2829,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_lp_definition_address,
+                    definition_id: token_lp_definition_id,
                     balance: 0,
             }),
             nonce: 1
@@ -2845,7 +2845,7 @@ pub mod tests {
 
     #[test]
     fn test_simple_amm_add() {
-        let (state, vec_private_keys, vec_address, vec_amounts) = initialize_amm();
+        let (state, vec_private_keys, vec_id, vec_amounts) = initialize_amm();
         let mut state: V02State = state;
 
         let temp_amt = vec_amounts[0];
@@ -2867,23 +2867,23 @@ pub mod tests {
         let pool_key = &vec_private_keys[10];
         let pool_lp_holding_key = &vec_private_keys[11];
 
-        let token_a_holding_address = vec_address[0];
-        let token_a_definition_address = vec_address[1];
-        let token_b_holding_address = vec_address[2];
-        let token_b_definition_address = vec_address[3];
-        let token_lp_definition_address = vec_address[4];
-        let user_a_holding_address = vec_address[5];
-        let user_b_holding_address = vec_address[6];
-        let vault_a_address = vec_address[7];
-        let vault_b_address = vec_address[8];
-        let user_lp_holding_address = vec_address[9];
-        let pool_address = vec_address[10];
-        let pool_lp_holding_address = vec_address[11];
+        let token_a_holding_id = vec_id[0];
+        let token_a_definition_id = vec_id[1];
+        let token_b_holding_id = vec_id[2];
+        let token_b_definition_id = vec_id[3];
+        let token_lp_definition_id = vec_id[4];
+        let user_a_holding_id = vec_id[5];
+        let user_b_holding_id = vec_id[6];
+        let vault_a_id = vec_id[7];
+        let vault_b_id = vec_id[8];
+        let user_lp_holding_id = vec_id[9];
+        let pool_id = vec_id[10];
+        let pool_lp_holding_id = vec_id[11];
 
 
         let add_a: u128 = 500;
         let add_b: u128 = 500;
-        let main_addr = token_a_definition_address;
+        let main_addr = token_a_definition_id;
         let mut instruction: Vec<u8> = Vec::new();
         instruction.push(2);
         instruction.extend_from_slice(&add_a.to_le_bytes());
@@ -2893,19 +2893,19 @@ pub mod tests {
         let message = public_transaction::Message::try_new(
             Program::amm().id(),
             vec![
-                pool_address,
-                vault_a_address,
-                vault_b_address,
-                pool_lp_holding_address,
-                user_a_holding_address,
-                user_b_holding_address,
-                user_lp_holding_address,
+                pool_id,
+                vault_a_id,
+                vault_b_id,
+                pool_lp_holding_id,
+                user_a_holding_id,
+                user_b_holding_id,
+                user_lp_holding_id,
             ],
             vec![
-                state.get_account_by_address(&pool_address).nonce,
-                state.get_account_by_address(&pool_lp_holding_address).nonce,
-                state.get_account_by_address(&user_a_holding_address).nonce,
-                state.get_account_by_address(&user_b_holding_address).nonce,
+                state.get_account_by_id(&pool_id).nonce,
+                state.get_account_by_id(&pool_lp_holding_id).nonce,
+                state.get_account_by_id(&user_a_holding_id).nonce,
+                state.get_account_by_id(&user_b_holding_id).nonce,
             ],
             instruction,
         )
@@ -2924,23 +2924,23 @@ pub mod tests {
         let tx = PublicTransaction::new(message, witness_set);
         state.transition_from_public_transaction(&tx).unwrap();
 
-        let pool_post = state.get_account_by_address(&pool_address);
-        let vault_a_post = state.get_account_by_address(&vault_a_address);
-        let vault_b_post = state.get_account_by_address(&vault_b_address);
-        let user_a_post = state.get_account_by_address(&user_a_holding_address);
-        let user_b_post = state.get_account_by_address(&user_b_holding_address);
-        let user_lp_post = state.get_account_by_address(&user_lp_holding_address);
+        let pool_post = state.get_account_by_id(&pool_id);
+        let vault_a_post = state.get_account_by_id(&vault_a_id);
+        let vault_b_post = state.get_account_by_id(&vault_b_id);
+        let user_a_post = state.get_account_by_id(&user_a_holding_id);
+        let user_b_post = state.get_account_by_id(&user_b_holding_id);
+        let user_lp_post = state.get_account_by_id(&user_lp_holding_id);
 
         let expected_pool = Account {
             program_owner: Program::amm().id(),
             balance: 0u128,
             data: PoolDefinition::into_data(
                 PoolDefinition {
-                    definition_token_a_id: token_a_definition_address,
-                    definition_token_b_id: token_b_definition_address,
-                    vault_a_addr: vault_a_address,
-                    vault_b_addr: vault_b_address,
-                    liquidity_pool_id: token_lp_definition_address,
+                    definition_token_a_id: token_a_definition_id,
+                    definition_token_b_id: token_b_definition_id,
+                    vault_a_addr: vault_a_id,
+                    vault_b_addr: vault_b_id,
+                    liquidity_pool_id: token_lp_definition_id,
                     liquidity_pool_cap: init_balance_a + add_a,
                     reserve_a: init_balance_a + add_a,
                     reserve_b: init_balance_b + add_b,
@@ -2955,7 +2955,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: init_balance_a + temp_amt + add_a,
             }),
             nonce: 0
@@ -2967,7 +2967,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: init_balance_b + temp_amt + add_b,
             }),
             nonce: 0
@@ -2979,7 +2979,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: user_a_amount - init_balance_a - add_a,
             }),
             nonce: 2
@@ -2991,7 +2991,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: user_b_amount - init_balance_b - add_b,
             }),
             nonce: 2
@@ -3003,7 +3003,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_lp_definition_address,
+                    definition_id: token_lp_definition_id,
                     balance: temp_amt + init_balance_a + add_a,
             }),
             nonce: 0
@@ -3020,7 +3020,7 @@ pub mod tests {
     
     #[test]
     fn test_simple_amm_swap_1() {
-        let (state, vec_private_keys, vec_address, vec_amounts) = initialize_amm();
+        let (state, vec_private_keys, vec_id, vec_amounts) = initialize_amm();
         let mut state: V02State = state;
 
         let temp_amt = vec_amounts[0];
@@ -3042,28 +3042,28 @@ pub mod tests {
         let pool_key = &vec_private_keys[10];
         let pool_lp_holding_key = &vec_private_keys[11];
 
-        let token_a_holding_address = vec_address[0];
-        let token_a_definition_address = vec_address[1];
-        let token_b_holding_address = vec_address[2];
-        let token_b_definition_address = vec_address[3];
-        let token_lp_definition_address = vec_address[4];
-        let user_a_holding_address = vec_address[5];
-        let user_b_holding_address = vec_address[6];
-        let vault_a_address = vec_address[7];
-        let vault_b_address = vec_address[8];
-        let user_lp_holding_address = vec_address[9];
-        let pool_address = vec_address[10];
-        let pool_lp_holding_address = vec_address[11];
+        let token_a_holding_id = vec_id[0];
+        let token_a_definition_id = vec_id[1];
+        let token_b_holding_id = vec_id[2];
+        let token_b_definition_id = vec_id[3];
+        let token_lp_definition_id = vec_id[4];
+        let user_a_holding_id = vec_id[5];
+        let user_b_holding_id = vec_id[6];
+        let vault_a_id = vec_id[7];
+        let vault_b_id = vec_id[8];
+        let user_lp_holding_id = vec_id[9];
+        let pool_id = vec_id[10];
+        let pool_lp_holding_id = vec_id[11];
 
         //Initialize swap user accounts
         let swap_user_a_holding_key = PrivateKey::try_new([21; 32]).unwrap();
-        let swap_user_a_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&swap_user_a_holding_key));
+        let swap_user_a_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&swap_user_a_holding_key));
         let swap_user_a_amount: u128 = 5000;
 
         let swap_user_b_holding_key = PrivateKey::try_new([22; 32]).unwrap();
-        let swap_user_b_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&swap_user_b_holding_key));
+        let swap_user_b_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&swap_user_b_holding_key));
         let swap_user_b_amount: u128 = 5000;
 
         // Initialize Swap User account for Token A
@@ -3073,7 +3073,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_a_holding_address, swap_user_a_holding_address],
+            vec![token_a_holding_id, swap_user_a_holding_id],
             vec![2],
             instruction,
         )
@@ -3091,8 +3091,8 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_b_holding_address, swap_user_b_holding_address],
-            vec![state.get_account_by_address(&token_b_holding_address).nonce],
+            vec![token_b_holding_id, swap_user_b_holding_id],
+            vec![state.get_account_by_id(&token_b_holding_id).nonce],
             instruction,
         )
         .unwrap();
@@ -3103,7 +3103,7 @@ pub mod tests {
         state.transition_from_public_transaction(&tx).unwrap();
 
         // Initialize Swap
-        let main_addr = token_a_definition_address;
+        let main_addr = token_a_definition_id;
         let swap_a: u128 = 500;
 
         let mut instruction: Vec<u8> = Vec::new();
@@ -3114,21 +3114,21 @@ pub mod tests {
         let message = public_transaction::Message::try_new(
             Program::amm().id(),
             vec![
-                pool_address,
-                vault_a_address,
-                vault_b_address,
-                swap_user_a_holding_address,
-                swap_user_b_holding_address,
+                pool_id,
+                vault_a_id,
+                vault_b_id,
+                swap_user_a_holding_id,
+                swap_user_b_holding_id,
             ],
             vec![
-                state.get_account_by_address(&pool_address).nonce,
-                state.get_account_by_address(&vault_a_address).nonce,
-                state.get_account_by_address(&vault_b_address).nonce,
+                state.get_account_by_id(&pool_id).nonce,
+                state.get_account_by_id(&vault_a_id).nonce,
+                state.get_account_by_id(&vault_b_id).nonce,
                 state
-                    .get_account_by_address(&swap_user_a_holding_address)
+                    .get_account_by_id(&swap_user_a_holding_id)
                     .nonce,
                 state
-                    .get_account_by_address(&swap_user_b_holding_address)
+                    .get_account_by_id(&swap_user_b_holding_id)
                     .nonce,
             ],
             instruction,
@@ -3150,11 +3150,11 @@ pub mod tests {
         state.transition_from_public_transaction(&tx).unwrap();
 
 
-        let pool_post = state.get_account_by_address(&pool_address);
-        let vault_a_post = state.get_account_by_address(&vault_a_address);
-        let vault_b_post = state.get_account_by_address(&vault_b_address);
-        let swap_user_a_post = state.get_account_by_address(&swap_user_a_holding_address);
-        let swap_user_b_post = state.get_account_by_address(&swap_user_b_holding_address);
+        let pool_post = state.get_account_by_id(&pool_id);
+        let vault_a_post = state.get_account_by_id(&vault_a_id);
+        let vault_b_post = state.get_account_by_id(&vault_b_id);
+        let swap_user_a_post = state.get_account_by_id(&swap_user_a_holding_id);
+        let swap_user_b_post = state.get_account_by_id(&swap_user_b_holding_id);
 
 
         let withdraw_b = (init_balance_b * swap_a)/(init_balance_a + swap_a);
@@ -3164,11 +3164,11 @@ pub mod tests {
             balance: 0u128,
             data: PoolDefinition::into_data(
                 PoolDefinition {
-                    definition_token_a_id: token_a_definition_address,
-                    definition_token_b_id: token_b_definition_address,
-                    vault_a_addr: vault_a_address,
-                    vault_b_addr: vault_b_address,
-                    liquidity_pool_id: token_lp_definition_address,
+                    definition_token_a_id: token_a_definition_id,
+                    definition_token_b_id: token_b_definition_id,
+                    vault_a_addr: vault_a_id,
+                    vault_b_addr: vault_b_id,
+                    liquidity_pool_id: token_lp_definition_id,
                     liquidity_pool_cap: init_balance_a,
                     reserve_a: init_balance_a + swap_a,
                     reserve_b: init_balance_b - withdraw_b,
@@ -3183,7 +3183,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: init_balance_a + temp_amt + swap_a,
             }),
             nonce: 1
@@ -3195,7 +3195,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: init_balance_b + temp_amt - withdraw_b,
             }),
             nonce: 1
@@ -3207,7 +3207,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: swap_user_a_amount - swap_a,
             }),
             nonce: 1
@@ -3219,7 +3219,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: swap_user_b_amount + withdraw_b,
             }),
             nonce: 1
@@ -3235,7 +3235,7 @@ pub mod tests {
     
     #[test]
     fn test_simple_amm_swap_2() {
-        let (state, vec_private_keys, vec_address, vec_amounts) = initialize_amm();
+        let (state, vec_private_keys, vec_id, vec_amounts) = initialize_amm();
         let mut state: V02State = state;
 
         let temp_amt = vec_amounts[0];
@@ -3257,28 +3257,28 @@ pub mod tests {
         let pool_key = &vec_private_keys[10];
         let pool_lp_holding_key = &vec_private_keys[11];
 
-        let token_a_holding_address = vec_address[0];
-        let token_a_definition_address = vec_address[1];
-        let token_b_holding_address = vec_address[2];
-        let token_b_definition_address = vec_address[3];
-        let token_lp_definition_address = vec_address[4];
-        let user_a_holding_address = vec_address[5];
-        let user_b_holding_address = vec_address[6];
-        let vault_a_address = vec_address[7];
-        let vault_b_address = vec_address[8];
-        let user_lp_holding_address = vec_address[9];
-        let pool_address = vec_address[10];
-        let pool_lp_holding_address = vec_address[11];
+        let token_a_holding_id = vec_id[0];
+        let token_a_definition_id = vec_id[1];
+        let token_b_holding_id = vec_id[2];
+        let token_b_definition_id = vec_id[3];
+        let token_lp_definition_id = vec_id[4];
+        let user_a_holding_id = vec_id[5];
+        let user_b_holding_id = vec_id[6];
+        let vault_a_id = vec_id[7];
+        let vault_b_id = vec_id[8];
+        let user_lp_holding_id = vec_id[9];
+        let pool_id = vec_id[10];
+        let pool_lp_holding_id = vec_id[11];
 
         //Initialize swap user accounts
         let swap_user_a_holding_key = PrivateKey::try_new([21; 32]).unwrap();
-        let swap_user_a_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&swap_user_a_holding_key));
+        let swap_user_a_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&swap_user_a_holding_key));
         let swap_user_a_amount: u128 = 5000;
 
         let swap_user_b_holding_key = PrivateKey::try_new([22; 32]).unwrap();
-        let swap_user_b_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&swap_user_b_holding_key));
+        let swap_user_b_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&swap_user_b_holding_key));
         let swap_user_b_amount: u128 = 5000;
 
         // Initialize Swap User account for Token A
@@ -3288,7 +3288,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_a_holding_address, swap_user_a_holding_address],
+            vec![token_a_holding_id, swap_user_a_holding_id],
             vec![2],
             instruction,
         )
@@ -3306,8 +3306,8 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_b_holding_address, swap_user_b_holding_address],
-            vec![state.get_account_by_address(&token_b_holding_address).nonce],
+            vec![token_b_holding_id, swap_user_b_holding_id],
+            vec![state.get_account_by_id(&token_b_holding_id).nonce],
             instruction,
         )
         .unwrap();
@@ -3318,7 +3318,7 @@ pub mod tests {
         state.transition_from_public_transaction(&tx).unwrap();
 
         // Swap
-        let main_addr = token_b_definition_address;
+        let main_addr = token_b_definition_id;
         let swap_b: u128 = 500;
 
         let mut instruction: Vec<u8> = Vec::new();
@@ -3329,21 +3329,21 @@ pub mod tests {
         let message = public_transaction::Message::try_new(
             Program::amm().id(),
             vec![
-                pool_address,
-                vault_a_address,
-                vault_b_address,
-                swap_user_a_holding_address,
-                swap_user_b_holding_address,
+                pool_id,
+                vault_a_id,
+                vault_b_id,
+                swap_user_a_holding_id,
+                swap_user_b_holding_id,
             ],
             vec![
-                state.get_account_by_address(&pool_address).nonce,
-                state.get_account_by_address(&vault_a_address).nonce,
-                state.get_account_by_address(&vault_b_address).nonce,
+                state.get_account_by_id(&pool_id).nonce,
+                state.get_account_by_id(&vault_a_id).nonce,
+                state.get_account_by_id(&vault_b_id).nonce,
                 state
-                    .get_account_by_address(&swap_user_a_holding_address)
+                    .get_account_by_id(&swap_user_a_holding_id)
                     .nonce,
                 state
-                    .get_account_by_address(&swap_user_b_holding_address)
+                    .get_account_by_id(&swap_user_b_holding_id)
                     .nonce,
             ],
             instruction,
@@ -3364,11 +3364,11 @@ pub mod tests {
         let tx = PublicTransaction::new(message, witness_set);
         state.transition_from_public_transaction(&tx).unwrap();
 
-        let pool_post = state.get_account_by_address(&pool_address);
-        let vault_a_post = state.get_account_by_address(&vault_a_address);
-        let vault_b_post = state.get_account_by_address(&vault_b_address);
-        let swap_user_a_post = state.get_account_by_address(&swap_user_a_holding_address);
-        let swap_user_b_post = state.get_account_by_address(&swap_user_b_holding_address);
+        let pool_post = state.get_account_by_id(&pool_id);
+        let vault_a_post = state.get_account_by_id(&vault_a_id);
+        let vault_b_post = state.get_account_by_id(&vault_b_id);
+        let swap_user_a_post = state.get_account_by_id(&swap_user_a_holding_id);
+        let swap_user_b_post = state.get_account_by_id(&swap_user_b_holding_id);
 
         let withdraw_a = (init_balance_a * swap_b)/(init_balance_b + swap_b);
 
@@ -3377,11 +3377,11 @@ pub mod tests {
             balance: 0u128,
             data: PoolDefinition::into_data(
                 PoolDefinition {
-                    definition_token_a_id: token_a_definition_address,
-                    definition_token_b_id: token_b_definition_address,
-                    vault_a_addr: vault_a_address,
-                    vault_b_addr: vault_b_address,
-                    liquidity_pool_id: token_lp_definition_address,
+                    definition_token_a_id: token_a_definition_id,
+                    definition_token_b_id: token_b_definition_id,
+                    vault_a_addr: vault_a_id,
+                    vault_b_addr: vault_b_id,
+                    liquidity_pool_id: token_lp_definition_id,
                     liquidity_pool_cap: init_balance_a,
                     reserve_a: init_balance_a - withdraw_a,
                     reserve_b: init_balance_b + swap_b,
@@ -3396,7 +3396,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: init_balance_a + temp_amt - withdraw_a,
             }),
             nonce: 1
@@ -3408,7 +3408,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: init_balance_b + temp_amt + swap_b,
             }),
             nonce: 1
@@ -3420,7 +3420,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: swap_user_a_amount + withdraw_a,
             }),
             nonce: 1
@@ -3432,7 +3432,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: swap_user_b_amount - swap_b,
             }),
             nonce: 1
@@ -3448,7 +3448,7 @@ pub mod tests {
 
         #[test]
     fn test_simple_amm_swap_3() {
-        let (state, vec_private_keys, vec_address, vec_amounts) = initialize_amm();
+        let (state, vec_private_keys, vec_id, vec_amounts) = initialize_amm();
         let mut state: V02State = state;
 
         let temp_amt = vec_amounts[0];
@@ -3470,28 +3470,28 @@ pub mod tests {
         let pool_key = &vec_private_keys[10];
         let pool_lp_holding_key = &vec_private_keys[11];
 
-        let token_a_holding_address = vec_address[0];
-        let token_a_definition_address = vec_address[1];
-        let token_b_holding_address = vec_address[2];
-        let token_b_definition_address = vec_address[3];
-        let token_lp_definition_address = vec_address[4];
-        let user_a_holding_address = vec_address[5];
-        let user_b_holding_address = vec_address[6];
-        let vault_a_address = vec_address[7];
-        let vault_b_address = vec_address[8];
-        let user_lp_holding_address = vec_address[9];
-        let pool_address = vec_address[10];
-        let pool_lp_holding_address = vec_address[11];
+        let token_a_holding_id = vec_id[0];
+        let token_a_definition_id = vec_id[1];
+        let token_b_holding_id = vec_id[2];
+        let token_b_definition_id = vec_id[3];
+        let token_lp_definition_id = vec_id[4];
+        let user_a_holding_id = vec_id[5];
+        let user_b_holding_id = vec_id[6];
+        let vault_a_id = vec_id[7];
+        let vault_b_id = vec_id[8];
+        let user_lp_holding_id = vec_id[9];
+        let pool_id = vec_id[10];
+        let pool_lp_holding_id = vec_id[11];
 
         //Initialize swap user accounts
         let swap_user_a_holding_key = PrivateKey::try_new([21; 32]).unwrap();
-        let swap_user_a_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&swap_user_a_holding_key));
+        let swap_user_a_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&swap_user_a_holding_key));
         let swap_user_a_amount: u128 = 5000;
 
         let swap_user_b_holding_key = PrivateKey::try_new([22; 32]).unwrap();
-        let swap_user_b_holding_address =
-            Address::from(&PublicKey::new_from_private_key(&swap_user_b_holding_key));
+        let swap_user_b_holding_id =
+            AccountId::from(&PublicKey::new_from_private_key(&swap_user_b_holding_key));
         let swap_user_b_amount: u128 = 5000;
 
         // Initialize Swap User account for Token A
@@ -3501,7 +3501,7 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_a_holding_address, swap_user_a_holding_address],
+            vec![token_a_holding_id, swap_user_a_holding_id],
             vec![2],
             instruction,
         )
@@ -3519,8 +3519,8 @@ pub mod tests {
 
         let message = public_transaction::Message::try_new(
             Program::token().id(),
-            vec![token_b_holding_address, swap_user_b_holding_address],
-            vec![state.get_account_by_address(&token_b_holding_address).nonce],
+            vec![token_b_holding_id, swap_user_b_holding_id],
+            vec![state.get_account_by_id(&token_b_holding_id).nonce],
             instruction,
         )
         .unwrap();
@@ -3531,7 +3531,7 @@ pub mod tests {
         state.transition_from_public_transaction(&tx).unwrap();
 
         // Swap
-        let main_addr = token_b_definition_address;
+        let main_addr = token_b_definition_id;
         let swap_b: u128 = 500;
 
         let mut instruction: Vec<u8> = Vec::new();
@@ -3543,21 +3543,21 @@ pub mod tests {
         let message = public_transaction::Message::try_new(
             Program::amm().id(),
             vec![
-                pool_address,
-                vault_b_address,
-                vault_a_address,
-                swap_user_a_holding_address,
-                swap_user_b_holding_address,
+                pool_id,
+                vault_b_id,
+                vault_a_id,
+                swap_user_a_holding_id,
+                swap_user_b_holding_id,
             ],
             vec![
-                state.get_account_by_address(&pool_address).nonce,
-                state.get_account_by_address(&vault_b_address).nonce,
-                state.get_account_by_address(&vault_a_address).nonce,
+                state.get_account_by_id(&pool_id).nonce,
+                state.get_account_by_id(&vault_b_id).nonce,
+                state.get_account_by_id(&vault_a_id).nonce,
                 state
-                    .get_account_by_address(&swap_user_a_holding_address)
+                    .get_account_by_id(&swap_user_a_holding_id)
                     .nonce,
                 state
-                    .get_account_by_address(&swap_user_b_holding_address)
+                    .get_account_by_id(&swap_user_b_holding_id)
                     .nonce,
             ],
             instruction,
@@ -3578,11 +3578,11 @@ pub mod tests {
         let tx = PublicTransaction::new(message, witness_set);
         state.transition_from_public_transaction(&tx).unwrap();
 
-        let pool_post = state.get_account_by_address(&pool_address);
-        let vault_a_post = state.get_account_by_address(&vault_a_address);
-        let vault_b_post = state.get_account_by_address(&vault_b_address);
-        let swap_user_a_post = state.get_account_by_address(&swap_user_a_holding_address);
-        let swap_user_b_post = state.get_account_by_address(&swap_user_b_holding_address);
+        let pool_post = state.get_account_by_id(&pool_id);
+        let vault_a_post = state.get_account_by_id(&vault_a_id);
+        let vault_b_post = state.get_account_by_id(&vault_b_id);
+        let swap_user_a_post = state.get_account_by_id(&swap_user_a_holding_id);
+        let swap_user_b_post = state.get_account_by_id(&swap_user_b_holding_id);
 
         let withdraw_a = (init_balance_a * swap_b)/(init_balance_b + swap_b);
 
@@ -3591,11 +3591,11 @@ pub mod tests {
             balance: 0u128,
             data: PoolDefinition::into_data(
                 PoolDefinition {
-                    definition_token_a_id: token_a_definition_address,
-                    definition_token_b_id: token_b_definition_address,
-                    vault_a_addr: vault_a_address,
-                    vault_b_addr: vault_b_address,
-                    liquidity_pool_id: token_lp_definition_address,
+                    definition_token_a_id: token_a_definition_id,
+                    definition_token_b_id: token_b_definition_id,
+                    vault_a_addr: vault_a_id,
+                    vault_b_addr: vault_b_id,
+                    liquidity_pool_id: token_lp_definition_id,
                     liquidity_pool_cap: init_balance_a,
                     reserve_a: init_balance_a - withdraw_a,
                     reserve_b: init_balance_b + swap_b,
@@ -3610,7 +3610,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: init_balance_a + temp_amt - withdraw_a,
             }),
             nonce: 1
@@ -3622,7 +3622,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: init_balance_b + temp_amt + swap_b,
             }),
             nonce: 1
@@ -3634,7 +3634,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_a_definition_address,
+                    definition_id: token_a_definition_id,
                     balance: swap_user_a_amount + withdraw_a,
             }),
             nonce: 1
@@ -3646,7 +3646,7 @@ pub mod tests {
             data: TokenHolding::into_data(
                 TokenHolding{
                     account_type: TOKEN_HOLDING_TYPE,
-                    definition_id: token_b_definition_address,
+                    definition_id: token_b_definition_id,
                     balance: swap_user_b_amount - swap_b,
             }),
             nonce: 1
@@ -3659,4 +3659,5 @@ pub mod tests {
         assert!(pool_post == expected_pool);
 
     }
+
 }

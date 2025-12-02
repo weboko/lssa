@@ -1,5 +1,4 @@
 use nssa_core::{
-    address::Address,
     account::{Account, AccountId, AccountWithMetadata, Data},
     program::{ProgramId, ProgramInput, ChainedCall, read_nssa_inputs, write_nssa_outputs_with_chained_call},
 };
@@ -37,8 +36,8 @@ use bytemuck;
 const POOL_DEFINITION_DATA_SIZE: usize = 240;
 
 struct PoolDefinition{
-    definition_token_a_id: Address,
-    definition_token_b_id: Address,
+    definition_token_a_id: AccountId,
+    definition_token_b_id: AccountId,
     vault_a_addr: AccountId,
     vault_b_addr: AccountId,
     liquidity_pool_id: AccountId,
@@ -166,7 +165,7 @@ fn main() {
             let mut token_addr: [u8;32] = [0;32];
             token_addr[0..].copy_from_slice(&instruction[17..49]);
             
-            let token_addr = Address::new(token_addr);
+            let token_addr = AccountId::new(token_addr);
             
             let amount = u128::from_le_bytes(instruction[1..17].try_into().unwrap());
 
@@ -181,7 +180,7 @@ fn main() {
 
             let mut token_addr: [u8;32] = [0;32];
             token_addr[0..].copy_from_slice(&instruction[33..65]);
-            let token_addr = Address::new(token_addr);
+            let token_addr = AccountId::new(token_addr);
 
             let (post_states, chained_call) = add_liquidity(&pre_states,
                         &[balance_a, balance_b], token_addr.clone());
@@ -320,12 +319,14 @@ fn new_definition(
 fn swap(
         pre_states: &[AccountWithMetadata],
         amount: u128,
-        token_id: Address,
+        token_id: AccountId,
     ) -> (Vec<Account>, Vec<ChainedCall>) {
 
     if pre_states.len() != 5 {
         panic!("Invalid number of input accounts");
     }
+    //TODO: get rid of
+
 
     let pool = &pre_states[0];
     let vault1 = &pre_states[1];
@@ -357,7 +358,7 @@ fn swap(
         true
     } else if token_id == pool_def_data.definition_token_b_id { false }
     else {
-        panic!("Address is not a token type for the pool");
+        panic!("AccountId is not a token type for the pool");
     };
 
     let deposit_a = if a_to_b { amount } else { 0 };
@@ -469,7 +470,7 @@ fn swap(
 
 fn add_liquidity(pre_states: &[AccountWithMetadata],
     max_balance_in: &[u128],
-    main_token: Address) -> (Vec<Account>, Vec<ChainedCall>) {
+    main_token: AccountId) -> (Vec<Account>, Vec<ChainedCall>) {
 
     if pre_states.len() != 7 {
        panic!("Invalid number of input accounts");
@@ -943,7 +944,7 @@ mod tests {
         let pre_states = vec![AccountWithMetadata {
             account: pool,
             is_authorized: true,
-            account_id: AccountId::default()},
+            account_id: AccountId::new([0;32])},
             AccountWithMetadata {
             account: Account::default(),
             is_authorized: true,
@@ -3574,7 +3575,7 @@ mod tests {
         let _post_states = swap(&pre_states, amount, vault_addr);
     }
 
-    #[should_panic(expected = "Address is not a token type for the pool")]
+    #[should_panic(expected = "AccountId is not a token type for the pool")]
     #[test]
     fn test_call_swap_incorrect_token_type() {
         let mut pool = Account::default();
