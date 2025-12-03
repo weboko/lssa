@@ -24,15 +24,25 @@ pub struct ChainedCall {
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct AccountPostState {
     pub account: Account,
-    pub claim: bool,
+    claim: bool,
 }
 
-impl From<Account> for AccountPostState {
-    fn from(account: Account) -> Self {
-        AccountPostState {
+impl AccountPostState {
+    pub fn new(account: Account) -> Self {
+        Self {
             account,
             claim: false,
         }
+    }
+    pub fn new_claimed(account: Account) -> Self {
+        Self {
+            account,
+            claim: true,
+        }
+    }
+
+    pub fn requires_claim(&self) -> bool {
+        self.claim
     }
 }
 
@@ -153,7 +163,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_account_post_state_from_account_constructor() {
+    fn test_post_state_new_without_claim_constructor() {
         let account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
@@ -161,9 +171,25 @@ mod tests {
             nonce: 10,
         };
 
-        let account_post_state: AccountPostState = account.clone().into();
+        let account_post_state = AccountPostState::new_claimed(account.clone());
 
         assert_eq!(account, account_post_state.account);
-        assert!(!account_post_state.claim);
+        assert!(account_post_state.requires_claim());
     }
+
+    #[test]
+    fn test_post_state_new_with_claim_constructor() {
+        let account = Account {
+            program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
+            balance: 1337,
+            data: vec![0xde, 0xad, 0xbe, 0xef],
+            nonce: 10,
+        };
+
+        let account_post_state = AccountPostState::new(account.clone());
+
+        assert_eq!(account, account_post_state.account);
+        assert!(!account_post_state.requires_claim());
+    }
+
 }

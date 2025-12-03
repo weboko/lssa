@@ -153,10 +153,16 @@ impl PublicTransaction {
                 return Err(NssaError::InvalidProgramBehavior);
             }
 
-            // The invoked program claims the accounts with default program id.
             for post in program_output.post_states.iter_mut() {
+                if !post.requires_claim() {
+                    continue;
+                }
+
+                // The invoked program can only claim accounts with default program id.
                 if post.account.program_owner == DEFAULT_PROGRAM_ID {
                     post.account.program_owner = chained_call.program_id;
+                } else {
+                    return Err(NssaError::InvalidProgramBehavior);
                 }
             }
 

@@ -1,6 +1,8 @@
 use nssa_core::{
     account::{Account, AccountId, AccountWithMetadata, Data},
-    program::{read_nssa_inputs, write_nssa_outputs, AccountPostState, ProgramInput},
+    program::{
+        AccountPostState, DEFAULT_PROGRAM_ID, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+    },
 };
 
 // The token program has three functions:
@@ -148,15 +150,22 @@ fn transfer(pre_states: &[AccountWithMetadata], balance_to_move: u128) -> Vec<Ac
     let sender_post = {
         let mut this = sender.account.clone();
         this.data = sender_holding.into_data();
-        this
+        AccountPostState::new(this)
     };
+
     let recipient_post = {
         let mut this = recipient.account.clone();
         this.data = recipient_holding.into_data();
-        this
+
+        // Claim the recipient account if it has default program owner
+        if this.program_owner == DEFAULT_PROGRAM_ID {
+            AccountPostState::new_claimed(this)
+        } else {
+            AccountPostState::new(this)
+        }
     };
 
-    vec![sender_post.into(), recipient_post.into()]
+    vec![sender_post, recipient_post]
 }
 
 fn new_definition(
@@ -196,7 +205,10 @@ fn new_definition(
     let mut holding_target_account_post = holding_target_account.account.clone();
     holding_target_account_post.data = token_holding.into_data();
 
-    vec![definition_target_account_post.into(), holding_target_account_post.into()]
+    vec![
+        AccountPostState::new_claimed(definition_target_account_post),
+        AccountPostState::new_claimed(holding_target_account_post),
+    ]
 }
 
 fn initialize_account(pre_states: &[AccountWithMetadata]) -> Vec<AccountPostState> {
@@ -220,10 +232,13 @@ fn initialize_account(pre_states: &[AccountWithMetadata]) -> Vec<AccountPostStat
     let holding_values = TokenHolding::new(&definition.account_id);
 
     let definition_post = definition.account.clone();
-    let mut account_to_initialize_post = account_to_initialize.account.clone();
-    account_to_initialize_post.data = holding_values.into_data();
+    let mut account_to_initialize = account_to_initialize.account.clone();
+    account_to_initialize.data = holding_values.into_data();
 
-    vec![definition_post.into(), account_to_initialize_post.into()]
+    vec![
+        AccountPostState::new(definition_post),
+        AccountPostState::new_claimed(account_to_initialize),
+    ]
 }
 
 type Instruction = [u8; 23];

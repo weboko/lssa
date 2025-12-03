@@ -1,4 +1,4 @@
-use nssa_core::program::{ProgramInput, read_nssa_inputs, write_nssa_outputs};
+use nssa_core::program::{AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs};
 
 type Instruction = u128;
 
@@ -20,6 +20,9 @@ fn main() {
 
     write_nssa_outputs(
         vec![sender_pre, receiver_pre],
-        vec![sender_post.into(), receiver_post.into()],
+        vec![
+            AccountPostState::new(sender_post),
+            AccountPostState::new(receiver_post),
+        ],
     );
 }
