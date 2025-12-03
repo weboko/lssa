@@ -6,7 +6,6 @@ use nssa_core::{
 };
 
 /// Initializes a default account under the ownership of this program.
-/// This is achieved by a noop.
 fn initialize_account(pre_state: AccountWithMetadata) {
     let account_to_claim = AccountPostState::new_claimed(pre_state.account.clone());
     let is_authorized = pre_state.is_authorized;
