@@ -14,5 +14,5 @@ fn main() {
     let mut account_post = account_pre.clone();
     account_post.data.push(0);
 
-    write_nssa_outputs(vec![pre], vec![AccountPostState::new(account_post)]);
+    write_nssa_outputs(vec![pre], vec![AccountPostState::new_claimed(account_post)]);
 }
