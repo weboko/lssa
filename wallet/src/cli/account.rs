@@ -178,7 +178,17 @@ impl From<TokenDefinition> for TokedDefinitionAccountView {
     fn from(value: TokenDefinition) -> Self {
         Self {
             account_type: "Token definition".to_string(),
-            name: hex::encode(value.name),
+            name: {
+                let mut name_vec_trim = vec![];
+                for ch in value.name {
+                    // Assuming, that name does not have UTF-8 NULL and all zeroes are padding.
+                    if ch == 0 {
+                        break;
+                    }
+                    name_vec_trim.push(ch);
+                }
+                String::from_utf8(name_vec_trim).unwrap_or(hex::encode(value.name))
+            },
             total_supply: value.total_supply,
         }
     }
@@ -341,5 +351,49 @@ impl WalletSubcommand for AccountSubcommand {
                 Ok(SubcommandReturnValue::Empty)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cli::account::{TokedDefinitionAccountView, TokenDefinition};
+
+    #[test]
+    fn test_invalid_utf_8_name_of_token() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [137, 12, 14, 3, 5, 4],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "890c0e030504");
+    }
+
+    #[test]
+    fn test_valid_utf_8_name_of_token_all_bytes() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [240, 159, 146, 150, 66, 66],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "💖BB");
+    }
+
+    #[test]
+    fn test_valid_utf_8_name_of_token_less_bytes() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [78, 65, 77, 69, 0, 0],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "NAME");
     }
 }
