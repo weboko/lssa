@@ -1,5 +1,5 @@
 use nssa_core::program::{
-    ChainedCall, PdaSeed, ProgramInput, read_nssa_inputs, write_nssa_outputs_with_chained_call,
+    read_nssa_inputs, write_nssa_outputs_with_chained_call, AccountPostState, ChainedCall, PdaSeed, ProgramInput
 };
 use risc0_zkvm::serde::to_vec;
 use risc0_zkvm::sha::{Impl, Sha256};
@@ -94,9 +94,9 @@ fn main() {
             winner_token_holding,
         ],
         vec![
-            pinata_definition_post,
-            pinata_token_holding_post,
-            winner_token_holding_post,
+            AccountPostState::new(pinata_definition_post),
+            AccountPostState::new(pinata_token_holding_post),
+            AccountPostState::new(winner_token_holding_post),
         ],
         chained_calls,
     );

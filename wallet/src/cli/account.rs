@@ -9,9 +9,7 @@ use serde::Serialize;
 use crate::{
     WalletCore,
     cli::{SubcommandReturnValue, WalletSubcommand},
-    helperfunctions::{
-        AccountPrivacyKind, HumanReadableAccount, parse_addr_with_privacy_prefix, parse_block_range,
-    },
+    helperfunctions::{AccountPrivacyKind, HumanReadableAccount, parse_addr_with_privacy_prefix},
 };
 
 const TOKEN_DEFINITION_TYPE: u8 = 0;
@@ -178,7 +176,12 @@ impl From<TokenDefinition> for TokedDefinitionAccountView {
     fn from(value: TokenDefinition) -> Self {
         Self {
             account_type: "Token definition".to_string(),
-            name: hex::encode(value.name),
+            name: {
+                // Assuming, that name does not have UTF-8 NULL and all zeroes are padding.
+                let name_trimmed: Vec<_> =
+                    value.name.into_iter().take_while(|ch| *ch != 0).collect();
+                String::from_utf8(name_trimmed).unwrap_or(hex::encode(value.name))
+            },
             total_supply: value.total_supply,
         }
     }
@@ -278,7 +281,6 @@ impl WalletSubcommand for AccountSubcommand {
                 new_subcommand.handle_subcommand(wallet_core).await
             }
             AccountSubcommand::SyncPrivate {} => {
-                let last_synced_block = wallet_core.last_synced_block;
                 let curr_last_block = wallet_core
                     .sequencer_client
                     .get_last_block()
@@ -298,13 +300,7 @@ impl WalletSubcommand for AccountSubcommand {
 
                     println!("Stored persistent data at {path:#?}");
                 } else {
-                    parse_block_range(
-                        last_synced_block + 1,
-                        curr_last_block,
-                        wallet_core.sequencer_client.clone(),
-                        wallet_core,
-                    )
-                    .await?;
+                    wallet_core.sync_to_block(curr_last_block).await?;
                 }
 
                 Ok(SubcommandReturnValue::SyncedToBlock(curr_last_block))
@@ -341,5 +337,49 @@ impl WalletSubcommand for AccountSubcommand {
                 Ok(SubcommandReturnValue::Empty)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cli::account::{TokedDefinitionAccountView, TokenDefinition};
+
+    #[test]
+    fn test_invalid_utf_8_name_of_token() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [137, 12, 14, 3, 5, 4],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "890c0e030504");
+    }
+
+    #[test]
+    fn test_valid_utf_8_name_of_token_all_bytes() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [240, 159, 146, 150, 66, 66],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "💖BB");
+    }
+
+    #[test]
+    fn test_valid_utf_8_name_of_token_less_bytes() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [78, 65, 77, 69, 0, 0],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "NAME");
     }
 }

@@ -1,5 +1,5 @@
 use nssa_core::program::{
-    ChainedCall, PdaSeed, ProgramId, ProgramInput, read_nssa_inputs,
+    AccountPostState, ChainedCall, PdaSeed, ProgramId, ProgramInput, read_nssa_inputs,
     write_nssa_outputs_with_chained_call,
 };
 use risc0_zkvm::serde::to_vec;
@@ -44,8 +44,11 @@ fn main() {
     }
 
     write_nssa_outputs_with_chained_call(
-        vec![recipient_pre.clone(), sender_pre.clone()],
-        vec![recipient_pre.account, sender_pre.account],
+        vec![sender_pre.clone(), recipient_pre.clone()],
+        vec![
+            AccountPostState::new(sender_pre.account),
+            AccountPostState::new(recipient_pre.account),
+        ],
         chained_calls,
     );
 }
