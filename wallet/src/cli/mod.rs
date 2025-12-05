@@ -232,13 +232,7 @@ pub async fn execute_keys_restoration(password: String, depth: u32) -> Result<()
 
     println!("Last block is {last_block}");
 
-    parse_block_range(
-        1,
-        last_block,
-        wallet_core.sequencer_client.clone(),
-        &mut wallet_core,
-    )
-    .await?;
+    wallet_core.sync_to_block(last_block).await?;
 
     println!("Private tree clean up start");
 
