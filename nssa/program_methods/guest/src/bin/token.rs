@@ -1,6 +1,8 @@
 use nssa_core::{
     account::{Account, AccountId, AccountWithMetadata, Data},
-    program::{ProgramInput, read_nssa_inputs, write_nssa_outputs},
+    program::{
+        AccountPostState, DEFAULT_PROGRAM_ID, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+    },
 };
 
 // The token program has three functions:
@@ -92,25 +94,25 @@ impl TokenHolding {
 
     fn parse(data: &[u8]) -> Option<Self> {
         if data.len() != TOKEN_HOLDING_DATA_SIZE || data[0] != TOKEN_HOLDING_TYPE {
-            None
-        } else {
-            let account_type = data[0];
-            let definition_id = AccountId::new(
-                data[1..33]
-                    .try_into()
-                    .expect("Defintion ID must be 32 bytes long"),
-            );
-            let balance = u128::from_le_bytes(
-                data[33..]
-                    .try_into()
-                    .expect("balance must be 16 bytes little-endian"),
-            );
-            Some(Self {
-                definition_id,
-                balance,
-                account_type,
-            })
+            return None;
         }
+
+        let account_type = data[0];
+        let definition_id = AccountId::new(
+            data[1..33]
+                .try_into()
+                .expect("Defintion ID must be 32 bytes long"),
+        );
+        let balance = u128::from_le_bytes(
+            data[33..]
+                .try_into()
+                .expect("balance must be 16 bytes little-endian"),
+        );
+        Some(Self {
+            definition_id,
+            balance,
+            account_type,
+        })
     }
 
     fn into_data(self) -> Data {
@@ -122,7 +124,7 @@ impl TokenHolding {
     }
 }
 
-fn transfer(pre_states: &[AccountWithMetadata], balance_to_move: u128) -> Vec<Account> {
+fn transfer(pre_states: &[AccountWithMetadata], balance_to_move: u128) -> Vec<AccountPostState> {
     if pre_states.len() != 2 {
         panic!("Invalid number of input accounts");
     }
@@ -158,12 +160,19 @@ fn transfer(pre_states: &[AccountWithMetadata], balance_to_move: u128) -> Vec<Ac
     let sender_post = {
         let mut this = sender.account.clone();
         this.data = sender_holding.into_data();
-        this
+        AccountPostState::new(this)
     };
+
     let recipient_post = {
         let mut this = recipient.account.clone();
         this.data = recipient_holding.into_data();
-        this
+
+        // Claim the recipient account if it has default program owner
+        if this.program_owner == DEFAULT_PROGRAM_ID {
+            AccountPostState::new_claimed(this)
+        } else {
+            AccountPostState::new(this)
+        }
     };
 
     vec![sender_post, recipient_post]
@@ -173,7 +182,7 @@ fn new_definition(
     pre_states: &[AccountWithMetadata],
     name: [u8; 6],
     total_supply: u128,
-) -> Vec<Account> {
+) -> Vec<AccountPostState> {
     if pre_states.len() != 2 {
         panic!("Invalid number of input accounts");
     }
@@ -206,10 +215,13 @@ fn new_definition(
     let mut holding_target_account_post = holding_target_account.account.clone();
     holding_target_account_post.data = token_holding.into_data();
 
-    vec![definition_target_account_post, holding_target_account_post]
+    vec![
+        AccountPostState::new_claimed(definition_target_account_post),
+        AccountPostState::new_claimed(holding_target_account_post),
+    ]
 }
 
-fn initialize_account(pre_states: &[AccountWithMetadata]) -> Vec<Account> {
+fn initialize_account(pre_states: &[AccountWithMetadata]) -> Vec<AccountPostState> {
     if pre_states.len() != 2 {
         panic!("Invalid number of accounts");
     }
@@ -221,7 +233,7 @@ fn initialize_account(pre_states: &[AccountWithMetadata]) -> Vec<Account> {
         panic!("Only uninitialized accounts can be initialized");
     }
 
-    // TODO: We should check that this is an account owned by the token program.
+    // TODO: #212 We should check that this is an account owned by the token program.
     // This check can't be done here since the ID of the program is known only after compiling it
     //
     // Check definition account is valid
@@ -230,10 +242,13 @@ fn initialize_account(pre_states: &[AccountWithMetadata]) -> Vec<Account> {
     let holding_values = TokenHolding::new(&definition.account_id);
 
     let definition_post = definition.account.clone();
-    let mut account_to_initialize_post = account_to_initialize.account.clone();
-    account_to_initialize_post.data = holding_values.into_data();
+    let mut account_to_initialize = account_to_initialize.account.clone();
+    account_to_initialize.data = holding_values.into_data();
 
-    vec![definition_post, account_to_initialize_post]
+    vec![
+        AccountPostState::new(definition_post),
+        AccountPostState::new_claimed(account_to_initialize),
+    ]
 }
 
 fn burn(pre_states: &[AccountWithMetadata], balance_to_burn: u128) -> Vec<Account> {
@@ -344,7 +359,7 @@ fn main() {
         instruction,
     } = read_nssa_inputs::<Instruction>();
 
-    let (pre_states, post_states) = match instruction[0] {
+    let post_states = match instruction[0] {
         0 => {
             // Parse instruction
             let total_supply = u128::from_le_bytes(
@@ -358,8 +373,7 @@ fn main() {
             assert_ne!(name, [0; 6]);
 
             // Execute
-            let post_states = new_definition(&pre_states, name, total_supply);
-            (pre_states, post_states)
+            new_definition(&pre_states, name, total_supply)
         }
         1 => {
             // Parse instruction
@@ -374,14 +388,14 @@ fn main() {
             assert_eq!(name, [0; 6]);
 
             // Execute
-            let post_states = transfer(&pre_states, balance_to_move);
-            (pre_states, post_states)
+            transfer(&pre_states, balance_to_move)
         }
         2 => {
             // Initialize account
-            assert_eq!(instruction[1..], [0; 22]);
-            let post_states = initialize_account(&pre_states);
-            (pre_states, post_states)
+            if instruction[1..] != [0; 22] {
+                panic!("Invalid instruction for initialize account");
+            }
+            initialize_account(&pre_states)
         }
         3 => {
             let balance_to_burn = u128::from_le_bytes(
@@ -528,14 +542,14 @@ mod tests {
         let post_states = new_definition(&pre_states, [0xca, 0xfe, 0xca, 0xfe, 0xca, 0xfe], 10);
         let [definition_account, holding_account] = post_states.try_into().ok().unwrap();
         assert_eq!(
-            definition_account.data,
+            definition_account.account().data,
             vec![
                 0, 0xca, 0xfe, 0xca, 0xfe, 0xca, 0xfe, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0
             ]
         );
         assert_eq!(
-            holding_account.data,
+            holding_account.account().data,
             vec![
                 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -760,14 +774,14 @@ mod tests {
         let post_states = transfer(&pre_states, 11);
         let [sender_post, recipient_post] = post_states.try_into().ok().unwrap();
         assert_eq!(
-            sender_post.data,
+            sender_post.account().data,
             vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
         assert_eq!(
-            recipient_post.data,
+            recipient_post.account().data,
             vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -781,7 +795,7 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // Definition ID with
-                    data: vec![0; TOKEN_DEFINITION_DATA_SIZE - 16]
+                    data: [0; TOKEN_DEFINITION_DATA_SIZE - 16]
                         .into_iter()
                         .chain(u128::to_le_bytes(1000))
                         .collect(),
@@ -798,9 +812,9 @@ mod tests {
         ];
         let post_states = initialize_account(&pre_states);
         let [definition, holding] = post_states.try_into().ok().unwrap();
-        assert_eq!(definition.data, pre_states[0].account.data);
+        assert_eq!(definition.account().data, pre_states[0].account.data);
         assert_eq!(
-            holding.data,
+            holding.account().data,
             vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
