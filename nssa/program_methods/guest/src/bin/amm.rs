@@ -1,19 +1,19 @@
 use nssa_core::{
     account::{Account, AccountId, AccountWithMetadata, Data},
-    program::{ProgramId, ProgramInput, ChainedCall, read_nssa_inputs, write_nssa_outputs_with_chained_call},
+    program::{ProgramId, ProgramInput, ChainedCall, AccountPostState, PdaSeed, read_nssa_inputs, write_nssa_outputs_with_chained_call},
 };
 
 //TODO update comments
 // The AMM program has five functions (four directly accessible via instructions):
 // 1. New AMM definition.
 //    Arguments to this function are:
-//      * Seven **default** accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, user_holding_b, user_holding_lp].
+//      * Seven **default** accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, UserHoldingA, UserHoldingB, user_holding_lp].
 //        amm_pool is a default account that will initiate the amm definition account values
 //        vault_holding_a is a token holding account for token a
 //        vault_holding_b is a token holding account for token b
 //        pool_lp is a token holding account for the pool's lp token 
-//        user_holding_a is a token holding account for token a
-//        user_holding_b is a token holding account for token b
+//        UserHoldingA is a token holding account for token a
+//        UserHoldingB is a token holding account for token b
 //        user_holding_lp is a token holding account for lp token
 //        TODO: ideally, vault_holding_a, vault_holding_b, pool_lp and user_holding_lp are uninitated.
 //      * An instruction data of 65-bytes, indicating the initial amm reserves' balances and token_program_id with
@@ -21,12 +21,12 @@ use nssa_core::{
 //        [0x00 || array of balances (little-endian 16 bytes) || TOKEN_PROGRAM_ID)]
 // 2. Swap assets
 //    Arguments to this function are:
-//      * Two accounts: [amm_pool, vault_holding_1, vault_holding_2, user_holding_a, user_holding_b].
+//      * Two accounts: [amm_pool, vault_holding_1, vault_holding_2, UserHoldingA, UserHoldingB].
 //      * An instruction data byte string of length 49, indicating which token type to swap and maximum amount with the following layout
 //        [0x01 || amount (little-endian 16 bytes) || TOKEN_DEFINITION_ID].
 // 3. Add liquidity
 //    Arguments to this function are:
-//      * Two accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, user_holding_b, user_holding_lp].
+//      * Two accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, UserHoldingA, UserHoldingB, user_holding_lp].
 //      * An instruction data byte string of length 65, amounts to add
 //        [0x02 || array of max amounts (little-endian 16 bytes) || TOKEN_DEFINITION_ID (for primary)].
 // 4. Remove liquidity
@@ -41,66 +41,9 @@ use nssa_core::{
 //      * Outputs the token transfers as a Vec<ChainedCall> and the withdraw amount.
 
 const POOL_DEFINITION_DATA_SIZE: usize = 225;
-const MAX_NUMBER_POOLS: usize = 31;
-const AMM_DEFINITION_DATA_SIZE: usize = 1024;
 
-struct AMMDefinition {
-    name: [u8;32],
-    pool_ids: Vec<AccountId>,
-}
 
-impl AMMDefinition {
-    fn new(name: &[u8;32]) -> Vec<u8> {
-
-        let mut bytes = [0; AMM_DEFINITION_DATA_SIZE];
-        bytes[0..32].copy_from_slice(name);
-        bytes.into()
-    }
-
-    fn into_data(self) -> Vec<u8> {
-        let size_of_pool: usize = self.pool_ids.len();
-
-        let mut bytes = [0; AMM_DEFINITION_DATA_SIZE];
-        for i in 0..size_of_pool-1 {
-            bytes[32*i..32*(i+1)].copy_from_slice(&self.pool_ids[i].to_bytes())
-        }
-
-        for i in size_of_pool..MAX_NUMBER_POOLS {
-            bytes[32*i..32*(i+1)].copy_from_slice(&AccountId::default().to_bytes())
-        }
-
-        bytes.into()
-    }
-
-    fn parse(data: &[u8]) -> Option<Self> {
-        if data.len() % 32 != 0 {
-            panic!("AMM data should be divisible by 32 (number of bytes per of AccountId");
-        }
-
-        let size_of_pool = data.len()/32;
-
-        let mut name: [u8;32] = [0;32];
-        name.copy_from_slice(&data[0..32]);
-
-        let mut pool_ids = Vec::<AccountId>::new();
-
-        for i in 1..size_of_pool+1 {
-            pool_ids.push(
-                AccountId::new(data[i*32..(i+1)*32].try_into().expect("Parse data: The AMM program must be provided a valid AccountIds"))
-            );
-        }
-
-        for _ in size_of_pool..MAX_NUMBER_POOLS {
-            pool_ids.push( AccountId::default() );
-        }
-
-        Some( Self{
-            name,
-            pool_ids
-        })
-    }
-}
-
+#[derive(Default)]
 struct PoolDefinition{
     definition_token_a_id: AccountId,
     definition_token_b_id: AccountId,
@@ -263,28 +206,12 @@ fn main() {
         instruction,
     } = read_nssa_inputs::<Instruction>();
 
-    match instruction[0] {
+    let (post_states, chained_calls) = match instruction[0] {
         0 => {
             let balance_a: u128 = u128::from_le_bytes(instruction[1..17].try_into().expect("New definition: AMM Program expects u128 for balance a"));
             let balance_b: u128 = u128::from_le_bytes(instruction[17..33].try_into().expect("New definition: AMM Program expects u128 for balance b"));
-            
-            // Convert Vec<u8> to ProgramId ([u32;8])
-            let mut token_program_id: [u32;8] = [0;8];
-            token_program_id[0] = u32::from_le_bytes(instruction[33..37].try_into().expect("New definition: AMM Program expects valid u32"));
-            token_program_id[1] = u32::from_le_bytes(instruction[37..41].try_into().expect("New definition: AMM Program expects valid u32"));
-            token_program_id[2] = u32::from_le_bytes(instruction[41..45].try_into().expect("New definition: AMM Program expects valid u32"));
-            token_program_id[3] = u32::from_le_bytes(instruction[45..49].try_into().expect("New definition: AMM Program expects valid u32"));
-            token_program_id[4] = u32::from_le_bytes(instruction[49..53].try_into().expect("New definition: AMM Program expects valid u32"));
-            token_program_id[5] = u32::from_le_bytes(instruction[53..57].try_into().expect("New definition: AMM Program expects valid u32"));
-            token_program_id[6] = u32::from_le_bytes(instruction[57..61].try_into().expect("New definition: AMM Program expects valid u32"));
-            token_program_id[7] = u32::from_le_bytes(instruction[61..65].try_into().expect("New definition: AMM Program expects valid u32"));
 
-            let (post_states, chained_call) = new_pool(&pre_states,
-                &[balance_a, balance_b],
-                token_program_id
-                );
-
-            write_nssa_outputs_with_chained_call(pre_states, post_states, chained_call);
+            new_definition(&pre_states, &[balance_a, balance_b])
         }
         1 => {
             let mut token_addr: [u8;32] = [0;32];
@@ -295,18 +222,14 @@ fn main() {
             let amount_in = u128::from_le_bytes(instruction[1..17].try_into().expect("Swap: AMM Program expects valid u128 for balance to move"));
             let min_amount_out = u128::from_le_bytes(instruction[17..33].try_into().expect("Swap: AMM Program expects valid u128 for balance to move"));
 
-            let (post_states, chained_call) = swap(&pre_states, &[amount_in, min_amount_out], token_addr);
-
-            write_nssa_outputs_with_chained_call(pre_states, post_states, chained_call);
+            swap(&pre_states, &[amount_in, min_amount_out], token_addr)
         }
         2 => {
             let min_amount_lp = u128::from_le_bytes(instruction[1..17].try_into().expect("Add liquidity: AMM Program expects valid u128 for min amount lp")); 
             let max_amount_a = u128::from_le_bytes(instruction[17..33].try_into().expect("Add liquidity: AMM Program expects valid u128 for max amount a"));
             let max_amount_b = u128::from_le_bytes(instruction[33..49].try_into().expect("Add liquidity: AMM Program expects valid u128 for max amount b"));
             
-            let (post_states, chained_call) = add_liquidity(&pre_states,
-                        &[min_amount_lp, max_amount_a, max_amount_b]);
-           write_nssa_outputs_with_chained_call(pre_states, post_states, chained_call);
+            add_liquidity(&pre_states, &[min_amount_lp, max_amount_a, max_amount_b])
         }
         3 => {
 
@@ -314,76 +237,76 @@ fn main() {
             let balance_a = u128::from_le_bytes(instruction[17..33].try_into().expect("Remove liquidity: AMM Program expects valid u128 for balance a"));
             let balance_b = u128::from_le_bytes(instruction[33..49].try_into().expect("Remove liquidity: AMM Program expects valid u128 for balance b"));
 
-            let (post_states, chained_call) = remove_liquidity(&pre_states, &[balance_lp, balance_a, balance_b]);
-
-            write_nssa_outputs_with_chained_call(pre_states, post_states, chained_call);
+            remove_liquidity(&pre_states, &[balance_lp, balance_a, balance_b])
         }
         _ => panic!("Invalid instruction"),
     };
+
+    write_nssa_outputs_with_chained_call(pre_states, post_states, chained_calls);
 }
 
-//TODO: test
-//add access to
+// TODO: check
+fn compute_pool_pda(definition_token_a_id: AccountId, definition_token_b_id: AccountId) -> AccountId {
+    use risc0_zkvm::sha::{Impl, Sha256};
+    const PDA_POOL_DEF_PREFIX: &[u8; 32] =b"/LSSA/v0.3/AccountId/AMM/PoolDef";
+
+    //TODO order (Token_A, Token B) for uniqueness
+    let mut bytes = [0; 96];
+    bytes[0..32].copy_from_slice(PDA_POOL_DEF_PREFIX);
+ //   let program_id_bytes: &[u8] =
+   //     bytemuck::try_cast_slice(value.0).expect("ProgramId should be castable to &[u8]");
+    bytes[32..64].copy_from_slice(&definition_token_a_id.to_bytes());
+    bytes[64..].copy_from_slice(&definition_token_b_id.to_bytes());
+    AccountId::new(
+        Impl::hash_bytes(&bytes)
+            .as_bytes()
+            .try_into()
+            .expect("Hash output must be exactly 32 bytes long"),
+    )
+
+}
+
+fn compute_vault_pda(pool_id: AccountId, token_definition: AccountId) -> AccountId {
+    use risc0_zkvm::sha::{Impl, Sha256};
+    const PDA_POOL_DEF_PREFIX: &[u8; 32] =b"/LSSA/v0.3/AccountId/AMM/Vault\x00\x00";
+
+    //TODO order (Token_A, Token B) for uniqueness
+    let mut bytes = [0; 96];
+    bytes[0..32].copy_from_slice(PDA_POOL_DEF_PREFIX);
+    bytes[32..64].copy_from_slice(&pool_id.to_bytes());
+    bytes[64..].copy_from_slice(&token_definition.to_bytes());
+    AccountId::new(
+        Impl::hash_bytes(&bytes)
+            .as_bytes()
+            .try_into()
+            .expect("Hash output must be exactly 32 bytes long"),
+    )
+
+}
+
 fn new_definition (
         pre_states: &[AccountWithMetadata],
-        name: &[u8;32],
-    ) -> Vec<Account> {
-
-    if pre_states.len() != 1 {
-        panic!("Invalid number of input accounts");
-    }
-
-    let mut new_amm_post = pre_states[0].account.clone();
-
-    new_amm_post.data = AMMDefinition::new(name);
-
-    vec![new_amm_post]
-}
-
-//TODO: fix this
-fn new_pool (
-        pre_states: &[AccountWithMetadata],
         balance_in: &[u128],
-        token_program: ProgramId,
-    ) -> (Vec<Account>, Vec<ChainedCall>) {
-
-
+    ) -> (Vec<AccountPostState>, Vec<ChainedCall>) {
 
     //Pool accounts: pool itself, and its 2 vaults and LP token
     //2 accounts for funding tokens
     //initial funder's LP account
-    //TODO: update this test
-    if pre_states.len() != 8 {
+    if pre_states.len() != 7 {
         panic!("Invalid number of input accounts")
     }
 
     if balance_in.len() != 2 {
-        panic!("Invalid number of balance")
+        panic!("Invalid number of input balances")
     }
 
-    let amm = &pre_states[0];
-    let pool = &pre_states[1];
-    let vault_a = &pre_states[2];
-    let vault_b = &pre_states[3];
-    let pool_lp = &pre_states[4];
-    let user_holding_a = &pre_states[5];
-    let user_holding_b = &pre_states[6];
-    let user_holding_lp = &pre_states[7];
-
-    if amm.account == Account::default() {
-        panic!("AMM is not initialized");
-    }
-
-    //TODO: ignore inactive for now.
-    if !pool.is_authorized {
-        panic!("Pool account is not authorized");
-    }
-
-    // TODO: temporary band-aid to prevent vault's from being
-    // owned by the amm program.
-    if vault_a.account == Account::default() || vault_b.account == Account::default() {
-        panic!("Vault accounts uninitialized")
-    }
+    let pool = &pre_states[0];
+    let vault_a = &pre_states[1];
+    let vault_b = &pre_states[2];
+    let pool_lp = &pre_states[3];
+    let user_holding_a = &pre_states[4];
+    let user_holding_b = &pre_states[5];
+    let user_holding_lp = &pre_states[6];
 
     let amount_a = balance_in[0];
     let amount_b = balance_in[1];
@@ -393,25 +316,43 @@ fn new_pool (
         panic!("Balances must be nonzero")
     }
 
-
     // Verify token_a and token_b are different
     let definition_token_a_id = TokenHolding::parse(&user_holding_a.account.data).expect("New definition: AMM Program expects valid Token Holding account for Token A").definition_id;
     let definition_token_b_id = TokenHolding::parse(&user_holding_b.account.data).expect("New definition: AMM Program expects valid Token Holding account for Token B").definition_id;
-   
+    //TODO: this assumes that user_holding_a and user_holding_b are both instances
+    // of the same token program
+    let token_program = user_holding_a.account.program_owner;
+
     if definition_token_a_id == definition_token_b_id {
         panic!("Cannot set up a swap for a token with itself.")
     }
 
-    let amm_data = AMMDefinition::parse(&amm.account.data).expect("AMM program expects a valid AMM account definition");
-/*
-    for i in 0..MAX_NUMBER_POOLS {
-        if( 
-            amm_d
-        )
+    //TODO: add tests
+    // Check PDA for Pool Account and Vault Accounts
+    if pool.account_id != compute_pool_pda(definition_token_a_id.clone(), definition_token_b_id.clone()) {
+        panic!("Pool Definition Account ID does not match PDA");
     }
-*/
-//pool data
 
+    if vault_a.account_id != compute_vault_pda(pool.account_id.clone(), definition_token_a_id.clone()) ||
+        vault_b.account_id != compute_vault_pda(pool.account_id.clone(), definition_token_b_id.clone()) {
+        panic!("Vault ID does not match PDA");        
+    }
+
+    //TODO add test
+    // Verify that Pool Account is not active
+    let pool_account_data = if pool.account == Account::default() {
+        PoolDefinition::default()
+    } else { 
+        PoolDefinition::parse(&pool.account.data).expect("AMM program expects a valid Pool account")
+    };
+
+    //TODO: add test
+    if !pool_account_data.active {
+        panic!("Cannot initialize an active Pool Definition")
+    }
+
+    //3. LP Token minting calculation
+    // We assume LP is based on the initial deposit amount for Token_A.
 
     // 5. Update pool account
     let mut pool_post = Account::default();
@@ -430,8 +371,16 @@ fn new_pool (
 
     pool_post.data = pool_post_definition.into_data();
 
-    let mut chained_call = Vec::new();
+    let mut chained_calls = Vec::new();
    
+
+    //TODO: token pool does not currently exist.
+    //TokenLP = definition
+    //if new Pool...then need to initialize pool with UserHoldingLP as the corresponding holding account.
+    //However, if inactive then need to mint. This can be established earlier in the program with
+    //a variable setting the instruction_data below.
+    //Double check this.
+
     //Chain call for Token A (user_holding_a -> Vault_A)
     let mut instruction: [u8;23] = [0; 23];
     instruction[0] = 1;      
@@ -441,7 +390,8 @@ fn new_pool (
     let call_token_a = ChainedCall{
             program_id: token_program,
             instruction_data: instruction_data,
-            pre_states: vec![user_holding_a.clone(), vault_a.clone()]
+            pre_states: vec![user_holding_a.clone(), vault_a.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
         
     //Chain call for Token B (user_holding_b -> Vault_B)
@@ -451,7 +401,8 @@ fn new_pool (
     let call_token_b = ChainedCall{
             program_id: token_program,
             instruction_data: instruction_data,
-            pre_states: vec![user_holding_b.clone(), vault_b.clone()]
+            pre_states: vec![user_holding_b.clone(), vault_b.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
     //Chain call for LP (Pool_LP -> user_holding_lp)
@@ -461,30 +412,31 @@ fn new_pool (
     let call_token_lp = ChainedCall{
             program_id: token_program,
             instruction_data: instruction_data,
-            pre_states: vec![pool_lp.clone(), user_holding_lp.clone()]
+            pre_states: vec![pool_lp.clone(), user_holding_lp.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
-    chained_call.push(call_token_lp);
-    chained_call.push(call_token_b);
-    chained_call.push(call_token_a);
+    chained_calls.push(call_token_lp);
+    chained_calls.push(call_token_b);
+    chained_calls.push(call_token_a);
 
     let post_states = vec![
-        pool_post.clone(), 
-        pre_states[1].account.clone(),
-        pre_states[2].account.clone(),
-        pre_states[3].account.clone(),
-        pre_states[4].account.clone(),
-        pre_states[5].account.clone(),
-        pre_states[6].account.clone()];
+        AccountPostState::new(pool_post.clone()), 
+        AccountPostState::new(pre_states[1].account.clone()),
+        AccountPostState::new(pre_states[2].account.clone()),
+        AccountPostState::new(pre_states[3].account.clone()),
+        AccountPostState::new(pre_states[4].account.clone()),
+        AccountPostState::new(pre_states[5].account.clone()),
+        AccountPostState::new(pre_states[6].account.clone())];
 
-    (post_states.clone(), chained_call)
+    (post_states.clone(), chained_calls)
 }
 
 fn swap(
         pre_states: &[AccountWithMetadata],
         amounts: &[u128],
         token_id: AccountId,
-    ) -> (Vec<Account>, Vec<ChainedCall>) {
+    ) -> (Vec<AccountPostState>, Vec<ChainedCall>) {
 
     if pre_states.len() != 5 {
         panic!("Invalid number of input accounts");
@@ -527,21 +479,21 @@ fn swap(
         panic!("Reserve for Token B exceeds vault balance");        
     }
 
-    let (chained_call, [deposit_a, withdraw_a], [deposit_b, withdraw_b])
+    let (chained_calls, [deposit_a, withdraw_a], [deposit_b, withdraw_b])
     = if token_id == pool_def_data.definition_token_a_id {
-        let (chained_call, withdraw_b) = swap_logic(&[user_holding_a.clone(), vault_a.clone(), vault_b.clone(), user_holding_b.clone()],
+        let (chained_calls, withdraw_b) = swap_logic(&[user_holding_a.clone(), vault_a.clone(), vault_b.clone(), user_holding_b.clone()],
                     amount_in,
                     &[pool_def_data.reserve_a, pool_def_data.reserve_b],
                     min_amount_out);
                 
-        (chained_call, [amount_in, 0], [0, withdraw_b])
+        (chained_calls, [amount_in, 0], [0, withdraw_b])
     } else if token_id == pool_def_data.definition_token_b_id {
-        let (chained_call, withdraw_a) = swap_logic(&[user_holding_b.clone(), vault_b.clone(), vault_a.clone(), user_holding_a.clone()],
+        let (chained_calls, withdraw_a) = swap_logic(&[user_holding_b.clone(), vault_b.clone(), vault_a.clone(), user_holding_a.clone()],
                         amount_in,
                         &[pool_def_data.reserve_b, pool_def_data.reserve_a],
                         min_amount_out);
 
-        (chained_call, [0, withdraw_a], [amount_in, 0])
+        (chained_calls, [0, withdraw_a], [amount_in, 0])
     } else {
         panic!("AccountId is not a token type for the pool");
     };         
@@ -564,13 +516,13 @@ fn swap(
     pool_post.data = pool_post_definition.into_data();
     
     let post_states = vec![
-        pool_post.clone(),
-        pre_states[1].account.clone(),
-        pre_states[2].account.clone(),
-        pre_states[3].account.clone(),
-        pre_states[4].account.clone()];
+        AccountPostState::new(pool_post.clone()),
+        AccountPostState::new(pre_states[1].account.clone()),
+        AccountPostState::new(pre_states[2].account.clone()),
+        AccountPostState::new(pre_states[3].account.clone()),
+        AccountPostState::new(pre_states[4].account.clone())];
 
-    (post_states.clone(), chained_call)
+    (post_states, chained_calls)
 }
 
 fn swap_logic(
@@ -580,7 +532,6 @@ fn swap_logic(
     min_amount_out: u128,
 ) -> (Vec<ChainedCall>, u128)
 {
-
     let user_deposit_tx = pre_states[0].clone();
     let vault_deposit_tx = pre_states[1].clone();
     let vault_withdraw_tx = pre_states[2].clone();
@@ -603,16 +554,17 @@ fn swap_logic(
         panic!("Withdraw amount should be nonzero");
     }
 
-    let mut chained_call = Vec::new();
+    let mut chained_calls = Vec::new();
     let mut instruction_data = [0;23];
     instruction_data[0] = 1;
     instruction_data[1..17].copy_from_slice(&deposit_amount.to_le_bytes());
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("Swap Logic: AMM Program expects valid transaction instruction data");
-    chained_call.push(
+    chained_calls.push(
         ChainedCall{
                 program_id: vault_deposit_tx.account.program_owner,
                 instruction_data: instruction_data,
-                pre_states: vec![user_deposit_tx.clone(), vault_deposit_tx.clone()]
+                pre_states: vec![user_deposit_tx.clone(), vault_deposit_tx.clone()],
+                pda_seeds: Vec::<PdaSeed>::new(),
             }
     );
 
@@ -620,19 +572,20 @@ fn swap_logic(
     instruction_data[0] = 1;
     instruction_data[1..17].copy_from_slice(&withdraw_amount.to_le_bytes());
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("Swap Logic: AMM Program expects valid transaction instruction data");
-    chained_call.push(
+    chained_calls.push(
         ChainedCall{
                 program_id: vault_deposit_tx.account.program_owner,
                 instruction_data: instruction_data,
-                pre_states: vec![vault_withdraw_tx.clone(), user_withdraw_tx.clone()]
+                pre_states: vec![vault_withdraw_tx.clone(), user_withdraw_tx.clone()],
+                pda_seeds: Vec::<PdaSeed>::new(),
             }
     );
 
-    (chained_call, withdraw_amount)
+    (chained_calls, withdraw_amount)
 }
 
 fn add_liquidity(pre_states: &[AccountWithMetadata],
-    balances: &[u128]) -> (Vec<Account>, Vec<ChainedCall>) {
+    balances: &[u128]) -> (Vec<AccountPostState>, Vec<ChainedCall>) {
 
     if pre_states.len() != 7 {
        panic!("Invalid number of input accounts");
@@ -733,7 +686,7 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     pool_post.data = pool_post_definition.into_data();
     let mut chained_call = Vec::new();
 
-    // Chain call for Token A (user_holding_a -> Vault_A)
+    // Chain call for Token A (UserHoldingA -> Vault_A)
     let mut instruction_data = [0; 23];
     instruction_data[0] = 1;
     instruction_data[1..17].copy_from_slice(&actual_amount_a.to_le_bytes());
@@ -741,10 +694,11 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     let call_token_a = ChainedCall{
             program_id: vault_a.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![user_holding_a.clone(), vault_a.clone()]
+            pre_states: vec![user_holding_a.clone(), vault_a.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
-    // Chain call for Token B (user_holding_b -> Vault_B)        
+    // Chain call for Token B (UserHoldingB -> Vault_B)        
     let mut instruction_data = [0; 23];
     instruction_data[0] = 1;
     instruction_data[1..17].copy_from_slice(&actual_amount_b.to_le_bytes());
@@ -752,7 +706,8 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     let call_token_b = ChainedCall{
             program_id: vault_b.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![user_holding_b.clone(), vault_b.clone()]
+            pre_states: vec![user_holding_b.clone(), vault_b.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
     // Chain call for LP (mint new tokens for user_holding_lp)   
@@ -763,7 +718,8 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     let call_token_lp = ChainedCall{
             program_id: pool_definition_lp.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![pool_definition_lp.clone(), user_holding_lp.clone()]
+            pre_states: vec![pool_definition_lp.clone(), user_holding_lp.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
 
@@ -772,21 +728,21 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     chained_call.push(call_token_a);
 
     let post_states = vec![
-        pool_post.clone(), 
-        pre_states[1].account.clone(),
-        pre_states[2].account.clone(),
-        pre_states[3].account.clone(),
-        pre_states[4].account.clone(),
-        pre_states[5].account.clone(),
-        pre_states[6].account.clone(),];
+        AccountPostState::new(pool_post), 
+        AccountPostState::new(pre_states[1].account.clone()),
+        AccountPostState::new(pre_states[2].account.clone()),
+        AccountPostState::new(pre_states[3].account.clone()),
+        AccountPostState::new(pre_states[4].account.clone()),
+        AccountPostState::new(pre_states[5].account.clone()),
+        AccountPostState::new(pre_states[6].account.clone()),];
 
-    (post_states.clone(), chained_call)
+    (post_states, chained_call)
 
 }
 
 fn remove_liquidity(pre_states: &[AccountWithMetadata],
     amounts: &[u128]   
-) -> (Vec<Account>, Vec<ChainedCall>)
+) -> (Vec<AccountPostState>, Vec<ChainedCall>)
 {
     if pre_states.len() != 7 {
        panic!("Invalid number of input accounts");
@@ -858,6 +814,8 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
 
     let active: bool = if pool_def_data.liquidity_pool_supply - delta_lp == 0 { false } else { true };
 
+    //panic!("aA {}, aB {}, dLP {}", withdraw_amount_a, withdraw_amount_b, delta_lp);
+
     // 5. Update pool account
     let mut pool_post = pool.account.clone();
     let pool_post_definition = PoolDefinition {
@@ -875,7 +833,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
 
     pool_post.data = pool_post_definition.into_data();
 
-    let mut chained_call = Vec::new();
+    let mut chained_calls = Vec::new();
 
     //Chaincall for Token A withdraw
     let mut instruction: [u8;23] = [0; 23];
@@ -885,7 +843,8 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
     let call_token_a = ChainedCall{
             program_id: vault_a.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![vault_a.clone(), user_holding_a.clone()]
+            pre_states: vec![vault_a.clone(), user_holding_a.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
     //Chaincall for Token B withdraw
@@ -896,7 +855,8 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
     let call_token_b = ChainedCall{
             program_id: vault_b.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![vault_b.clone(), user_holding_b.clone()]
+            pre_states: vec![vault_b.clone(), user_holding_b.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
     //Chaincall for LP adjustment        
@@ -907,235 +867,240 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
     let call_token_lp = ChainedCall{
             program_id: pool_definition_lp.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![pool_definition_lp.clone(), user_holding_lp.clone()]
+            pre_states: vec![pool_definition_lp.clone(), user_holding_lp.clone()],
+            pda_seeds: Vec::<PdaSeed>::new(),
         };
 
-    chained_call.push(call_token_lp);
-    chained_call.push(call_token_b);
-    chained_call.push(call_token_a);
+    chained_calls.push(call_token_lp);
+    chained_calls.push(call_token_b);
+    chained_calls.push(call_token_a);
         
     let post_states = vec!
         [
-        pool_post.clone(), 
-        pre_states[1].account.clone(),
-        pre_states[2].account.clone(),
-        pre_states[3].account.clone(),
-        pre_states[4].account.clone(),
-        pre_states[5].account.clone(),
-        pre_states[6].account.clone()];
+        AccountPostState::new(pool_post.clone()), 
+        AccountPostState::new(pre_states[1].account.clone()),
+        AccountPostState::new(pre_states[2].account.clone()),
+        AccountPostState::new(pre_states[3].account.clone()),
+        AccountPostState::new(pre_states[4].account.clone()),
+        AccountPostState::new(pre_states[5].account.clone()),
+        AccountPostState::new(pre_states[6].account.clone())];
 
-    (post_states, chained_call)
+    (post_states, chained_calls)
 }
 
 #[cfg(test)]
 mod tests {
-    use nssa_core::{{account::{Account, AccountId, AccountWithMetadata}, program::ChainedCall}, program::ProgramId};
+    use nssa_core::{{account::{Account, AccountId, AccountWithMetadata}, program::ChainedCall, program::PdaSeed}, program::ProgramId};
 
-    use crate::{PoolDefinition, TokenDefinition, TokenHolding, add_liquidity, new_pool, remove_liquidity, swap};
+    use crate::{PoolDefinition, TokenDefinition, TokenHolding, add_liquidity, new_definition, remove_liquidity, swap};
 
     const TOKEN_PROGRAM_ID: ProgramId = [15;8];
 
     enum AccountEnum {
-        user_holding_b,
-        user_holding_a,
-        vault_a_uninit,
-        vault_b_uninit,
-        vault_a_init,
-        vault_b_init,
-        vault_a_init_high,
-        vault_b_init_high,
-        vault_a_init_low,
-        vault_b_init_low,
-        vault_a_init_zero,
-        vault_b_init_zero,
-        vault_a_wrong_acc_id,
-        vault_b_wrong_acc_id,
-        pool_lp_uninit,
-        pool_lp_init,
-        pool_lp_wrong_acc_id,
-        user_holding_lp_uninit,
-        user_holding_lp_init,
-        pool_definition_uninit,
-        pool_definition_init,
-        pool_definition_init_reserve_a_zero,
-        pool_definition_init_reserve_b_zero,
-        pool_definition_init_reserve_a_low,
-        pool_definition_init_reserve_b_low,
-        pool_definition_unauth,
-        pool_definition_swap_test_1,
-        pool_definition_swap_test_2,
-        pool_definition_add_zero_lp,
-        pool_definition_add_successful,
-        pool_definition_remove_successful,
+        UserHoldingB,
+        UserHoldingA,
+        VaultAUninit,
+        VaultBUninit,
+        VaultAInit,
+        VaultBInit,
+        VaultAInitHigh,
+        VaultBInitHigh,
+        VaultAInitLow,
+        VaultBInitLow,
+        VaultAInitZero,
+        VaultBInitZero,
+        VaultAWrongAccId,
+        VaultBWrongAccId,
+        PoolLPUninit,
+        PoolLPInit,
+        PoolLPWrongAccId,
+        UserHoldingLPUninit,
+        UserHoldingLPInit,
+        PoolDefinitionUninit,
+        PoolDefinitionInit,
+        PoolDefinitionInitReserveAZero,
+        PoolDefinitionInitReserveBZero,
+        PoolDefinitionInitReserveALow,
+        PoolDefinitionInitReserveBLow,
+        PoolDefinitionUnauth,
+        PoolDefinitionSwapTest1,
+        PoolDefinitionSwapTest2,
+        PoolDefinitionAddZeroLP,
+        PoolDefinitionAddSuccessful,
+        PoolDefinitionRemoveSuccessful,
     }
 
     enum BalanceEnum {
-        vault_a_reserve_init,
-        vault_b_reserve_init,
-        vault_a_reserve_low,
-        vault_b_reserve_low,
-        vault_a_reserve_high,
-        vault_b_reserve_high,
-        user_token_a_bal,
-        user_token_b_bal,
-        user_token_lp_bal,
-        remove_min_amount_a,
-        remove_min_amount_b,
-        remove_actual_a_successful,
-        remove_min_amount_b_low,
-        remove_min_amount_a_low,
-        remove_amount_lp,
-        remove_amount_lp_1,
-        add_max_amount_a_low,
-        add_max_amount_b_low,
-        add_max_amount_b_high,
-        add_max_amount_a,
-        add_max_amount_b,
-        add_min_amount_lp,
-        vault_a_swap_test_1,
-        vault_a_swap_test_2,
-        vault_b_swap_test_1,
-        vault_b_swap_test_2,
-        min_amount_out,
-        vault_a_add_successful,
-        vault_b_add_successful,
-        add_successful_amount_a_lp,
-        add_successful_amount_b,
-        vault_a_remove_successful,
-        vault_b_remove_successful,
+        VaultAReserveInit,
+        VaultBReserveInit,
+        VaultAReserveLow,
+        VaultBReserveLow,
+        VaultAReserveHigh,
+        VaultBReserveHigh,
+        UserTokenABal,
+        UserTokenBBal,
+        UserTokenLPBal,
+        RemoveMinAmountA,
+        RemoveMinAmountB,
+        RemoveActualASuccessful,
+        RemoveMinAmountBLow,
+        RemoveMinAmountBAow,
+        RemoveAmountLP,
+        RemoveAmountLP1,
+        AddMaxAmountALow,
+        AddMaxAmountBLow,
+        AddMaxAmountBHigh,
+        AddMaxAmountA,
+        AddMaxAmountb,
+        AddMinAmountLP,
+        VaultASwapTest1,
+        VaultASwapTest2,
+        VaultBSwapTest1,
+        VaultBSwapTest2,
+        MinAmountOut,
+        VaultAAddSuccessful,
+        VaultBAddSuccessful,
+        AddSuccessfulAmountA,
+        AddSuccessfulAmountB,
+        VaultARemoveSuccessful,
+        VaultBRemoveSuccessful,
     }
 
     fn helper_balance_constructor(selection: BalanceEnum) -> u128 {
         match selection {
-            BalanceEnum::vault_a_reserve_init => 1_000,
-            BalanceEnum::vault_b_reserve_init => 500,
-            BalanceEnum::vault_a_reserve_low => 10,
-            BalanceEnum::vault_b_reserve_low => 10,
-            BalanceEnum::vault_a_reserve_high => 500_000,
-            BalanceEnum::vault_b_reserve_high => 500_000,
-            BalanceEnum::user_token_a_bal => 1_000,
-            BalanceEnum::user_token_b_bal => 500,
-            BalanceEnum::user_token_lp_bal => 100,
-            BalanceEnum::remove_min_amount_a => 50,
-            BalanceEnum::remove_min_amount_b => 100,
-            BalanceEnum::remove_actual_a_successful => 100,
-            BalanceEnum::remove_min_amount_b_low => 50,
-            BalanceEnum::remove_min_amount_a_low => 10,
-            BalanceEnum::remove_amount_lp => 100,
-            BalanceEnum::remove_amount_lp_1 => 30,
-            BalanceEnum::add_max_amount_a => 500,
-            BalanceEnum::add_max_amount_b => 200,
-            BalanceEnum::add_max_amount_b_high => 20_000,
-            BalanceEnum::add_max_amount_a_low => 10,
-            BalanceEnum::add_max_amount_b_low => 10,
-            BalanceEnum::add_min_amount_lp => 20,
-            BalanceEnum::vault_a_swap_test_1 => 1_500,
-            BalanceEnum::vault_a_swap_test_2 => 715,
-            BalanceEnum::vault_b_swap_test_1 => 334,
-            BalanceEnum::vault_b_swap_test_2 => 700,
-            BalanceEnum::min_amount_out => 200,
-            BalanceEnum::vault_a_add_successful => 1_400,
-            BalanceEnum::vault_b_add_successful => 700,
-            BalanceEnum::add_successful_amount_a_lp => 400,
-            BalanceEnum::add_successful_amount_b => 200,
-            BalanceEnum::vault_a_remove_successful => 900,
-            BalanceEnum::vault_b_remove_successful => 450,
+            BalanceEnum::VaultAReserveInit => 1_000,
+            BalanceEnum::VaultBReserveInit => 500,
+            BalanceEnum::VaultAReserveLow => 10,
+            BalanceEnum::VaultBReserveLow => 10,
+            BalanceEnum::VaultAReserveHigh => 500_000,
+            BalanceEnum::VaultBReserveHigh => 500_000,
+            BalanceEnum::UserTokenABal => 1_000,
+            BalanceEnum::UserTokenBBal => 500,
+            BalanceEnum::UserTokenLPBal => 100,
+            BalanceEnum::RemoveMinAmountA => 50,
+            BalanceEnum::RemoveMinAmountB => 100,
+            BalanceEnum::RemoveActualASuccessful => 100,
+            BalanceEnum::RemoveMinAmountBLow => 50,
+            BalanceEnum::RemoveMinAmountBAow => 10,
+            BalanceEnum::RemoveAmountLP => 100,
+            BalanceEnum::RemoveAmountLP1 => 30,
+            BalanceEnum::AddMaxAmountA => 500,
+            BalanceEnum::AddMaxAmountb => 200,
+            BalanceEnum::AddMaxAmountBHigh => 20_000,
+            BalanceEnum::AddMaxAmountALow => 10,
+            BalanceEnum::AddMaxAmountBLow => 10,
+            BalanceEnum::AddMinAmountLP => 20,
+            BalanceEnum::VaultASwapTest1 => 1_500,
+            BalanceEnum::VaultASwapTest2 => 715,
+            BalanceEnum::VaultBSwapTest1 => 334,
+            BalanceEnum::VaultBSwapTest2 => 700,
+            BalanceEnum::MinAmountOut => 200,
+            BalanceEnum::VaultAAddSuccessful => 1_400,
+            BalanceEnum::VaultBAddSuccessful => 700,
+            BalanceEnum::AddSuccessfulAmountA => 400,
+            BalanceEnum::AddSuccessfulAmountB => 200,
+            BalanceEnum::VaultARemoveSuccessful => 900,
+            BalanceEnum::VaultBRemoveSuccessful => 450,
             _ => panic!("Invalid selection")
         }
     } 
 
     enum IdEnum {
-        token_a_definition_id,
-        token_b_definition_id,
-        token_lp_definition_id,
-        user_token_a_id,
-        user_token_b_id,
-        user_token_lp_id,
-        pool_definition_id,
-        vault_a_id,
-        vault_b_id,
-        pool_lp_id,
+        TokenADefinitionId,
+        TokenBDefinitionId,
+        TokenLPDefinitionId,
+        UserTokenAId,
+        UserTokenBId,
+        UserTokenLPId,
+        PoolDefinitionId,
+        VaultAId,
+        VaultBId,
+        PoolLPId,
     }
 
     enum ChainedCallsEnum {
-        cc_token_a_initialization,
-        cc_token_b_initialization,
-        cc_pool_lp_initialization,
-        cc_swap_token_a_test_1,
-        cc_swap_token_b_test_1,
-        cc_swap_token_a_test_2,
-        cc_swap_token_b_test_2,
-        cc_add_token_a,
-        cc_add_token_b,
-        cc_add_pool_lp,
-        cc_remove_token_a,
-        cc_remove_token_b,
-        cc_remove_pool_lp,
+        CcTokenAInitialization,
+        CcTokenBInitialization,
+        CcPoolLPInitiailization,
+        CcSwapTokenATest1,
+        CcSwapTokenBTest1,
+        CcSwapTokenATest2,
+        CcSwapTokenBTest2,
+        CcAddTokenA,
+        CcAddTokenB,
+        CcAddPoolLP,
+        CcRemoveTokenA,
+        CcRemoveTokenB,
+        CcRemovePoolLP,
     }
 
     fn helper_chained_call_constructor(selection: ChainedCallsEnum) -> ChainedCall {
         match selection {
-            ChainedCallsEnum::cc_token_a_initialization => {
+            ChainedCallsEnum::CcTokenAInitialization => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::user_token_a_bal)
+                    &helper_balance_constructor(BalanceEnum::UserTokenABal)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::user_holding_a),
-                            helper_account_constructor(AccountEnum::vault_a_uninit)],
+                            helper_account_constructor(AccountEnum::UserHoldingA),
+                            helper_account_constructor(AccountEnum::VaultAUninit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_token_b_initialization => {
+            ChainedCallsEnum::CcTokenBInitialization => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::user_token_b_bal)
+                    &helper_balance_constructor(BalanceEnum::UserTokenBBal)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::user_holding_b),
-                            helper_account_constructor(AccountEnum::vault_b_uninit)],
+                            helper_account_constructor(AccountEnum::UserHoldingB),
+                            helper_account_constructor(AccountEnum::VaultBUninit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_pool_lp_initialization => {
+            ChainedCallsEnum::CcPoolLPInitiailization => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::user_token_a_bal)
+                    &helper_balance_constructor(BalanceEnum::UserTokenABal)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::pool_lp_uninit),
-                            helper_account_constructor(AccountEnum::user_holding_lp_uninit)],
+                            helper_account_constructor(AccountEnum::PoolLPUninit),
+                            helper_account_constructor(AccountEnum::UserHoldingLPUninit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_swap_token_a_test_1 => {
+            ChainedCallsEnum::CcSwapTokenATest1 => {
                 let mut instruction_data: [u8;23] = [0; 23];
                 instruction_data[0] = 1;      
                 instruction_data[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::add_max_amount_a)
+                    &helper_balance_constructor(BalanceEnum::AddMaxAmountA)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::user_holding_a),
-                            helper_account_constructor(AccountEnum::vault_a_init)],
+                            helper_account_constructor(AccountEnum::UserHoldingA),
+                            helper_account_constructor(AccountEnum::VaultAInit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_swap_token_b_test_1 => {
+            ChainedCallsEnum::CcSwapTokenBTest1 => {
                 let swap_amount: u128 = 166;
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
@@ -1147,11 +1112,12 @@ mod tests {
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::vault_b_init),
-                            helper_account_constructor(AccountEnum::user_holding_b)],
+                            helper_account_constructor(AccountEnum::VaultBInit),
+                            helper_account_constructor(AccountEnum::UserHoldingB)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_swap_token_a_test_2 => {
+            ChainedCallsEnum::CcSwapTokenATest2 => {
                 let swap_amount: u128 = 285;
                 let mut instruction_data: [u8;23] = [0; 23];
                 instruction_data[0] = 1;      
@@ -1163,113 +1129,121 @@ mod tests {
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::vault_a_init),
-                            helper_account_constructor(AccountEnum::user_holding_a)],
+                            helper_account_constructor(AccountEnum::VaultAInit),
+                            helper_account_constructor(AccountEnum::UserHoldingA)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_swap_token_b_test_2 => {
+            ChainedCallsEnum::CcSwapTokenBTest2 => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::add_max_amount_b)
+                    &helper_balance_constructor(BalanceEnum::AddMaxAmountb)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::user_holding_b),
-                            helper_account_constructor(AccountEnum::vault_b_init)],
+                            helper_account_constructor(AccountEnum::UserHoldingB),
+                            helper_account_constructor(AccountEnum::VaultBInit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_add_token_a => {
+            ChainedCallsEnum::CcAddTokenA => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::add_successful_amount_a_lp)
+                    &helper_balance_constructor(BalanceEnum::AddSuccessfulAmountA)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::user_holding_a),
-                            helper_account_constructor(AccountEnum::vault_a_init)],
+                            helper_account_constructor(AccountEnum::UserHoldingA),
+                            helper_account_constructor(AccountEnum::VaultAInit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_add_token_b => {
+            ChainedCallsEnum::CcAddTokenB => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::add_successful_amount_b)
+                    &helper_balance_constructor(BalanceEnum::AddSuccessfulAmountB)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Swap Logic: AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::user_holding_b),
-                            helper_account_constructor(AccountEnum::vault_b_init)],
+                            helper_account_constructor(AccountEnum::UserHoldingB),
+                            helper_account_constructor(AccountEnum::VaultBInit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_add_pool_lp => {
+            ChainedCallsEnum::CcAddPoolLP => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 4;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::add_successful_amount_a_lp)
+                    &helper_balance_constructor(BalanceEnum::AddSuccessfulAmountA)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Swap Logic: AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::pool_lp_init),
-                            helper_account_constructor(AccountEnum::user_holding_lp_init)],
+                            helper_account_constructor(AccountEnum::PoolLPInit),
+                            helper_account_constructor(AccountEnum::UserHoldingLPInit)],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_remove_token_a => {
+            ChainedCallsEnum::CcRemoveTokenA => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::remove_actual_a_successful)
+                    &helper_balance_constructor(BalanceEnum::RemoveActualASuccessful)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::vault_a_init),
-                            helper_account_constructor(AccountEnum::user_holding_a),],
+                            helper_account_constructor(AccountEnum::VaultAInit),
+                            helper_account_constructor(AccountEnum::UserHoldingA),],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_remove_token_b => {
+            ChainedCallsEnum::CcRemoveTokenB => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 1;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::remove_min_amount_b_low)
+                    &helper_balance_constructor(BalanceEnum::RemoveMinAmountBLow)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::vault_b_init),
-                            helper_account_constructor(AccountEnum::user_holding_b),],
+                            helper_account_constructor(AccountEnum::VaultBInit),
+                            helper_account_constructor(AccountEnum::UserHoldingB),],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-            ChainedCallsEnum::cc_remove_pool_lp => {
+            ChainedCallsEnum::CcRemovePoolLP => {
                 let mut instruction: [u8;23] = [0; 23];
                 instruction[0] = 3;      
                 instruction[1..17].copy_from_slice(
-                    &helper_balance_constructor(BalanceEnum::remove_actual_a_successful)
+                    &helper_balance_constructor(BalanceEnum::RemoveActualASuccessful)
                     .to_le_bytes());
                 let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("AMM Program expects valid transaction instruction data");
                 ChainedCall{
                     program_id: TOKEN_PROGRAM_ID,
                     instruction_data,
                     pre_states: vec![
-                            helper_account_constructor(AccountEnum::user_holding_lp_init),
-                            helper_account_constructor(AccountEnum::pool_lp_init),],
+                            helper_account_constructor(AccountEnum::UserHoldingLPInit),
+                            helper_account_constructor(AccountEnum::PoolLPInit),],
+                    pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
 
@@ -1280,16 +1254,16 @@ mod tests {
     fn helper_id_constructor(selection: IdEnum) -> AccountId {
 
         match selection {
-            IdEnum::token_a_definition_id => AccountId::new([42;32]),
-            IdEnum::token_b_definition_id => AccountId::new([43;32]),
-            IdEnum::token_lp_definition_id => AccountId::new([44;32]),
-            IdEnum::user_token_a_id => AccountId::new([45;32]),
-            IdEnum::user_token_b_id => AccountId::new([46;32]),
-            IdEnum::user_token_lp_id => AccountId::new([47;32]),
-            IdEnum::pool_definition_id => AccountId::new([48;32]),
-            IdEnum::vault_a_id => AccountId::new([45;32]),
-            IdEnum::vault_b_id => AccountId::new([46;32]),
-            IdEnum::pool_lp_id => AccountId::new([47;32]),
+            IdEnum::TokenADefinitionId => AccountId::new([42;32]),
+            IdEnum::TokenBDefinitionId => AccountId::new([43;32]),
+            IdEnum::TokenLPDefinitionId => AccountId::new([44;32]),
+            IdEnum::UserTokenAId => AccountId::new([45;32]),
+            IdEnum::UserTokenBId => AccountId::new([46;32]),
+            IdEnum::UserTokenLPId => AccountId::new([47;32]),
+            IdEnum::PoolDefinitionId => AccountId::new([48;32]),
+            IdEnum::VaultAId => AccountId::new([45;32]),
+            IdEnum::VaultBId => AccountId::new([46;32]),
+            IdEnum::PoolLPId => AccountId::new([47;32]),
             _ => panic!("Invalid selection")
         }
     }
@@ -1297,217 +1271,217 @@ mod tests {
     fn helper_account_constructor(selection: AccountEnum) -> AccountWithMetadata {
         
         match selection {
-            AccountEnum::user_holding_a => AccountWithMetadata {
+            AccountEnum::UserHoldingA => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::user_token_a_bal),
+                            definition_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::UserTokenABal),
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::user_token_a_id),
+                account_id: helper_id_constructor(IdEnum::UserTokenAId),
             },
-            AccountEnum::user_holding_b => AccountWithMetadata {
+            AccountEnum::UserHoldingB => AccountWithMetadata {
                     account: Account {
                         program_owner:  TOKEN_PROGRAM_ID,
                         balance: 0u128,
                         data: TokenHolding::into_data(
                             TokenHolding{
                                 account_type: 1u8,
-                                definition_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                                balance: helper_balance_constructor(BalanceEnum::user_token_b_bal),
+                                definition_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                                balance: helper_balance_constructor(BalanceEnum::UserTokenBBal),
                             }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::user_token_b_id),
+                account_id: helper_id_constructor(IdEnum::UserTokenBId),
             },
-            AccountEnum::vault_a_uninit => AccountWithMetadata {
+            AccountEnum::VaultAUninit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_a_definition_id),
+                            definition_id: helper_id_constructor(IdEnum::TokenADefinitionId),
                             balance: 0,
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_a_id),
+                account_id: helper_id_constructor(IdEnum::VaultAId),
             },
-            AccountEnum::vault_b_uninit => AccountWithMetadata {
+            AccountEnum::VaultBUninit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_b_definition_id),
+                            definition_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
                             balance: 0,
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_b_id),
+                account_id: helper_id_constructor(IdEnum::VaultBId),
             },
-            AccountEnum::vault_a_init => AccountWithMetadata {
+            AccountEnum::VaultAInit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
+                            definition_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_a_id),
+                account_id: helper_id_constructor(IdEnum::VaultAId),
             },
-            AccountEnum::vault_b_init => AccountWithMetadata {
+            AccountEnum::VaultBInit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_b_reserve_init),
+                            definition_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultBReserveInit),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_b_id),
+                account_id: helper_id_constructor(IdEnum::VaultBId),
             },
-            AccountEnum::vault_a_init_high => AccountWithMetadata {
+            AccountEnum::VaultAInitHigh => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_a_reserve_high),
+                            definition_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultAReserveHigh),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_a_id),
+                account_id: helper_id_constructor(IdEnum::VaultAId),
             },
-            AccountEnum::vault_b_init_high => AccountWithMetadata {
+            AccountEnum::VaultBInitHigh => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_b_reserve_high),
+                            definition_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultBReserveHigh),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_b_id),
+                account_id: helper_id_constructor(IdEnum::VaultBId),
             },
-            AccountEnum::vault_a_init_low => AccountWithMetadata {
+            AccountEnum::VaultAInitLow => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_a_reserve_low),
+                            definition_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultAReserveLow),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_a_id),
+                account_id: helper_id_constructor(IdEnum::VaultAId),
             },
-            AccountEnum::vault_b_init_low => AccountWithMetadata {
+            AccountEnum::VaultBInitLow => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_b_reserve_low),
+                            definition_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultBReserveLow),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_b_id),
+                account_id: helper_id_constructor(IdEnum::VaultBId),
             },
-            AccountEnum::vault_a_init_zero => AccountWithMetadata {
+            AccountEnum::VaultAInitZero => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_a_definition_id),
+                            definition_id: helper_id_constructor(IdEnum::TokenADefinitionId),
                             balance: 0,
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_a_id),
+                account_id: helper_id_constructor(IdEnum::VaultAId),
             },
-            AccountEnum::vault_b_init_zero => AccountWithMetadata {
+            AccountEnum::VaultBInitZero => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_b_definition_id),
+                            definition_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
                             balance: 0,
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_b_id),
+                account_id: helper_id_constructor(IdEnum::VaultBId),
             },
-            AccountEnum::vault_a_wrong_acc_id => AccountWithMetadata {
+            AccountEnum::VaultAWrongAccId => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
+                            definition_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_b_id),
+                account_id: helper_id_constructor(IdEnum::VaultBId),
             },
-            AccountEnum::vault_b_wrong_acc_id => AccountWithMetadata {
+            AccountEnum::VaultBWrongAccId => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::vault_b_reserve_init),
+                            definition_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::VaultBReserveInit),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_a_id),
+                account_id: helper_id_constructor(IdEnum::VaultAId),
             },
-            AccountEnum::pool_lp_uninit => AccountWithMetadata {
+            AccountEnum::PoolLPUninit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
@@ -1520,9 +1494,9 @@ mod tests {
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::token_lp_definition_id),
+                account_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
             },
-            AccountEnum::pool_lp_init => AccountWithMetadata {
+            AccountEnum::PoolLPInit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
@@ -1530,14 +1504,14 @@ mod tests {
                         TokenDefinition{
                             account_type: 0u8,
                             name: [1;6],
-                            total_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
+                            total_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::token_lp_definition_id),
+                account_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
             },
-            AccountEnum::pool_lp_wrong_acc_id => AccountWithMetadata {
+            AccountEnum::PoolLPWrongAccId => AccountWithMetadata {
               account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
@@ -1545,105 +1519,105 @@ mod tests {
                         TokenDefinition{
                             account_type: 0u8,
                             name: [1;6],
-                            total_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
+                            total_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::vault_a_id),
+                account_id: helper_id_constructor(IdEnum::VaultAId),
             },
-            AccountEnum::user_holding_lp_uninit => AccountWithMetadata {
+            AccountEnum::UserHoldingLPUninit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_lp_definition_id),
+                            definition_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
                             balance: 0,
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::user_token_lp_id),
+                account_id: helper_id_constructor(IdEnum::UserTokenLPId),
             },
-            AccountEnum::user_holding_lp_init => AccountWithMetadata {
+            AccountEnum::UserHoldingLPInit => AccountWithMetadata {
                 account: Account {
                     program_owner:  TOKEN_PROGRAM_ID,
                     balance: 0u128,
                     data: TokenHolding::into_data(
                         TokenHolding{
                             account_type: 1u8,
-                            definition_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            balance: helper_balance_constructor(BalanceEnum::user_token_lp_bal),
+                            definition_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            balance: helper_balance_constructor(BalanceEnum::UserTokenLPBal),
                         }),
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::user_token_lp_id),
+                account_id: helper_id_constructor(IdEnum::UserTokenLPId),
             },
-            AccountEnum::pool_definition_uninit => AccountWithMetadata {
+            AccountEnum::PoolDefinitionUninit => AccountWithMetadata {
                 account: Account::default(),
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_init => AccountWithMetadata {
+            AccountEnum::PoolDefinitionInit => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_reserve_init),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBReserveInit),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_init_reserve_a_zero => AccountWithMetadata {
+            AccountEnum::PoolDefinitionInitReserveAZero => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
                             reserve_a: 0,
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_reserve_init),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBReserveInit),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_init_reserve_b_zero => AccountWithMetadata {
+            AccountEnum::PoolDefinitionInitReserveBZero => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
                             reserve_b: 0,
                             fees: 0u128,
                             active: true,
@@ -1651,436 +1625,360 @@ mod tests {
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_init_reserve_a_low => AccountWithMetadata {
+            AccountEnum::PoolDefinitionInitReserveALow => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_low),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_reserve_low),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_reserve_high),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveLow),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultAReserveLow),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBReserveHigh),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_init_reserve_b_low => AccountWithMetadata {
+            AccountEnum::PoolDefinitionInitReserveBLow => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_high),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_reserve_high),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_reserve_low),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveHigh),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultAReserveHigh),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBReserveLow),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_unauth => AccountWithMetadata {
+            AccountEnum::PoolDefinitionUnauth => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_reserve_init),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBReserveInit),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: false,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_swap_test_1 => AccountWithMetadata {
+            AccountEnum::PoolDefinitionSwapTest1 => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_swap_test_1),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_swap_test_1),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultASwapTest1),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBSwapTest1),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_swap_test_2 => AccountWithMetadata {
+            AccountEnum::PoolDefinitionSwapTest2 => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_swap_test_2),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_swap_test_2),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultASwapTest2),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBSwapTest2),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_add_zero_lp => AccountWithMetadata {
+            AccountEnum::PoolDefinitionAddZeroLP => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_reserve_low),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_reserve_init),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_reserve_init),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAReserveLow),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBReserveInit),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_add_successful => AccountWithMetadata {
+            AccountEnum::PoolDefinitionAddSuccessful => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_add_successful),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_add_successful),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_add_successful),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultAAddSuccessful),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultAAddSuccessful),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBAddSuccessful),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountEnum::pool_definition_remove_successful => AccountWithMetadata {
+            AccountEnum::PoolDefinitionRemoveSuccessful => AccountWithMetadata {
                 account: Account {
                         program_owner:  ProgramId::default(),
                         balance: 0u128,
                         data: PoolDefinition::into_data(
                         PoolDefinition {
-                            definition_token_a_id: helper_id_constructor(IdEnum::token_a_definition_id),
-                            definition_token_b_id: helper_id_constructor(IdEnum::token_b_definition_id),
-                            vault_a_addr: helper_id_constructor(IdEnum::vault_a_id),
-                            vault_b_addr: helper_id_constructor(IdEnum::vault_b_id),
-                            liquidity_pool_id: helper_id_constructor(IdEnum::token_lp_definition_id),
-                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::vault_a_remove_successful),
-                            reserve_a: helper_balance_constructor(BalanceEnum::vault_a_remove_successful),
-                            reserve_b: helper_balance_constructor(BalanceEnum::vault_b_remove_successful),
+                            definition_token_a_id: helper_id_constructor(IdEnum::TokenADefinitionId),
+                            definition_token_b_id: helper_id_constructor(IdEnum::TokenBDefinitionId),
+                            vault_a_addr: helper_id_constructor(IdEnum::VaultAId),
+                            vault_b_addr: helper_id_constructor(IdEnum::VaultBId),
+                            liquidity_pool_id: helper_id_constructor(IdEnum::TokenLPDefinitionId),
+                            liquidity_pool_supply: helper_balance_constructor(BalanceEnum::VaultARemoveSuccessful),
+                            reserve_a: helper_balance_constructor(BalanceEnum::VaultARemoveSuccessful),
+                            reserve_b: helper_balance_constructor(BalanceEnum::VaultBRemoveSuccessful),
                             fees: 0u128,
                             active: true,
                         }),
                         nonce: 0,
                 },
                 is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::pool_definition_id),
+                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
             _ => panic!("Invalid selection"),
         }
     }
-/*/
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]    
-    fn test_call_new_pool_with_invalid_number_of_accounts_1() {
-        let pre_states = vec![ helper_account_constructor(AccountEnum::pool_definition_uninit),]
-        ;
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
 
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_new_pool_with_invalid_number_of_accounts_2() {
+    fn test_call_new_definition_with_invalid_number_of_accounts_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
+                helper_account_constructor(AccountEnum::PoolDefinitionUninit),
                 ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_new_pool_with_invalid_number_of_accounts_3() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-   }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_new_pool_with_invalid_number_of_accounts_4() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_new_pool_with_invalid_number_of_accounts_5() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]
-    fn test_call_new_pool_with_invalid_number_of_accounts_6() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-
-    #[should_panic(expected = "Invalid number of balance")]
-    #[test]
-    fn test_call_new_pool_with_invalid_number_of_balances_1() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-    
-    #[should_panic(expected = "Pool account is initiated or not authorized")]
-    #[test]
-    fn test_call_new_pool_with_initiated_pool() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-
-    #[should_panic(expected = "Pool account is initiated or not authorized")]
-    #[test]
-    fn test_call_new_pool_with_unauthorized_pool() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_unauth),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-    
-    #[should_panic(expected = "Balances must be nonzero")]
-    #[test]
-    fn test_call_new_pool_with_balance_zero_1() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[0,
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }      
-
-    #[should_panic(expected = "Balances must be nonzero")]
-    #[test]
-    fn test_call_new_pool_with_balance_zero_2() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal),
-                    0],
-                    TOKEN_PROGRAM_ID);
-    }
-    
-    #[should_panic(expected = "Cannot set up a swap for a token with itself.")]
-    #[test]
-    fn test_call_new_pool_same_token() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_lp_uninit),
-                ];
-        let _post_states = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal), 
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-    }
-
-    #[test]
-    fn test_call_new_pool_chain_call_success() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_uninit),
-                helper_account_constructor(AccountEnum::vault_a_uninit),
-                helper_account_constructor(AccountEnum::vault_b_uninit),
-                helper_account_constructor(AccountEnum::pool_lp_uninit),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_uninit),
-                ];
-        let (post_states, chained_calls) = new_pool(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::user_token_a_bal), 
-                    helper_balance_constructor(BalanceEnum::user_token_b_bal)],
-                    TOKEN_PROGRAM_ID);
-
-        let pool_post = post_states[0].clone();
-
-        let pool_data = PoolDefinition::parse(&pool_post.data).unwrap();
-        assert!(helper_account_constructor(AccountEnum::pool_definition_init).account ==
-                    pool_post);
-
-        let chained_call_lp = chained_calls[0].clone();
-        let chained_call_b = chained_calls[1].clone();
-        let chained_call_a = chained_calls[2].clone();
-
-        assert!(chained_call_lp == helper_chained_call_constructor(ChainedCallsEnum::cc_pool_lp_initialization));
-        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::cc_token_a_initialization));
-        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::cc_token_b_initialization));
-    }
-*/
-    #[should_panic(expected = "Invalid number of input accounts")]
-    #[test]    
-    fn test_call_remove_liquidity_with_invalid_number_of_accounts_1() {
-        let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                ];
-        let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit)]
                     );
     }
 
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]
+    fn test_call_new_definition_with_invalid_number_of_accounts_2() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit)]
+                    );
+    }
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
+    fn test_call_new_definition__with_invalid_number_of_accounts_3() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit)]
+                    );
+    }
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
+    fn test_call_new_definition__with_invalid_number_of_accounts_4() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit)],
+                    );
+    }
+ 
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
+    fn test_call_new_definition__with_invalid_number_of_accounts_5() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit)],
+                    );
+    }
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
+    fn test_call_new_definition_with_invalid_number_of_accounts_6() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit)],
+                    );
+    }
+
+    #[should_panic(expected = "Invalid number of input balances")]
+    #[test]
+    fn test_call_new_definition_with_invalid_number_of_balances() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPUninit),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),],
+                    );
+    }   
+
+    #[should_panic(expected = "Balances must be nonzero")]
+    #[test]
+    fn test_call_new_definition_with_zero_balance_1() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPUninit),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[0,
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit),],
+                    );
+    }   
+
+    #[should_panic(expected = "Balances must be nonzero")]
+    #[test]
+    fn test_call_new_definition_with_zero_balance_2() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPUninit),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    0],
+                    );
+    }    
+
+    #[should_panic(expected = "Cannot set up a swap for a token with itself")]
+    #[test]
+    fn test_call_new_definition_same_token_definition() {
+        let pre_states = vec![
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingLPUninit),
+                ];
+        let _post_states = new_definition(&pre_states, 
+                    &[helper_balance_constructor(BalanceEnum::VaultAReserveInit),
+                    helper_balance_constructor(BalanceEnum::VaultBReserveInit),],
+                    );
+    }    
+  
+  //TODO rest of new definition tests go here.
+
+
+    #[should_panic(expected = "Invalid number of input accounts")]
+    #[test]
     fn test_call_remove_liquidity_with_invalid_number_of_accounts_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2088,14 +1986,14 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_with_invalid_number_of_accounts_3() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2103,15 +2001,15 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_with_invalid_number_of_accounts_4() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
  
@@ -2119,16 +2017,16 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_with_invalid_number_of_accounts_5() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2136,17 +2034,17 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_with_invalid_number_of_accounts_6() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2154,18 +2052,18 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_vault_a_omitted() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_wrong_acc_id),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAWrongAccId),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
     
@@ -2173,18 +2071,18 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_vault_b_omitted() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_wrong_acc_id),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBWrongAccId),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
     
@@ -2192,18 +2090,18 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_lp_def_mismatch() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_wrong_acc_id),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPWrongAccId),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2211,18 +2109,18 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_insufficient_liquidity_amount() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_a), //different token account than lp to create desired error
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingA), //different token account than lp to create desired error
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2230,18 +2128,18 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_insufficient_balance_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp_1), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP1), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2249,18 +2147,18 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_insufficient_balance_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2268,18 +2166,18 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_min_bal_zero_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
                     0,
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b)],
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB)],
                     );
     }
 
@@ -2287,17 +2185,17 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_min_bal_zero_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
                     0],
                     );
     }
@@ -2306,62 +2204,62 @@ mod tests {
     #[test]
     fn test_call_remove_liquidity_lp_bal_zero() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = remove_liquidity(&pre_states, 
                     &[0, 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b),],
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountB),],
                     );
     }    
 
     #[test]
     fn test_call_remove_liquidity_chained_call_successful() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let (post_states, chained_calls) = remove_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::remove_amount_lp), 
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_a),
-                    helper_balance_constructor(BalanceEnum::remove_min_amount_b_low),],
+                    &[helper_balance_constructor(BalanceEnum::RemoveAmountLP), 
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountA),
+                    helper_balance_constructor(BalanceEnum::RemoveMinAmountBLow),],
                     );
 
         let pool_post = post_states[0].clone();
 
-        assert!(helper_account_constructor(AccountEnum::pool_definition_remove_successful).account ==
-                   pool_post);
+        assert!(helper_account_constructor(AccountEnum::PoolDefinitionRemoveSuccessful).account ==
+                   *pool_post.account());
 
         let chained_call_lp = chained_calls[0].clone();
         let chained_call_b = chained_calls[1].clone();           
         let chained_call_a = chained_calls[2].clone();     
 
-        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::cc_remove_token_a));
-        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::cc_remove_token_b));
-        assert!(chained_call_lp.instruction_data == helper_chained_call_constructor(ChainedCallsEnum::cc_remove_pool_lp).instruction_data);
+        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::CcRemoveTokenA));
+        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::CcRemoveTokenB));
+        assert!(chained_call_lp.instruction_data == helper_chained_call_constructor(ChainedCallsEnum::CcRemovePoolLP).instruction_data);
     }   
 
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]    
     fn test_call_add_liquidity_with_invalid_number_of_accounts_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2369,13 +2267,13 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_with_invalid_number_of_accounts_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2383,14 +2281,14 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_with_invalid_number_of_accounts_3() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2398,15 +2296,15 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_with_invalid_number_of_accounts_4() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2414,16 +2312,16 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_with_invalid_number_of_accounts_5() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2431,17 +2329,17 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_with_invalid_number_of_accounts_6() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
   
@@ -2449,16 +2347,16 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_invalid_number_of_balances_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),],
                     );
     }
 
@@ -2466,18 +2364,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_vault_a_omitted() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_wrong_acc_id),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAWrongAccId),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }        
 
@@ -2485,18 +2383,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_vault_b_omitted() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_wrong_acc_id),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBWrongAccId),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }    
 
@@ -2504,18 +2402,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_lp_def_mismatch() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_wrong_acc_id),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPWrongAccId),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }    
 
@@ -2523,18 +2421,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_zero_balance_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_min_amount_lp),
+                    &[helper_balance_constructor(BalanceEnum::AddMinAmountLP),
                     0,
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),],
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),],
                     );
     }
 
@@ -2542,18 +2440,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_zero_balance_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
                     0,
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2561,36 +2459,36 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_zero_min_lp() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
                     &[0,
-                    helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),],);
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),],);
     }
 
     #[should_panic(expected = "Vaults' balances must be at least the reserve amounts")]
     #[test]
     fn test_call_add_liquidity_vault_insufficient_balance_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init_zero),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInitZero),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a), 
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA), 
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2598,18 +2496,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_vault_insufficient_balance_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init_zero),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInitZero),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a), 
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA), 
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2617,18 +2515,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_actual_amount_zero_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init_reserve_a_low),
-                helper_account_constructor(AccountEnum::vault_a_init_low),
-                helper_account_constructor(AccountEnum::vault_b_init_high),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInitReserveALow),
+                helper_account_constructor(AccountEnum::VaultAInitLow),
+                helper_account_constructor(AccountEnum::VaultBInitHigh),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a), 
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA), 
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2636,18 +2534,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_actual_amount_zero_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init_reserve_b_low),
-                helper_account_constructor(AccountEnum::vault_a_init_high),
-                helper_account_constructor(AccountEnum::vault_b_init_low),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInitReserveBLow),
+                helper_account_constructor(AccountEnum::VaultAInitHigh),
+                helper_account_constructor(AccountEnum::VaultBInitLow),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a_low), 
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b_low),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountALow), 
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountBLow),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
@@ -2655,18 +2553,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_reserves_zero_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init_reserve_a_zero),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInitReserveAZero),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );        
     }
 
@@ -2674,18 +2572,18 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_reserves_zero_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init_reserve_b_zero),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInitReserveBZero),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );        
     }
 
@@ -2693,63 +2591,63 @@ mod tests {
     #[test]
     fn test_call_add_liquidity_payable_lp_zero() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_add_zero_lp),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionAddZeroLP),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let _post_states = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a_low),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b_low),
-                    helper_balance_constructor(BalanceEnum::add_min_amount_lp),],
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountALow),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountBLow),
+                    helper_balance_constructor(BalanceEnum::AddMinAmountLP),],
                     );
     }
 
     #[test]
     fn test_call_add_liquidity_successful_chain_call() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::pool_lp_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
-                helper_account_constructor(AccountEnum::user_holding_lp_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::PoolLPInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
+                helper_account_constructor(AccountEnum::UserHoldingLPInit),
                 ];
         let (post_states, chained_calls) = add_liquidity(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_min_amount_lp),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_b),],
+                    &[helper_balance_constructor(BalanceEnum::AddMinAmountLP),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountb),],
                     );
     
         let pool_post = post_states[0].clone();
 
-        assert!(helper_account_constructor(AccountEnum::pool_definition_add_successful).account ==
-                    pool_post);
+        assert!(helper_account_constructor(AccountEnum::PoolDefinitionAddSuccessful).account ==
+                    *pool_post.account());
 
         let chained_call_lp = chained_calls[0].clone();
         let chained_call_b = chained_calls[1].clone();
         let chained_call_a = chained_calls[2].clone();
 
 
-        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::cc_add_token_a));
-        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::cc_add_token_b));
-        assert!(chained_call_lp == helper_chained_call_constructor(ChainedCallsEnum::cc_add_pool_lp));
+        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::CcAddTokenA));
+        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::CcAddTokenB));
+        assert!(chained_call_lp == helper_chained_call_constructor(ChainedCallsEnum::CcAddPoolLP));
     }
 
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]    
     fn test_call_swap_with_invalid_number_of_accounts_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2757,13 +2655,13 @@ mod tests {
     #[test]
     fn test_call_swap_with_invalid_number_of_accounts_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2771,14 +2669,14 @@ mod tests {
     #[test]
     fn test_call_swap_with_invalid_number_of_accounts_3() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2786,15 +2684,15 @@ mod tests {
     #[test]
     fn test_call_swap_with_invalid_number_of_accounts_4() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2802,15 +2700,15 @@ mod tests {
     #[test]
     fn test_call_swap_with_invalid_number_of_amounts() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a)],
-                    helper_id_constructor(IdEnum::token_lp_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA)],
+                    helper_id_constructor(IdEnum::TokenLPDefinitionId),
                     );
     }
 
@@ -2818,16 +2716,16 @@ mod tests {
     #[test]
     fn test_call_swap_incorrect_token_type() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_lp_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenLPDefinitionId),
                     );
     }
 
@@ -2835,16 +2733,16 @@ mod tests {
     #[test]
     fn test_call_swap_vault_a_omitted() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_wrong_acc_id),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAWrongAccId),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2852,16 +2750,16 @@ mod tests {
     #[test]
     fn test_call_swap_vault_b_omitted() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_wrong_acc_id),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBWrongAccId),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2869,16 +2767,16 @@ mod tests {
     #[test]
     fn test_call_swap_reserves_vault_mismatch_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init_low),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInitLow),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2886,16 +2784,16 @@ mod tests {
     #[test]
     fn test_call_swap_reserves_vault_misatch_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init_low),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInitLow),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
@@ -2903,71 +2801,71 @@ mod tests {
     #[test]
     fn test_call_swap_below_min_out() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let _post_states = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     }
 
     #[test]
     fn test_call_swap_successful_chain_call_1() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let (post_states, chained_calls) = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_a),
-                    helper_balance_constructor(BalanceEnum::add_max_amount_a_low)],
-                    helper_id_constructor(IdEnum::token_a_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountA),
+                    helper_balance_constructor(BalanceEnum::AddMaxAmountALow)],
+                    helper_id_constructor(IdEnum::TokenADefinitionId),
                     );
     
         let pool_post = post_states[0].clone();
 
-        assert!(helper_account_constructor(AccountEnum::pool_definition_swap_test_1).account ==
-                    pool_post);
+        assert!(helper_account_constructor(AccountEnum::PoolDefinitionSwapTest1).account ==
+                    *pool_post.account());
 
         let chained_call_a = chained_calls[0].clone();            
         let chained_call_b = chained_calls[1].clone();
 
-        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::cc_swap_token_a_test_1));
-        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::cc_swap_token_b_test_1));
+        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::CcSwapTokenATest1));
+        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::CcSwapTokenBTest1));
     }
 
     #[test]
     fn test_call_swap_successful_chain_call_2() {
         let pre_states = vec![
-                helper_account_constructor(AccountEnum::pool_definition_init),
-                helper_account_constructor(AccountEnum::vault_a_init),
-                helper_account_constructor(AccountEnum::vault_b_init),
-                helper_account_constructor(AccountEnum::user_holding_a),
-                helper_account_constructor(AccountEnum::user_holding_b),
+                helper_account_constructor(AccountEnum::PoolDefinitionInit),
+                helper_account_constructor(AccountEnum::VaultAInit),
+                helper_account_constructor(AccountEnum::VaultBInit),
+                helper_account_constructor(AccountEnum::UserHoldingA),
+                helper_account_constructor(AccountEnum::UserHoldingB),
                 ];
         let (post_states, chained_calls) = swap(&pre_states, 
-                    &[helper_balance_constructor(BalanceEnum::add_max_amount_b),
-                    helper_balance_constructor(BalanceEnum::min_amount_out)],
-                    helper_id_constructor(IdEnum::token_b_definition_id),
+                    &[helper_balance_constructor(BalanceEnum::AddMaxAmountb),
+                    helper_balance_constructor(BalanceEnum::MinAmountOut)],
+                    helper_id_constructor(IdEnum::TokenBDefinitionId),
                     );
     
         let pool_post = post_states[0].clone();
 
-        assert!(helper_account_constructor(AccountEnum::pool_definition_swap_test_2).account ==
-                    pool_post);
+        assert!(helper_account_constructor(AccountEnum::PoolDefinitionSwapTest2).account ==
+                    *pool_post.account());
 
         let chained_call_a = chained_calls[1].clone();            
         let chained_call_b = chained_calls[0].clone();
 
-        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::cc_swap_token_a_test_2));
-        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::cc_swap_token_b_test_2));
+        assert!(chained_call_a == helper_chained_call_constructor(ChainedCallsEnum::CcSwapTokenATest2));
+        assert!(chained_call_b == helper_chained_call_constructor(ChainedCallsEnum::CcSwapTokenBTest2));
     }
-    
+
 }
