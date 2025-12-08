@@ -306,11 +306,14 @@ impl WalletCore {
         }
 
         let before_polling = std::time::Instant::now();
+        let num_of_blocks = block_id - self.last_synced_block;
+        println!("Syncing to block {block_id}. Blocks to sync: {num_of_blocks}");
 
         let poller = self.poller.clone();
         let mut blocks =
             std::pin::pin!(poller.poll_block_range(self.last_synced_block + 1..=block_id));
 
+        let bar = indicatif::ProgressBar::new(num_of_blocks);
         while let Some(block) = blocks.try_next().await? {
             for tx in block.transactions {
                 let nssa_tx = NSSATransaction::try_from(&tx)?;
@@ -319,7 +322,9 @@ impl WalletCore {
 
             self.last_synced_block = block.block_id;
             self.store_persistent_data().await?;
+            bar.inc(1);
         }
+        bar.finish();
 
         println!(
             "Synced to block {block_id} in {:?}",
@@ -379,7 +384,7 @@ impl WalletCore {
             .collect::<Vec<_>>();
 
         for (affected_account_id, new_acc) in affected_accounts {
-            println!(
+            info!(
                 "Received new account for account_id {affected_account_id:#?} with account object {new_acc:#?}"
             );
             self.storage
