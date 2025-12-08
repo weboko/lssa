@@ -214,30 +214,29 @@ fn main() {
             new_definition(&pre_states, &[balance_a, balance_b])
         }
         1 => {
-            let mut token_addr: [u8;32] = [0;32];
-            token_addr[0..].copy_from_slice(&instruction[33..65]);
-            
-            let token_addr = AccountId::new(token_addr);
+            let mut token_in_addr: [u8;32] = [0;32];
+            token_in_addr[0..].copy_from_slice(&instruction[33..65]);
+            let token_in_addr = AccountId::new(token_in_addr);
             
             let amount_in = u128::from_le_bytes(instruction[1..17].try_into().expect("Swap: AMM Program expects valid u128 for balance to move"));
             let min_amount_out = u128::from_le_bytes(instruction[17..33].try_into().expect("Swap: AMM Program expects valid u128 for balance to move"));
 
-            swap(&pre_states, &[amount_in, min_amount_out], token_addr)
+
+            swap(&pre_states, &[amount_in, min_amount_out], token_in_addr)
         }
         2 => {
-            let min_amount_lp = u128::from_le_bytes(instruction[1..17].try_into().expect("Add liquidity: AMM Program expects valid u128 for min amount lp")); 
+            let min_amount_lp = u128::from_le_bytes(instruction[1..17].try_into().expect("Add liquidity: AMM Program expects valid u128 for min amount liquidity")); 
             let max_amount_a = u128::from_le_bytes(instruction[17..33].try_into().expect("Add liquidity: AMM Program expects valid u128 for max amount a"));
             let max_amount_b = u128::from_le_bytes(instruction[33..49].try_into().expect("Add liquidity: AMM Program expects valid u128 for max amount b"));
             
             add_liquidity(&pre_states, &[min_amount_lp, max_amount_a, max_amount_b])
         }
         3 => {
-
             let balance_lp = u128::from_le_bytes(instruction[1..17].try_into().expect("Remove liquidity: AMM Program expects valid u128 for balance liquidity"));
-            let balance_a = u128::from_le_bytes(instruction[17..33].try_into().expect("Remove liquidity: AMM Program expects valid u128 for balance a"));
-            let balance_b = u128::from_le_bytes(instruction[33..49].try_into().expect("Remove liquidity: AMM Program expects valid u128 for balance b"));
+            let min_amount_a = u128::from_le_bytes(instruction[17..33].try_into().expect("Remove liquidity: AMM Program expects valid u128 for balance a"));
+            let min_amount_b = u128::from_le_bytes(instruction[33..49].try_into().expect("Remove liquidity: AMM Program expects valid u128 for balance b"));
 
-            remove_liquidity(&pre_states, &[balance_lp, balance_a, balance_b])
+            remove_liquidity(&pre_states, &[balance_lp, min_amount_a, min_amount_b])
         }
         _ => panic!("Invalid instruction"),
     };
@@ -245,18 +244,16 @@ fn main() {
     write_nssa_outputs_with_chained_call(pre_states, post_states, chained_calls);
 }
 
+/*
 // TODO: check
 fn compute_pool_pda(definition_token_a_id: AccountId, definition_token_b_id: AccountId) -> AccountId {
     use risc0_zkvm::sha::{Impl, Sha256};
     const PDA_POOL_DEF_PREFIX: &[u8; 32] =b"/LSSA/v0.3/AccountId/AMM/PoolDef";
 
     //TODO order (Token_A, Token B) for uniqueness
-    let mut bytes = [0; 96];
-    bytes[0..32].copy_from_slice(PDA_POOL_DEF_PREFIX);
- //   let program_id_bytes: &[u8] =
-   //     bytemuck::try_cast_slice(value.0).expect("ProgramId should be castable to &[u8]");
-    bytes[32..64].copy_from_slice(&definition_token_a_id.to_bytes());
-    bytes[64..].copy_from_slice(&definition_token_b_id.to_bytes());
+    let mut bytes = [0; 64];
+    bytes[0..32].copy_from_slice(&definition_token_a_id.to_bytes());
+    bytes[32..].copy_from_slice(&definition_token_b_id.to_bytes());
     AccountId::new(
         Impl::hash_bytes(&bytes)
             .as_bytes()
@@ -264,24 +261,21 @@ fn compute_pool_pda(definition_token_a_id: AccountId, definition_token_b_id: Acc
             .expect("Hash output must be exactly 32 bytes long"),
     )
 
+}*/
+
+fn compute_vault_pda(pool_program: ProgramId, pool_id: AccountId, definition_token_id: AccountId) -> AccountId {
+    AccountId::from((pool_program,
+        compute_vault_pda_seed(pool_id, definition_token_id)))
 }
 
-fn compute_vault_pda(pool_id: AccountId, token_definition: AccountId) -> AccountId {
+fn compute_vault_pda_seed(pool_id: AccountId, definition_token_id: AccountId) -> PdaSeed {
     use risc0_zkvm::sha::{Impl, Sha256};
-    const PDA_POOL_DEF_PREFIX: &[u8; 32] =b"/LSSA/v0.3/AccountId/AMM/Vault\x00\x00";
 
-    //TODO order (Token_A, Token B) for uniqueness
-    let mut bytes = [0; 96];
-    bytes[0..32].copy_from_slice(PDA_POOL_DEF_PREFIX);
-    bytes[32..64].copy_from_slice(&pool_id.to_bytes());
-    bytes[64..].copy_from_slice(&token_definition.to_bytes());
-    AccountId::new(
-        Impl::hash_bytes(&bytes)
-            .as_bytes()
-            .try_into()
-            .expect("Hash output must be exactly 32 bytes long"),
-    )
+    let mut bytes = [0; 64];
+    bytes[0..32].copy_from_slice(&pool_id.to_bytes());
+    bytes[32..].copy_from_slice(&definition_token_id.to_bytes());
 
+    PdaSeed::new(Impl::hash_bytes(&bytes).as_bytes().try_into().expect("Hash output must be exactly 32 bytes long"))
 }
 
 fn new_definition (
@@ -329,6 +323,7 @@ fn new_definition (
 
     //TODO: add tests
     // Check PDA for Pool Account and Vault Accounts
+    /*
     if pool.account_id != compute_pool_pda(definition_token_a_id.clone(), definition_token_b_id.clone()) {
         panic!("Pool Definition Account ID does not match PDA");
     }
@@ -337,6 +332,7 @@ fn new_definition (
         vault_b.account_id != compute_vault_pda(pool.account_id.clone(), definition_token_b_id.clone()) {
         panic!("Vault ID does not match PDA");        
     }
+    */
 
     //TODO add test
     // Verify that Pool Account is not active
@@ -783,6 +779,14 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
         panic!("Vault B was not provided");
     }
     
+    // Vault addresses do not need to be checked with PDA
+    // calculation for setting authorization since stored
+    // in the Pool Definition.
+    let mut running_vault_a = vault_a.clone();
+    let mut running_vault_b = vault_b.clone();
+    running_vault_a.is_authorized = true;
+    running_vault_b.is_authorized = true;
+
     if amount_min_a == 0 || amount_min_b == 0 {
         panic!("Minimum withdraw amount must be nonzero");
     }
@@ -814,6 +818,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
 
     let active: bool = if pool_def_data.liquidity_pool_supply - delta_lp == 0 { false } else { true };
 
+    //TODO: delete
     //panic!("aA {}, aB {}, dLP {}", withdraw_amount_a, withdraw_amount_b, delta_lp);
 
     // 5. Update pool account
@@ -837,31 +842,31 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
 
     //Chaincall for Token A withdraw
     let mut instruction: [u8;23] = [0; 23];
-    instruction[0] = 1;      
+    instruction[0] = 1; // token transfer  
     instruction[1..17].copy_from_slice(&withdraw_amount_a.to_le_bytes());
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Remove liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_a = ChainedCall{
             program_id: vault_a.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![vault_a.clone(), user_holding_a.clone()],
+            pre_states: vec![running_vault_a, user_holding_a.clone()],
             pda_seeds: Vec::<PdaSeed>::new(),
         };
 
     //Chaincall for Token B withdraw
     let mut instruction: [u8;23] = [0; 23];
-    instruction[0] = 1;      
+    instruction[0] = 1; // token transfer   
     instruction[1..17].copy_from_slice(&withdraw_amount_b.to_le_bytes());
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Remove liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_b = ChainedCall{
             program_id: vault_b.account.program_owner,
             instruction_data: instruction_data,
-            pre_states: vec![vault_b.clone(), user_holding_b.clone()],
+            pre_states: vec![running_vault_b, user_holding_b.clone()],
             pda_seeds: Vec::<PdaSeed>::new(),
         };
 
     //Chaincall for LP adjustment        
     let mut instruction: [u8;23] = [0; 23];
-    instruction[0] = 3;      
+    instruction[0] = 3; // token burn
     instruction[1..17].copy_from_slice(&delta_lp.to_le_bytes());
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Remove liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_lp = ChainedCall{
@@ -1246,7 +1251,6 @@ mod tests {
                     pda_seeds: Vec::<PdaSeed>::new(),
                 }
             }
-
            _ => panic!("Invalid selection")
         }
     }
@@ -1806,9 +1810,9 @@ mod tests {
             _ => panic!("Invalid selection"),
         }
     }
+
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]    
-
     fn test_call_new_definition_with_invalid_number_of_accounts_1() {
         let pre_states = vec![
                 helper_account_constructor(AccountEnum::PoolDefinitionUninit),
