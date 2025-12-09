@@ -165,7 +165,7 @@ pub async fn execute_subcommand(command: Command) -> Result<SubcommandReturnValu
                 .send_tx_program(transaction)
                 .await
                 .expect("Transaction submission error");
-            println!("Response: {:?}", response);
+            println!("Response: {response:?}");
 
             SubcommandReturnValue::Empty
         }
