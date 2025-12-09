@@ -204,13 +204,51 @@ pub fn validate_execution(
     }
 
     // 7. Total balance is preserved
-    let total_balance_pre_states: u128 = pre_states.iter().map(|pre| pre.account.balance).sum();
-    let total_balance_post_states: u128 = post_states.iter().map(|post| post.account.balance).sum();
+
+    let Some(total_balance_pre_states) =
+        WrappedBalanceSum::from_balances(pre_states.iter().map(|pre| pre.account.balance))
+    else {
+        return false;
+    };
+
+    let Some(total_balance_post_states) =
+        WrappedBalanceSum::from_balances(post_states.iter().map(|post| post.account.balance))
+    else {
+        return false;
+    };
+
     if total_balance_pre_states != total_balance_post_states {
         return false;
     }
 
     true
+}
+
+/// Representation of a number as `lo + hi * 2^128`.
+#[derive(PartialEq, Eq)]
+struct WrappedBalanceSum {
+    lo: u128,
+    hi: u128,
+}
+
+impl WrappedBalanceSum {
+    /// Constructs a [`WrappedBalanceSum`] from an iterator of balances.
+    ///
+    /// Returns [`None`] if balance sum overflows `lo + hi * 2^128` representation, which is not
+    /// expected in practical scenarios.
+    fn from_balances(balances: impl Iterator<Item = u128>) -> Option<Self> {
+        let mut wrapped = WrappedBalanceSum { lo: 0, hi: 0 };
+
+        for balance in balances {
+            let (new_sum, did_overflow) = wrapped.lo.overflowing_add(balance);
+            if did_overflow {
+                wrapped.hi = wrapped.hi.checked_add(1)?;
+            }
+            wrapped.lo = new_sum;
+        }
+
+        Some(wrapped)
+    }
 }
 
 #[cfg(test)]
