@@ -107,14 +107,13 @@ impl<N: KeyNode> KeyTree<N> {
         &mut self,
         parent_cci: &ChainIndex,
     ) -> Option<(nssa::AccountId, ChainIndex)> {
-        let father_keys = self.key_map.get(parent_cci)?;
+        let parent_keys = self.key_map.get(parent_cci)?;
         let next_child_id = self
             .find_next_last_child_of_id(parent_cci)
             .expect("Can be None only if parent is not present");
         let next_cci = parent_cci.nth_child(next_child_id);
 
-        let child_keys = father_keys.nth_child(next_child_id);
-
+        let child_keys = parent_keys.nth_child(next_child_id);
         let account_id = child_keys.account_id();
 
         self.key_map.insert(next_cci.clone(), child_keys);
@@ -189,11 +188,10 @@ impl<N: KeyNode> KeyTree<N> {
         let mut id_stack = vec![ChainIndex::root()];
 
         while let Some(curr_id) = id_stack.pop() {
-            self.generate_new_node(&curr_id);
-
             let mut next_id = curr_id.nth_child(0);
 
-            while (next_id.depth()) < depth - 1 {
+            while (next_id.depth()) < depth {
+                self.generate_new_node(&curr_id);
                 id_stack.push(next_id.clone());
                 next_id = next_id.next_in_line();
             }
@@ -210,7 +208,9 @@ impl KeyTree<ChildKeysPrivate> {
     /// If account is default, removes them.
     ///
     /// Chain must be parsed for accounts beforehand
-    pub fn cleanup_tree_for_depth(&mut self, depth: u32) {
+    ///
+    /// Fast, leaves gaps between accounts
+    pub fn cleanup_tree_remove_uninit_for_depth(&mut self, depth: u32) {
         let mut id_stack = vec![ChainIndex::root()];
 
         while let Some(curr_id) = id_stack.pop() {
@@ -224,9 +224,34 @@ impl KeyTree<ChildKeysPrivate> {
 
             let mut next_id = curr_id.nth_child(0);
 
-            while (next_id.depth()) < depth - 1 {
+            while (next_id.depth()) < depth {
                 id_stack.push(next_id.clone());
                 next_id = next_id.next_in_line();
+            }
+        }
+    }
+
+    /// Cleanup of non-initialized accounts in a private tree
+    ///
+    /// If account is default, removes them, stops at first non-default account.
+    ///
+    /// Walks through tree in lairs of same depth using `ChainIndex::chain_ids_at_depth()`
+    ///
+    /// Chain must be parsed for accounts beforehand
+    ///
+    /// Slow, maintains tree consistency.
+    pub fn cleanup_tree_remove_uninit_layered(&mut self, depth: u32) {
+        'outer: for i in (1..(depth as usize)).rev() {
+            println!("Cleanup of tree at depth {i}");
+            for id in ChainIndex::chain_ids_at_depth(i) {
+                if let Some(node) = self.key_map.get(&id) {
+                    if node.value.1 == nssa::Account::default() {
+                        let addr = node.account_id();
+                        self.remove(addr);
+                    } else {
+                        break 'outer;
+                    }
+                }
             }
         }
     }
@@ -239,7 +264,9 @@ impl KeyTree<ChildKeysPublic> {
     /// depth`.
     ///
     /// If account is default, removes them.
-    pub async fn cleanup_tree_for_depth(
+    ///
+    /// Fast, leaves gaps between accounts
+    pub async fn cleanup_tree_remove_ininit_for_depth(
         &mut self,
         depth: u32,
         client: Arc<SequencerClient>,
@@ -258,9 +285,41 @@ impl KeyTree<ChildKeysPublic> {
 
             let mut next_id = curr_id.nth_child(0);
 
-            while (next_id.depth()) < depth - 1 {
+            while (next_id.depth()) < depth {
                 id_stack.push(next_id.clone());
                 next_id = next_id.next_in_line();
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Cleanup of non-initialized accounts in a public tree
+    ///
+    /// If account is default, removes them, stops at first non-default account.
+    ///
+    /// Walks through tree in lairs of same depth using `ChainIndex::chain_ids_at_depth()`
+    ///
+    /// Slow, maintains tree consistency.
+    pub async fn cleanup_tree_remove_uninit_layered(
+        &mut self,
+        depth: u32,
+        client: Arc<SequencerClient>,
+    ) -> Result<()> {
+        'outer: for i in (1..(depth as usize)).rev() {
+            println!("Cleanup of tree at depth {i}");
+            for id in ChainIndex::chain_ids_at_depth(i) {
+                if let Some(node) = self.key_map.get(&id) {
+                    let address = node.account_id();
+                    let node_acc = client.get_account(address.to_string()).await?.account;
+
+                    if node_acc == nssa::Account::default() {
+                        let addr = node.account_id();
+                        self.remove(addr);
+                    } else {
+                        break 'outer;
+                    }
+                }
             }
         }
 
@@ -270,7 +329,7 @@ impl KeyTree<ChildKeysPublic> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{collections::HashSet, str::FromStr};
 
     use nssa::AccountId;
 
@@ -299,7 +358,7 @@ mod tests {
     fn test_small_key_tree() {
         let seed_holder = seed_holder_for_tests();
 
-        let mut tree = KeyTreePublic::new(&seed_holder);
+        let mut tree = KeyTreePrivate::new(&seed_holder);
 
         let next_last_child_for_parent_id = tree
             .find_next_last_child_of_id(&ChainIndex::root())
@@ -338,7 +397,7 @@ mod tests {
     fn test_key_tree_can_not_make_child_keys() {
         let seed_holder = seed_holder_for_tests();
 
-        let mut tree = KeyTreePublic::new(&seed_holder);
+        let mut tree = KeyTreePrivate::new(&seed_holder);
 
         let next_last_child_for_parent_id = tree
             .find_next_last_child_of_id(&ChainIndex::root())
@@ -488,5 +547,80 @@ mod tests {
         let next_suitable_parent = tree.search_new_parent_capped().unwrap();
 
         assert_eq!(next_suitable_parent, ChainIndex::from_str("/2").unwrap());
+    }
+
+    #[test]
+    fn test_cleanup() {
+        let seed_holder = seed_holder_for_tests();
+
+        let mut tree = KeyTreePrivate::new(&seed_holder);
+        tree.generate_tree_for_depth(10);
+
+        let acc = tree
+            .key_map
+            .get_mut(&ChainIndex::from_str("/1").unwrap())
+            .unwrap();
+        acc.value.1.balance = 2;
+
+        let acc = tree
+            .key_map
+            .get_mut(&ChainIndex::from_str("/2").unwrap())
+            .unwrap();
+        acc.value.1.balance = 3;
+
+        let acc = tree
+            .key_map
+            .get_mut(&ChainIndex::from_str("/0/1").unwrap())
+            .unwrap();
+        acc.value.1.balance = 5;
+
+        let acc = tree
+            .key_map
+            .get_mut(&ChainIndex::from_str("/1/0").unwrap())
+            .unwrap();
+        acc.value.1.balance = 6;
+
+        tree.cleanup_tree_remove_uninit_layered(10);
+
+        let mut key_set_res = HashSet::new();
+        key_set_res.insert("/0".to_string());
+        key_set_res.insert("/1".to_string());
+        key_set_res.insert("/2".to_string());
+        key_set_res.insert("/".to_string());
+        key_set_res.insert("/0/0".to_string());
+        key_set_res.insert("/0/1".to_string());
+        key_set_res.insert("/1/0".to_string());
+
+        let mut key_set = HashSet::new();
+
+        for key in tree.key_map.keys() {
+            key_set.insert(key.to_string());
+        }
+
+        assert_eq!(key_set, key_set_res);
+
+        let acc = tree
+            .key_map
+            .get(&ChainIndex::from_str("/1").unwrap())
+            .unwrap();
+        assert_eq!(acc.value.1.balance, 2);
+
+        let acc = tree
+            .key_map
+            .get(&ChainIndex::from_str("/2").unwrap())
+            .unwrap();
+        assert_eq!(acc.value.1.balance, 3);
+
+        let acc = tree
+            .key_map
+            .get(&ChainIndex::from_str("/0/1").unwrap())
+            .unwrap();
+        assert_eq!(acc.value.1.balance, 5);
+
+        let acc = tree
+            .key_map
+            .get(&ChainIndex::from_str("/1/0").unwrap())
+            .unwrap();
+        assert_eq!(acc.value.1.balance, 6);
     }
 }

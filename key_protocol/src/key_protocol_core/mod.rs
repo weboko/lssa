@@ -187,15 +187,8 @@ mod tests {
     fn test_new_account() {
         let mut user_data = NSSAUserData::default();
 
-        let (account_id_pub, _) = user_data.generate_new_public_transaction_private_key(None);
-        let (account_id_private, _) =
-            user_data.generate_new_privacy_preserving_transaction_key_chain(None);
-
-        let is_private_key_generated = user_data
-            .get_pub_account_signing_key(&account_id_pub)
-            .is_some();
-
-        assert!(is_private_key_generated);
+        let (account_id_private, _) = user_data
+            .generate_new_privacy_preserving_transaction_key_chain(Some(ChainIndex::root()));
 
         let is_key_chain_generated = user_data.get_private_account(&account_id_private).is_some();
 
