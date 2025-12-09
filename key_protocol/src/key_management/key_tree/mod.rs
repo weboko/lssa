@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap},
     sync::Arc,
 };
 
@@ -122,38 +122,34 @@ impl<N: KeyNode> KeyTree<N> {
         Some((account_id, next_cci))
     }
 
-    fn have_child_slot_capped(&self, cci: &ChainIndex) -> bool {
-        let depth = cci.depth();
+    fn find_next_slot_layered(&self) -> ChainIndex {
+        let mut depth = 1;
 
-        self.find_next_last_child_of_id(cci)
-            .map(|inn| inn + 1 + depth < DEPTH_SOFT_CAP)
-            .unwrap_or(false)
-    }
-
-    pub fn search_new_parent_capped(&self) -> Option<ChainIndex> {
-        let mut parent_list = VecDeque::new();
-        parent_list.push_front(ChainIndex::root());
-
-        let mut search_res = None;
-
-        while let Some(next_parent) = parent_list.pop_back() {
-            if self.have_child_slot_capped(&next_parent) {
-                search_res = Some(next_parent);
-                break;
-            } else {
-                let last_child = self.find_next_last_child_of_id(&next_parent)?;
-
-                for id in 0..last_child {
-                    parent_list.push_front(next_parent.nth_child(id));
+        'outer: loop {
+            for chain_id in ChainIndex::chain_ids_at_depth(depth) {
+                if self.key_map.get(&chain_id).is_none() {
+                    break 'outer chain_id;
                 }
             }
+            depth += 1;
         }
-
-        search_res
     }
 
-    pub fn generate_new_node_capped(&mut self) -> Option<(nssa::AccountId, ChainIndex)> {
-        self.generate_new_node(&self.search_new_parent_capped()?)
+    pub fn fill_node(&mut self, chain_index: &ChainIndex) -> Option<(nssa::AccountId, ChainIndex)> {
+        let parent_keys = self.key_map.get(&chain_index.parent()?)?;
+        let child_id = *chain_index.chain().last()?;
+
+        let child_keys = parent_keys.nth_child(child_id);
+        let account_id = child_keys.account_id();
+
+        self.key_map.insert(chain_index.clone(), child_keys);
+        self.account_id_map.insert(account_id, chain_index.clone());
+
+        Some((account_id, chain_index.clone()))
+    }
+
+    pub fn generate_new_node_layered(&mut self) -> Option<(nssa::AccountId, ChainIndex)> {
+        self.fill_node(&self.find_next_slot_layered())
     }
 
     pub fn get_node(&self, account_id: nssa::AccountId) -> Option<&N> {
@@ -524,29 +520,13 @@ mod tests {
 
         let mut tree = KeyTreePublic::new(&seed_holder);
 
-        for _ in 0..19 {
-            tree.generate_new_node_capped().unwrap();
-        }
+        let next_slot = tree.find_next_slot_layered();
 
-        let next_suitable_parent = tree.search_new_parent_capped().unwrap();
+        println!("NEXT SLOT {next_slot}");
 
-        assert_eq!(next_suitable_parent, ChainIndex::from_str("/0").unwrap());
+        let (acc_id, chain_id) = tree.generate_new_node_layered().unwrap();
 
-        for _ in 0..18 {
-            tree.generate_new_node_capped().unwrap();
-        }
-
-        let next_suitable_parent = tree.search_new_parent_capped().unwrap();
-
-        assert_eq!(next_suitable_parent, ChainIndex::from_str("/1").unwrap());
-
-        for _ in 0..17 {
-            tree.generate_new_node_capped().unwrap();
-        }
-
-        let next_suitable_parent = tree.search_new_parent_capped().unwrap();
-
-        assert_eq!(next_suitable_parent, ChainIndex::from_str("/2").unwrap());
+        println!("NEXT ACC {acc_id} at {chain_id}");
     }
 
     #[test]

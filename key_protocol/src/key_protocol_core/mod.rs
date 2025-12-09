@@ -98,8 +98,8 @@ impl NSSAUserData {
                 .expect("Parent must be present in a tree"),
             None => self
                 .public_key_tree
-                .generate_new_node_capped()
-                .expect("No slots left"),
+                .generate_new_node_layered()
+                .expect("Search for new node slot failed"),
         }
     }
 
@@ -131,8 +131,8 @@ impl NSSAUserData {
                 .expect("Parent must be present in a tree"),
             None => self
                 .private_key_tree
-                .generate_new_node_capped()
-                .expect("No slots left"),
+                .generate_new_node_layered()
+                .expect("Search for new node slot failed"),
         }
     }
 
