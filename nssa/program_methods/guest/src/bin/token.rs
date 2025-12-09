@@ -30,7 +30,7 @@ use nssa_core::{
 //      * Two accounts: [definition_account, holding_account].
 //      * An instruction data byte string of length 23, indicating the balance to burn with the folloiwng layout
 //       [0x03 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
-// 5. Mint additional supply of tokens tokens to a Toking Holding account (thus increasing total supply)
+// 5. Mint additional supply of tokens tokens to a Token Holding account (thus increasing total supply)
 //    Arguments to this function are:
 //      * Two accounts: [definition_account, holding_account].
 //      * An instruction data byte string of length 23, indicating the balance to mint with the folloiwng layout
