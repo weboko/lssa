@@ -25,7 +25,7 @@ use nssa_core::{
 //      * Two accounts: [definition_account, account_to_initialize].
 //      * An dummy byte string of length 23, with the following layout
 //        [0x02 || 0x00 || 0x00 || 0x00 || ... || 0x00 || 0x00].
-// 4. Burn tokens from a Toking Holding account (thus lowering total supply)
+// 4. Burn tokens from a Token Holding account (thus lowering total supply)
 //    Arguments to this function are:
 //      * Two accounts: [definition_account, holding_account].
 //      * An instruction data byte string of length 23, indicating the balance to burn with the folloiwng layout
