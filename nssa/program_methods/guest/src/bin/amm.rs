@@ -3,34 +3,42 @@ use nssa_core::{
     program::{ProgramId, ProgramInput, ChainedCall, AccountPostState, PdaSeed, read_nssa_inputs, write_nssa_outputs_with_chained_call},
 };
 
-//TODO update comments
 // The AMM program has five functions (four directly accessible via instructions):
 // 1. New AMM definition.
 //    Arguments to this function are:
-//      * Seven **default** accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, UserHoldingA, UserHoldingB, user_holding_lp].
+//      * Seven **default** accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, user_holding_b, user_holding_lp].
 //        amm_pool is a default account that will initiate the amm definition account values
 //        vault_holding_a is a token holding account for token a
 //        vault_holding_b is a token holding account for token b
 //        pool_lp is a token holding account for the pool's lp token 
-//        UserHoldingA is a token holding account for token a
-//        UserHoldingB is a token holding account for token b
+//        user_holding_a is a token holding account for token a
+//        user_holding_b is a token holding account for token b
 //        user_holding_lp is a token holding account for lp token
-//        TODO: ideally, vault_holding_a, vault_holding_b, pool_lp and user_holding_lp are uninitated.
+//      * Requires authorization: user_holding_a, user_holding_b
 //      * An instruction data of 65-bytes, indicating the initial amm reserves' balances and token_program_id with
 //        the following layout:
-//        [0x00 || array of balances (little-endian 16 bytes) || TOKEN_PROGRAM_ID)]
+//        [0x00 || array of balances (little-endian 16 bytes) || AMM_PROGRAM_ID)]
 // 2. Swap assets
 //    Arguments to this function are:
-//      * Two accounts: [amm_pool, vault_holding_1, vault_holding_2, UserHoldingA, UserHoldingB].
-//      * An instruction data byte string of length 49, indicating which token type to swap and maximum amount with the following layout
+//      * Five accounts: [amm_pool, vault_holding_1, vault_holding_2, user_holding_a, user_holding_b].
+//      * Requires authorization: user holding account associated to TOKEN_DEFINITION_ID (either user_holding_a or user_holding_b)
+//      * An instruction data byte string of length 49, indicating which token type to swap, quantity of tokens put into the swap 
+//        (of type TOKEN_DEFINITION_ID) and min_amount_out.
 //        [0x01 || amount (little-endian 16 bytes) || TOKEN_DEFINITION_ID].
 // 3. Add liquidity
 //    Arguments to this function are:
-//      * Two accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, UserHoldingA, UserHoldingB, user_holding_lp].
-//      * An instruction data byte string of length 65, amounts to add
-//        [0x02 || array of max amounts (little-endian 16 bytes) || TOKEN_DEFINITION_ID (for primary)].
+//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, UserHouser_holding_a, user_holding_lp].
+//      * Requires authorization: user_holding_a, user_holding_b
+//      * An instruction data byte string of length 49, amounts for minimum amount of liquidity from add (min_amount_lp),
+//      * max amount added for each token (max_amount_a and max_amount_b); indicate 
+//        [0x02 || array of of balances (little-endian 16 bytes)].
 // 4. Remove liquidity
-//      * Input instruction set [0x03].
+//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, UserHouser_holding_a, user_holding_lp].
+//      * Requires authorization: user_holding_lp
+//      * An instruction data byte string of length 49, amounts for minimum amount of liquidity to redeem (balance_lp),
+//      * minimum balance of each token to remove (min_amount_a and min_amount_b); indicate 
+//        [0x03 || array of balances (little-endian 16 bytes)].
+// - Internal functions:
 // - Swap logic
 //    Arguments of this function are:
 //      * Four accounts: [user_deposit_tx, vault_deposit_tx, vault_withdraw_tx, user_withdraw_tx].
@@ -39,9 +47,16 @@ use nssa_core::{
 //      * deposit_amount is the amount for user_deposit_tx -> vault_deposit_tx transfer.
 //      * reserve_amounts is the pool's reserves; used to compute the withdraw amount.
 //      * Outputs the token transfers as a Vec<ChainedCall> and the withdraw amount.
+// - PDA computations:
+//      * compute_pool_pda: AMM_PROGRAM_ID, token definitions for the pool pair
+//      * compute_vault_pda: AMM_PROGRAM_ID, pool definition id, definition token id
+//      * compute_liquidity_token_pda: AMM_PROGRAM, pool definition id, pool definition id
+// - PDA seed computations:
+//      * compute_pool_pda_seed: token definitions for the pool pair
+//      * compute_vault_pda_seed: pool definition id, definition token id,
+//      * compute_liquidity_token_pda_seed: pool definition id
 
 const POOL_DEFINITION_DATA_SIZE: usize = 225;
-
 
 #[derive(Default)]
 struct PoolDefinition{
@@ -289,7 +304,6 @@ fn compute_pool_pda_seed(definition_token_a_id: AccountId, definition_token_b_id
     PdaSeed::new(Impl::hash_bytes(&bytes).as_bytes().try_into().expect("Hash output must be exactly 32 bytes long"))
 }
 
-
 fn compute_vault_pda(amm_program_id: ProgramId, 
                     pool_id: AccountId, 
                     definition_token_id: AccountId
@@ -368,7 +382,7 @@ fn new_definition (
     let token_program = user_holding_a.account.program_owner;
 
     if definition_token_a_id == definition_token_b_id {
-        panic!("Cannot set up a swap for a token with itself.")
+        panic!("Cannot set up a swap for a token with itself")
     }
 
     if pool.account_id != compute_pool_pda(amm_program_id.clone(),
@@ -402,66 +416,72 @@ fn new_definition (
         panic!("Cannot initialize an active Pool Definition")
     }
 
-
     //3. LP Token minting calculation
     // We assume LP is based on the initial deposit amount for Token_A.
 
     // 5. Update pool account
-    let mut pool_post = Account::default();
+    let mut pool_post = pool.account.clone();
     let pool_post_definition = PoolDefinition {
             definition_token_a_id,
             definition_token_b_id,
             vault_a_id: vault_a.account_id.clone(),
             vault_b_id: vault_b.account_id.clone(),
             liquidity_pool_id: pool_lp.account_id.clone(),
-            liquidity_pool_supply: amount_a,
-            reserve_a: amount_a,
-            reserve_b: amount_b,
+            liquidity_pool_supply: amount_a.clone(),
+            reserve_a: amount_a.clone(),
+            reserve_b: amount_b.clone(),
             fees: 0u128, //TODO: we assume all fees are 0 for now.
             active: true, 
     };
 
     pool_post.data = pool_post_definition.into_data();
+    let pool_post: AccountPostState = 
+        if pool.account == Account::default() { AccountPostState::new_claimed(pool_post.clone()) }
+        else { AccountPostState::new(pool_post.clone()) };
 
-    let mut chained_calls = Vec::new();
+    let mut chained_calls = Vec::<ChainedCall>::new();
 
     //Chain call for Token A (user_holding_a -> Vault_A)
-    let mut instruction: [u8;23] = [0; 23];
-    instruction[0] = 1;      
-    instruction[1..17].copy_from_slice(&amount_a.to_le_bytes());
-    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("New definition: AMM Program expects valid instruction_data");
-
+    let mut instruction_data = [0; 23];
+    instruction_data[0] = 1;
+    instruction_data[1..17].copy_from_slice(&amount_a.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("New definition: AMM Program expects valid token transfer instruction data");
     let call_token_a = ChainedCall{
-            program_id: token_program,
-            instruction_data: instruction_data,
+            program_id: user_holding_a.account.program_owner,
+            instruction_data,
             pre_states: vec![user_holding_a.clone(), vault_a.clone()],
             pda_seeds: Vec::<PdaSeed>::new(),
         };
-        
+
     //Chain call for Token B (user_holding_b -> Vault_B)
-    instruction[1..17].copy_from_slice(&amount_b.to_le_bytes());
-    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("New definition: AMM Program expects valid instruction_data");
+    let mut instruction_data = [0; 23];
+    instruction_data[0] = 1;
+    instruction_data[1..17].copy_from_slice(&amount_b.to_le_bytes());
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("New definition: AMM Program expects valid instruction_data");
 
     let call_token_b = ChainedCall{
-            program_id: token_program,
-            instruction_data: instruction_data,
+            program_id: user_holding_b.account.program_owner,
+            instruction_data,
             pre_states: vec![user_holding_b.clone(), vault_b.clone()],
             pda_seeds: Vec::<PdaSeed>::new(),
         };
 
-    instruction[0] = if pool.account == Account::default() { 0 } else { 4 }; //new or mint
-    let nme = if pool.account== Account::default() { [1u8;6] } else { [0u8; 6] };
+    //Chain call for liquidity token (TokenLP definition -> User LP Holding)
+    let mut instruction_data = [0; 23];
+    instruction_data[0] = if pool.account == Account::default() { 0 } else { 4 }; //new or mint
+    let nme = if pool.account == Account::default() { [1u8;6] } else { [0u8; 6] };
 
-    instruction[1..17].copy_from_slice(&amount_a.to_le_bytes());
-    instruction[17..].copy_from_slice(&nme);
-    let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("New definition: AMM Program expects valid instruction_data");
+    instruction_data[1..17].copy_from_slice(&amount_a.to_le_bytes());
+    instruction_data[17..].copy_from_slice(&nme);
+    let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("New definition: AMM Program expects valid instruction_data");
 
     let mut pool_lp_auth = pool_lp.clone();
     pool_lp_auth.is_authorized = true;
 
+    let token_program_id = user_holding_a.account.program_owner;
     let call_token_lp = ChainedCall{
-            program_id: token_program,
-            instruction_data: instruction_data,
+            program_id: token_program_id,
+            instruction_data,
             pre_states: vec![pool_lp_auth.clone(), user_holding_lp.clone()],
             pda_seeds:  vec![compute_liquidity_token_pda_seed(pool.account_id.clone())],
         };
@@ -470,8 +490,9 @@ fn new_definition (
     chained_calls.push(call_token_b);
     chained_calls.push(call_token_a);
 
+
     let post_states = vec![
-        AccountPostState::new_claimed(pool_post.clone()),
+        pool_post.clone(),
         AccountPostState::new(pre_states[1].account.clone()),
         AccountPostState::new(pre_states[2].account.clone()),
         AccountPostState::new(pre_states[3].account.clone()),
@@ -479,10 +500,8 @@ fn new_definition (
         AccountPostState::new(pre_states[5].account.clone()),
         AccountPostState::new(pre_states[6].account.clone())];
 
-    let chained_calls = Vec::<ChainedCall>::new();
     (post_states.clone(), chained_calls)
 }
-
 
 fn swap(
         pre_states: &[AccountWithMetadata],
@@ -623,7 +642,7 @@ fn swap_logic(
     chained_calls.push(
         ChainedCall{
                 program_id: vault_deposit_tx.account.program_owner,
-                instruction_data: instruction_data,
+                instruction_data,
                 pre_states: vec![user_deposit_tx.clone(), vault_deposit_tx.clone()],
                 pda_seeds: Vec::<PdaSeed>::new(),
             }
@@ -639,7 +658,7 @@ fn swap_logic(
     chained_calls.push(
         ChainedCall{
                 program_id: vault_deposit_tx.account.program_owner,
-                instruction_data: instruction_data,
+                instruction_data,
                 pre_states: vec![vault_withdraw_tx.clone(), user_withdraw_tx.clone()],
                 pda_seeds: vec![compute_vault_pda_seed(pool_id, 
                     TokenHolding::parse(&vault_withdraw_tx.account.data)
@@ -760,7 +779,7 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("Add liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_a = ChainedCall{
             program_id: vault_a.account.program_owner,
-            instruction_data: instruction_data,
+            instruction_data,
             pre_states: vec![user_holding_a.clone(), vault_a.clone()],
             pda_seeds: Vec::<PdaSeed>::new(),
         };
@@ -772,7 +791,7 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("Add liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_b = ChainedCall{
             program_id: vault_b.account.program_owner,
-            instruction_data: instruction_data,
+            instruction_data,
             pre_states: vec![user_holding_b.clone(), vault_b.clone()],
             pda_seeds: Vec::<PdaSeed>::new(),
         };
@@ -787,7 +806,7 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data).expect("Add liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_lp = ChainedCall{
             program_id: pool_definition_lp.account.program_owner,
-            instruction_data: instruction_data,
+            instruction_data,
             pre_states: vec![pool_definition_lp_auth.clone(), user_holding_lp.clone()],
             pda_seeds: vec![compute_liquidity_token_pda_seed(pool.account_id.clone())]
         };
@@ -917,7 +936,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Remove liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_a = ChainedCall{
             program_id: vault_a.account.program_owner,
-            instruction_data: instruction_data,
+            instruction_data,
             pre_states: vec![running_vault_a, user_holding_a.clone()],
             pda_seeds: vec![compute_vault_pda_seed(pool.account_id.clone(), pool_def_data.definition_token_a_id.clone())],
         };
@@ -929,7 +948,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Remove liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_b = ChainedCall{
             program_id: vault_b.account.program_owner,
-            instruction_data: instruction_data,
+            instruction_data,
             pre_states: vec![running_vault_b, user_holding_b.clone()],
             pda_seeds: vec![compute_vault_pda_seed(pool.account_id.clone(), pool_def_data.definition_token_b_id.clone())],
         };
@@ -944,7 +963,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction).expect("Remove liquidity: AMM Program expects valid token transfer instruction data");
     let call_token_lp = ChainedCall{
             program_id: pool_definition_lp.account.program_owner,
-            instruction_data: instruction_data,
+            instruction_data,
             pre_states: vec![pool_definition_lp_auth.clone(), user_holding_lp.clone()],
             pda_seeds: vec![compute_liquidity_token_pda_seed(pool.account_id.clone())]
         };
