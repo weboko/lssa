@@ -318,9 +318,6 @@ fn mint_additional_supply(pre_states: &[AccountWithMetadata], amount_to_mint: u1
     let definition_values =
         TokenDefinition::parse(&definition.account.data).expect("Definition account must be valid");
 
-    //TODO: add overflow protection
-    // TokenDefinition.supply_limit + amount_to_mint
-
     let token_holding_values: TokenHolding = if token_holding.account == Account::default() {
         TokenHolding::new(&definition.account_id)
     } else { TokenHolding::parse(&token_holding.account.data).expect("Holding account must be valid") };
@@ -335,10 +332,15 @@ fn mint_additional_supply(pre_states: &[AccountWithMetadata], amount_to_mint: u1
             balance: token_holding_values.balance + amount_to_mint,
     };
 
+    let post_total_supply = definition_values
+            .total_supply
+            .checked_add(amount_to_mint)
+            .expect("Total supply overflow.");
+
     let post_definition_data = TokenDefinition {
             account_type: definition_values.account_type,
             name: definition_values.name,
-            total_supply: definition_values.total_supply + amount_to_mint,
+            total_supply: post_total_supply,
     };
 
     let post_definition = {
@@ -841,6 +843,7 @@ mod tests {
         MintSuccess,
         InitSupplyMint,
         HoldingBalanceMint,
+        MintOverflow,
     }
 
     enum AccountsEnum {
@@ -1041,6 +1044,7 @@ mod tests {
             BalanceEnum::MintSuccess => 50_000,
             BalanceEnum::InitSupplyMint => 150_000,
             BalanceEnum::HoldingBalanceMint => 51_000,
+            BalanceEnum::MintOverflow => (2 as u128).pow(128) - 40_000,
             _ => panic!("Invalid selection")
         }
     }
@@ -1175,6 +1179,18 @@ mod tests {
         assert!(*def_post.account() == helper_account_constructor(AccountsEnum::DefinitionAccountMint).account);
         assert!(*holding_post.account() == helper_account_constructor(AccountsEnum::InitMint).account);
         assert!(holding_post.requires_claim() == true);
+    }
+
+    #[test]
+    #[should_panic(expected = "Total supply overflow.")]
+    fn test_mint_overflow() {
+        let pre_states = vec![
+                helper_account_constructor(AccountsEnum::DefinitionAccountAuth),
+                helper_account_constructor(AccountsEnum::HoldingSameDefNotAuth),
+        ];
+        let _post_states = mint_additional_supply(&pre_states, 
+                helper_balance_constructor(BalanceEnum::MintOverflow));
+
     }
 
 }
