@@ -1442,7 +1442,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     pub async fn test_program_deployment() {
         info!("########## test program deployment ##########");
 
-        let binary_filepath = NSSA_PROGRAM_FOR_TEST_DATA_CHANGER.to_string();
+        let binary_filepath: PathBuf = NSSA_PROGRAM_FOR_TEST_DATA_CHANGER.parse().unwrap();
 
         let command = Command::DeployProgram {
             binary_filepath: binary_filepath.clone(),

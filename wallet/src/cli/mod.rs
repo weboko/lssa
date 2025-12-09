@@ -1,4 +1,6 @@
-use anyhow::Result;
+use std::path::PathBuf;
+
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use nssa::{ProgramDeploymentTransaction, program::Program};
 
@@ -52,7 +54,7 @@ pub enum Command {
     #[command(subcommand)]
     Config(ConfigSubcommand),
     /// Deploy a program
-    DeployProgram { binary_filepath: String },
+    DeployProgram { binary_filepath: PathBuf },
 }
 
 /// Represents overarching CLI command for a wallet with setup included
@@ -157,14 +159,19 @@ pub async fn execute_subcommand(command: Command) -> Result<SubcommandReturnValu
                 .await?
         }
         Command::DeployProgram { binary_filepath } => {
-            let bytecode: Vec<u8> = std::fs::read(binary_filepath).expect("File not found");
+            let bytecode: Vec<u8> = std::fs::read(&binary_filepath).with_context(|| {
+                format!(
+                    "Failed to read program binary at {}",
+                    binary_filepath.display()
+                )
+            })?;
             let message = nssa::program_deployment_transaction::Message::new(bytecode);
             let transaction = ProgramDeploymentTransaction::new(message);
             let response = wallet_core
                 .sequencer_client
                 .send_tx_program(transaction)
                 .await
-                .expect("Transaction submission error");
+                .with_context(|| "Transaction submission error");
             println!("Response: {:?}", response);
 
             SubcommandReturnValue::Empty
