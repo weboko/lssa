@@ -335,7 +335,7 @@ fn mint_additional_supply(pre_states: &[AccountWithMetadata], amount_to_mint: u1
     let post_total_supply = definition_values
             .total_supply
             .checked_add(amount_to_mint)
-            .expect("Total supply overflow.");
+            .expect("Total supply overflow");
 
     let post_definition_data = TokenDefinition {
             account_type: definition_values.account_type,
