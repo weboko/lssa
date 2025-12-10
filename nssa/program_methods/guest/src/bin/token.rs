@@ -284,7 +284,10 @@ fn burn(pre_states: &[AccountWithMetadata], balance_to_burn: u128) -> Vec<Accoun
     post_user_holding.data = TokenHolding::into_data(TokenHolding {
         account_type: user_values.account_type,
         definition_id: user_values.definition_id,
-        balance: user_values.balance - balance_to_burn,
+        balance: user_values
+            .balance
+            .checked_sub(balance_to_burn)
+            .expect("Checked above"),
     });
 
     post_definition.data = TokenDefinition::into_data(TokenDefinition {
