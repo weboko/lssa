@@ -1,15 +1,14 @@
 use std::collections::HashSet;
 
-use risc0_zkvm::{guest::env, serde::to_vec};
-
 use nssa_core::{
-    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT_HASH, EncryptionScheme,
-    Nullifier, NullifierPublicKey, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
+    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT_HASH, EncryptionScheme, Nullifier,
+    NullifierPublicKey, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
     account::{Account, AccountId, AccountWithMetadata},
     compute_digest_for_path,
     encryption::Ciphertext,
     program::{DEFAULT_PROGRAM_ID, ProgramOutput, validate_execution},
 };
+use risc0_zkvm::{guest::env, serde::to_vec};
 
 fn main() {
     let PrivacyPreservingCircuitInput {
@@ -70,7 +69,7 @@ fn main() {
                 // Public account
                 public_pre_states.push(pre_states[i].clone());
 
-                let mut post = post_states[i].clone();
+                let mut post = post_states[i].account().clone();
                 if pre_states[i].is_authorized {
                     post.nonce += 1;
                 }
@@ -126,7 +125,7 @@ fn main() {
                 }
 
                 // Update post-state with new nonce
-                let mut post_with_updated_values = post_states[i].clone();
+                let mut post_with_updated_values = post_states[i].account().clone();
                 post_with_updated_values.nonce = *new_nonce;
 
                 if post_with_updated_values.program_owner == DEFAULT_PROGRAM_ID {

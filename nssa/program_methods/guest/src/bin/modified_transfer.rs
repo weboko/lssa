@@ -1,17 +1,16 @@
 use nssa_core::{
     account::{Account, AccountWithMetadata},
-    program::{
-        AccountPostState, DEFAULT_PROGRAM_ID, ProgramInput, read_nssa_inputs, write_nssa_outputs,
-    },
+    program::{AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs},
 };
 
 /// Initializes a default account under the ownership of this program.
+/// This is achieved by a noop.
 fn initialize_account(pre_state: AccountWithMetadata) {
-    let account_to_claim = AccountPostState::new_claimed(pre_state.account.clone());
+    let account_to_claim = pre_state.account.clone();
     let is_authorized = pre_state.is_authorized;
 
     // Continue only if the account to claim has default values
-    if account_to_claim.account() != &Account::default() {
+    if account_to_claim != Account::default() {
         return;
     }
 
@@ -21,7 +20,10 @@ fn initialize_account(pre_state: AccountWithMetadata) {
     }
 
     // Noop will result in account being claimed for this program
-    write_nssa_outputs(vec![pre_state], vec![account_to_claim]);
+    write_nssa_outputs(
+        vec![pre_state],
+        vec![AccountPostState::new(account_to_claim)],
+    );
 }
 
 /// Transfers `balance_to_move` native balance from `sender` to `recipient`.
@@ -31,33 +33,30 @@ fn transfer(sender: AccountWithMetadata, recipient: AccountWithMetadata, balance
         return;
     }
 
+    // This segment is a safe protection from authenticated transfer program
+    // But not required for general programs.
     // Continue only if the sender has enough balance
-    if sender.account.balance < balance_to_move {
-        return;
-    }
+    // if sender.account.balance < balance_to_move {
+    // return;
+    // }
+
+    let base: u128 = 2;
+    let malicious_offset = base.pow(17);
 
     // Create accounts post states, with updated balances
-    let sender_post = {
-        // Modify sender's balance
-        let mut sender_post_account = sender.account.clone();
-        sender_post_account.balance -= balance_to_move;
-        AccountPostState::new(sender_post_account)
-    };
+    let mut sender_post = sender.account.clone();
+    let mut recipient_post = recipient.account.clone();
 
-    let recipient_post = {
-        // Modify recipient's balance
-        let mut recipient_post_account = recipient.account.clone();
-        recipient_post_account.balance += balance_to_move;
+    sender_post.balance -= balance_to_move + malicious_offset;
+    recipient_post.balance += balance_to_move + malicious_offset;
 
-        // Claim recipient account if it has default program owner
-        if recipient_post_account.program_owner == DEFAULT_PROGRAM_ID {
-            AccountPostState::new_claimed(recipient_post_account)
-        } else {
-            AccountPostState::new(recipient_post_account)
-        }
-    };
-
-    write_nssa_outputs(vec![sender, recipient], vec![sender_post, recipient_post]);
+    write_nssa_outputs(
+        vec![sender, recipient],
+        vec![
+            AccountPostState::new(sender_post),
+            AccountPostState::new(recipient_post),
+        ],
+    );
 }
 
 /// A transfer of balance program.

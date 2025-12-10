@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::{
     account::{Account, AccountId, AccountWithMetadata},
-    program::{ChainedCall, DEFAULT_PROGRAM_ID, validate_execution},
+    program::{ChainedCall, DEFAULT_PROGRAM_ID, PdaSeed, ProgramId, validate_execution},
 };
 use sha2::{Digest, digest::FixedOutput};
 
@@ -107,12 +107,13 @@ impl PublicTransaction {
             program_id: message.program_id,
             instruction_data: message.instruction_data.clone(),
             pre_states: input_pre_states,
+            pda_seeds: vec![],
         };
 
-        let mut chained_calls = VecDeque::from_iter([initial_call]);
+        let mut chained_calls = VecDeque::from_iter([(initial_call, None)]);
         let mut chain_calls_counter = 0;
 
-        while let Some(chained_call) = chained_calls.pop_front() {
+        while let Some((chained_call, caller_program_id)) = chained_calls.pop_front() {
             if chain_calls_counter > MAX_NUMBER_CHAINED_CALLS {
                 return Err(NssaError::MaxChainedCallsDepthExceeded);
             }
@@ -124,6 +125,9 @@ impl PublicTransaction {
 
             let mut program_output =
                 program.execute(&chained_call.pre_states, &chained_call.instruction_data)?;
+
+            let authorized_pdas =
+                self.compute_authorized_pdas(&caller_program_id, &chained_call.pda_seeds);
 
             for pre in &program_output.pre_states {
                 let account_id = pre.account_id;
@@ -137,8 +141,11 @@ impl PublicTransaction {
                     return Err(NssaError::InvalidProgramBehavior);
                 }
 
-                // Check that authorization flags are consistent with the provided ones
-                if pre.is_authorized && !signer_account_ids.contains(&account_id) {
+                // Check that authorization flags are consistent with the provided ones or
+                // authorized by program through the PDA mechanism
+                let is_authorized = signer_account_ids.contains(&account_id)
+                    || authorized_pdas.contains(&account_id);
+                if pre.is_authorized != is_authorized {
                     return Err(NssaError::InvalidProgramBehavior);
                 }
             }
@@ -153,10 +160,16 @@ impl PublicTransaction {
                 return Err(NssaError::InvalidProgramBehavior);
             }
 
-            // The invoked program claims the accounts with default program id.
-            for post in program_output.post_states.iter_mut() {
-                if post.program_owner == DEFAULT_PROGRAM_ID {
-                    post.program_owner = chained_call.program_id;
+            for post in program_output
+                .post_states
+                .iter_mut()
+                .filter(|post| post.requires_claim())
+            {
+                // The invoked program can only claim accounts with default program id.
+                if post.account().program_owner == DEFAULT_PROGRAM_ID {
+                    post.account_mut().program_owner = chained_call.program_id;
+                } else {
+                    return Err(NssaError::InvalidProgramBehavior);
                 }
             }
 
@@ -166,17 +179,32 @@ impl PublicTransaction {
                 .iter()
                 .zip(program_output.post_states.iter())
             {
-                state_diff.insert(pre.account_id, post.clone());
+                state_diff.insert(pre.account_id, post.account().clone());
             }
 
             for new_call in program_output.chained_calls.into_iter().rev() {
-                chained_calls.push_front(new_call);
+                chained_calls.push_front((new_call, Some(chained_call.program_id)));
             }
 
             chain_calls_counter += 1;
         }
 
         Ok(state_diff)
+    }
+
+    fn compute_authorized_pdas(
+        &self,
+        caller_program_id: &Option<ProgramId>,
+        pda_seeds: &[PdaSeed],
+    ) -> HashSet<AccountId> {
+        if let Some(caller_program_id) = caller_program_id {
+            pda_seeds
+                .iter()
+                .map(|pda_seed| AccountId::from((caller_program_id, pda_seed)))
+                .collect()
+        } else {
+            HashSet::new()
+        }
     }
 }
 

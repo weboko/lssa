@@ -357,8 +357,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -376,11 +376,14 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x01 || corresponding_token_definition_id (32 bytes) || balance (little endian 16
         // bytes) ] First byte of the data equal to 1 means it's a token holding account
-        assert_eq!(supply_acc.data[0], 1);
+        assert_eq!(supply_acc.data.as_ref()[0], 1);
         // Bytes from 1 to 33 represent the id of the token this account is associated with.
         // In this example, this is a token account of the newly created token, so it is expected
         // to be equal to the account_id of the token definition account.
-        assert_eq!(&supply_acc.data[1..33], definition_account_id.to_bytes());
+        assert_eq!(
+            &supply_acc.data.as_ref()[1..33],
+            definition_account_id.to_bytes()
+        );
         assert_eq!(
             u128::from_le_bytes(supply_acc.data[33..].try_into().unwrap()),
             37
@@ -519,8 +522,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -680,8 +683,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -822,8 +825,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -964,8 +967,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -1464,7 +1467,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             data_changer.id(),
             vec![account_id],
             vec![],
-            (),
+            vec![0],
         )
         .unwrap();
         let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[]);
@@ -1481,7 +1484,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .account;
         assert_eq!(post_state_account.program_owner, data_changer.id());
         assert_eq!(post_state_account.balance, 0);
-        assert_eq!(post_state_account.data, vec![0]);
+        assert_eq!(post_state_account.data.as_ref(), &[0]);
         assert_eq!(post_state_account.nonce, 0);
 
         info!("Success!");

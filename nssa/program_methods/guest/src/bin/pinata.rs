@@ -1,4 +1,4 @@
-use nssa_core::program::{ProgramInput, read_nssa_inputs, write_nssa_outputs};
+use nssa_core::program::{AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs};
 use risc0_zkvm::sha::{Impl, Sha256};
 
 const PRIZE: u128 = 150;
@@ -63,8 +63,18 @@ fn main() {
     let mut pinata_post = pinata.account.clone();
     let mut winner_post = winner.account.clone();
     pinata_post.balance -= PRIZE;
-    pinata_post.data = data.next_data().to_vec();
+    pinata_post.data = data
+        .next_data()
+        .to_vec()
+        .try_into()
+        .expect("33 bytes should fit into Data");
     winner_post.balance += PRIZE;
 
-    write_nssa_outputs(vec![pinata, winner], vec![pinata_post, winner_post]);
+    write_nssa_outputs(
+        vec![pinata, winner],
+        vec![
+            AccountPostState::new(pinata_post),
+            AccountPostState::new(winner_post),
+        ],
+    );
 }

@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::{
     error::NssaError,
-    program_methods::{AUTHENTICATED_TRANSFER_ELF, PINATA_ELF, TOKEN_ELF},
+    program_methods::{AUTHENTICATED_TRANSFER_ELF, MODIFIED_TRANSFER_ELF, PINATA_ELF, TOKEN_ELF},
 };
 
 /// Maximum number of cycles for a public execution.
@@ -95,6 +95,12 @@ impl Program {
         // `program_methods`
         Self::new(TOKEN_ELF.to_vec()).unwrap()
     }
+
+    pub fn modified_transfer_program() -> Self {
+        // This unwrap won't panic since the `MODIFIED_TRANSFER_ELF` comes from risc0 build of
+        // `program_methods`
+        Self::new(MODIFIED_TRANSFER_ELF.to_vec()).unwrap()
+    }
 }
 
 // TODO: Testnet only. Refactor to prevent compilation on mainnet.
@@ -103,6 +109,11 @@ impl Program {
         // This unwrap won't panic since the `PINATA_ELF` comes from risc0 build of
         // `program_methods`
         Self::new(PINATA_ELF.to_vec()).unwrap()
+    }
+
+    pub fn pinata_token() -> Self {
+        use crate::program_methods::PINATA_TOKEN_ELF;
+        Self::new(PINATA_TOKEN_ELF.to_vec()).expect("Piñata program must be a valid R0BF file")
     }
 }
 
@@ -207,6 +218,15 @@ mod tests {
                 elf: CHAIN_CALLER_ELF.to_vec(),
             }
         }
+
+        pub fn claimer() -> Self {
+            use test_program_methods::{CLAIMER_ELF, CLAIMER_ID};
+
+            Program {
+                id: CLAIMER_ID,
+                elf: CLAIMER_ELF.to_vec(),
+            }
+        }
     }
 
     #[test]
@@ -239,8 +259,8 @@ mod tests {
 
         let [sender_post, recipient_post] = program_output.post_states.try_into().unwrap();
 
-        assert_eq!(sender_post, expected_sender_post);
-        assert_eq!(recipient_post, expected_recipient_post);
+        assert_eq!(sender_post.account(), &expected_sender_post);
+        assert_eq!(recipient_post.account(), &expected_recipient_post);
     }
 
     #[test]
