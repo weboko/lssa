@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use risc0_zkvm::{guest::env, serde::to_vec};
-
 use nssa_core::{
     Commitment, CommitmentSetDigest, DUMMY_COMMITMENT_HASH, EncryptionScheme, Nullifier,
     NullifierPublicKey, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
@@ -10,6 +8,7 @@ use nssa_core::{
     encryption::Ciphertext,
     program::{DEFAULT_PROGRAM_ID, MAX_NUMBER_CHAINED_CALLS, validate_execution},
 };
+use risc0_zkvm::{guest::env, serde::to_vec};
 
 fn main() {
     let PrivacyPreservingCircuitInput {

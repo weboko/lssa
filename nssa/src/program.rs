@@ -221,6 +221,13 @@ mod tests {
                 elf: CLAIMER_ELF.to_vec(),
             }
         }
+
+        pub fn modified_transfer_program() -> Self {
+            use test_program_methods::MODIFIED_TRANSFER_ELF;
+            // This unwrap won't panic since the `MODIFIED_TRANSFER_ELF` comes from risc0 build of
+            // `program_methods`
+            Self::new(MODIFIED_TRANSFER_ELF.to_vec()).unwrap()
+        }
     }
 
     #[test]
