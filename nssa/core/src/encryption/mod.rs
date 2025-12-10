@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use chacha20::{
     ChaCha20,
     cipher::{KeyIvInit, StreamCipher},
@@ -20,7 +21,7 @@ pub struct SharedSecretKey(pub [u8; 32]);
 
 pub struct EncryptionScheme;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, Clone, PartialEq, Eq))]
 pub struct Ciphertext(pub(crate) Vec<u8>);
 

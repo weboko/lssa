@@ -1,6 +1,6 @@
 use nssa_core::{
     account::Account,
-    program::{ProgramInput, read_nssa_inputs, write_nssa_outputs},
+    program::{AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs},
 };
 
 type Instruction = ();
@@ -18,6 +18,9 @@ fn main() {
     write_nssa_outputs(
         instruction_words,
         vec![pre],
-        vec![account_pre, Account::default()],
+        vec![
+            AccountPostState::new(account_pre),
+            AccountPostState::new(Account::default()),
+        ],
     );
 }

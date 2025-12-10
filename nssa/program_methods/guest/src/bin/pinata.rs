@@ -1,7 +1,5 @@
-use nssa_core::program::{ProgramInput, read_nssa_inputs, write_nssa_outputs};
-use risc0_zkvm::{
-    sha::{Impl, Sha256},
-};
+use nssa_core::program::{AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs};
+use risc0_zkvm::sha::{Impl, Sha256};
 
 const PRIZE: u128 = 150;
 
@@ -74,6 +72,9 @@ fn main() {
     write_nssa_outputs(
         instruction_words,
         vec![pinata, winner],
-        vec![pinata_post, winner_post],
+        vec![
+            AccountPostState::new(pinata_post),
+            AccountPostState::new(winner_post),
+        ],
     );
 }

@@ -1,0 +1,294 @@
+use std::collections::{HashMap, hash_map::Entry};
+
+use anyhow::Result;
+use key_protocol::{
+    key_management::{
+        key_tree::{KeyTreePrivate, KeyTreePublic, chain_index::ChainIndex},
+        secret_holders::SeedHolder,
+    },
+    key_protocol_core::NSSAUserData,
+};
+use nssa::program::Program;
+
+use crate::config::{InitialAccountData, PersistentAccountData, WalletConfig};
+
+pub struct WalletChainStore {
+    pub user_data: NSSAUserData,
+    pub wallet_config: WalletConfig,
+}
+
+impl WalletChainStore {
+    pub fn new(
+        config: WalletConfig,
+        persistent_accounts: Vec<PersistentAccountData>,
+    ) -> Result<Self> {
+        if persistent_accounts.is_empty() {
+            anyhow::bail!("Roots not found; please run setup beforehand");
+        }
+
+        let mut public_init_acc_map = HashMap::new();
+        let mut private_init_acc_map = HashMap::new();
+
+        let public_root = persistent_accounts
+            .iter()
+            .find(|data| match data {
+                &PersistentAccountData::Public(data) => data.chain_index == ChainIndex::root(),
+                _ => false,
+            })
+            .cloned()
+            .expect("Malformed persistent account data, must have public root");
+
+        let private_root = persistent_accounts
+            .iter()
+            .find(|data| match data {
+                &PersistentAccountData::Private(data) => data.chain_index == ChainIndex::root(),
+                _ => false,
+            })
+            .cloned()
+            .expect("Malformed persistent account data, must have private root");
+
+        let mut public_tree = KeyTreePublic::new_from_root(match public_root {
+            PersistentAccountData::Public(data) => data.data,
+            _ => unreachable!(),
+        });
+        let mut private_tree = KeyTreePrivate::new_from_root(match private_root {
+            PersistentAccountData::Private(data) => data.data,
+            _ => unreachable!(),
+        });
+
+        for pers_acc_data in persistent_accounts {
+            match pers_acc_data {
+                PersistentAccountData::Public(data) => {
+                    public_tree.insert(data.account_id, data.chain_index, data.data);
+                }
+                PersistentAccountData::Private(data) => {
+                    private_tree.insert(data.account_id, data.chain_index, data.data);
+                }
+                PersistentAccountData::Preconfigured(acc_data) => match acc_data {
+                    InitialAccountData::Public(data) => {
+                        public_init_acc_map.insert(data.account_id.parse()?, data.pub_sign_key);
+                    }
+                    InitialAccountData::Private(data) => {
+                        private_init_acc_map
+                            .insert(data.account_id.parse()?, (data.key_chain, data.account));
+                    }
+                },
+            }
+        }
+
+        Ok(Self {
+            user_data: NSSAUserData::new_with_accounts(
+                public_init_acc_map,
+                private_init_acc_map,
+                public_tree,
+                private_tree,
+            )?,
+            wallet_config: config,
+        })
+    }
+
+    pub fn new_storage(config: WalletConfig, password: String) -> Result<Self> {
+        let mut public_init_acc_map = HashMap::new();
+        let mut private_init_acc_map = HashMap::new();
+
+        for init_acc_data in config.initial_accounts.clone() {
+            match init_acc_data {
+                InitialAccountData::Public(data) => {
+                    public_init_acc_map.insert(data.account_id.parse()?, data.pub_sign_key);
+                }
+                InitialAccountData::Private(data) => {
+                    let mut account = data.account;
+                    // TODO: Program owner is only known after code is compiled and can't be set in
+                    // the config. Therefore we overwrite it here on startup. Fix this when program
+                    // id can be fetched from the node and queried from the wallet.
+                    account.program_owner = Program::authenticated_transfer_program().id();
+                    private_init_acc_map
+                        .insert(data.account_id.parse()?, (data.key_chain, account));
+                }
+            }
+        }
+
+        let public_tree = KeyTreePublic::new(&SeedHolder::new_mnemonic(password.clone()));
+        let private_tree = KeyTreePrivate::new(&SeedHolder::new_mnemonic(password));
+
+        Ok(Self {
+            user_data: NSSAUserData::new_with_accounts(
+                public_init_acc_map,
+                private_init_acc_map,
+                public_tree,
+                private_tree,
+            )?,
+            wallet_config: config,
+        })
+    }
+
+    pub fn insert_private_account_data(
+        &mut self,
+        account_id: nssa::AccountId,
+        account: nssa_core::account::Account,
+    ) {
+        println!("inserting at address {account_id}, this account {account:?}");
+
+        let entry = self
+            .user_data
+            .default_user_private_accounts
+            .entry(account_id)
+            .and_modify(|data| data.1 = account.clone());
+
+        if matches!(entry, Entry::Vacant(_)) {
+            self.user_data
+                .private_key_tree
+                .account_id_map
+                .get(&account_id)
+                .map(|chain_index| {
+                    self.user_data
+                        .private_key_tree
+                        .key_map
+                        .entry(chain_index.clone())
+                        .and_modify(|data| data.value.1 = account)
+                });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use key_protocol::key_management::key_tree::{
+        keys_private::ChildKeysPrivate, keys_public::ChildKeysPublic, traits::KeyNode,
+    };
+
+    use super::*;
+    use crate::config::{
+        InitialAccountData, PersistentAccountDataPrivate, PersistentAccountDataPublic,
+    };
+
+    fn create_initial_accounts() -> Vec<InitialAccountData> {
+        let initial_acc1 = serde_json::from_str(
+            r#"{
+            "Public": {
+                "account_id": "BLgCRDXYdQPMMWVHYRFGQZbgeHx9frkipa8GtpG2Syqy",
+                "pub_sign_key": [
+                    16,
+                    162,
+                    106,
+                    154,
+                    236,
+                    125,
+                    52,
+                    184,
+                    35,
+                    100,
+                    238,
+                    174,
+                    69,
+                    197,
+                    41,
+                    77,
+                    187,
+                    10,
+                    118,
+                    75,
+                    0,
+                    11,
+                    148,
+                    238,
+                    185,
+                    181,
+                    133,
+                    17,
+                    220,
+                    72,
+                    124,
+                    77
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let initial_acc2 = serde_json::from_str(
+            r#"{
+            "Public": {
+                "account_id": "Gj1mJy5W7J5pfmLRujmQaLfLMWidNxQ6uwnhb666ZwHw",
+                "pub_sign_key": [
+                    113,
+                    121,
+                    64,
+                    177,
+                    204,
+                    85,
+                    229,
+                    214,
+                    178,
+                    6,
+                    109,
+                    191,
+                    29,
+                    154,
+                    63,
+                    38,
+                    242,
+                    18,
+                    244,
+                    219,
+                    8,
+                    208,
+                    35,
+                    136,
+                    23,
+                    127,
+                    207,
+                    237,
+                    216,
+                    169,
+                    190,
+                    27
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let initial_accounts = vec![initial_acc1, initial_acc2];
+
+        initial_accounts
+    }
+
+    fn create_sample_wallet_config() -> WalletConfig {
+        WalletConfig {
+            override_rust_log: None,
+            sequencer_addr: "http://127.0.0.1".to_string(),
+            seq_poll_timeout_millis: 12000,
+            seq_tx_poll_max_blocks: 5,
+            seq_poll_max_retries: 10,
+            seq_block_poll_max_amount: 100,
+            initial_accounts: create_initial_accounts(),
+        }
+    }
+
+    fn create_sample_persistent_accounts() -> Vec<PersistentAccountData> {
+        let public_data = ChildKeysPublic::root([42; 64]);
+        let private_data = ChildKeysPrivate::root([47; 64]);
+
+        vec![
+            PersistentAccountData::Public(PersistentAccountDataPublic {
+                account_id: public_data.account_id(),
+                chain_index: ChainIndex::root(),
+                data: public_data,
+            }),
+            PersistentAccountData::Private(PersistentAccountDataPrivate {
+                account_id: private_data.account_id(),
+                chain_index: ChainIndex::root(),
+                data: private_data,
+            }),
+        ]
+    }
+
+    #[test]
+    fn test_new_initializes_correctly() {
+        let config = create_sample_wallet_config();
+        let accs = create_sample_persistent_accounts();
+
+        let _ = WalletChainStore::new(config.clone(), accs).unwrap();
+    }
+}

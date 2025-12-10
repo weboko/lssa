@@ -29,11 +29,11 @@ fn main() {
         panic!("Max chained calls depth is exceeded");
     }
 
-    if program_outputs
-        .last()
-        .and_then(|last| last.chained_call.as_ref())
-        .is_some()
-    {
+    let Some(last_program_call) = program_outputs.last() else {
+        panic!("Program outputs is empty")
+    };
+
+    if !last_program_call.chained_calls.is_empty() {
         panic!("Call stack is incomplete");
     }
 
@@ -41,7 +41,12 @@ fn main() {
         let caller = &window[0];
         let callee = &window[1];
 
-        let Some(chained_call) = &caller.chained_call else {
+        if caller.chained_calls.len() > 1 {
+            panic!("Privacy Multi-chained calls are not supported yet");
+        }
+
+        // TODO: Modify when multi-chain calls are supported in the circuit
+        let Some(chained_call) = &caller.chained_calls.first() else {
             panic!("Expected chained call");
         };
 
@@ -71,9 +76,16 @@ fn main() {
         }
 
         // The invoked program claims the accounts with default program id.
-        for post in program_output.post_states.iter_mut() {
-            if post.program_owner == DEFAULT_PROGRAM_ID {
-                post.program_owner = program_id;
+        for post in program_output
+            .post_states
+            .iter_mut()
+            .filter(|post| post.requires_claim())
+        {
+            // The invoked program can only claim accounts with default program id.
+            if post.account().program_owner == DEFAULT_PROGRAM_ID {
+                post.account_mut().program_owner = program_id;
+            } else {
+                panic!("Cannot claim an initialized account")
             }
         }
 
@@ -89,10 +101,11 @@ fn main() {
             } else {
                 pre_states.push(pre.clone());
             }
-            state_diff.insert(pre.account_id.clone(), post.clone());
+            state_diff.insert(pre.account_id.clone(), post.account().clone());
         }
 
-        if let Some(next_chained_call) = &program_output.chained_call {
+        // TODO: Modify when multi-chain calls are supported in the circuit
+        if let Some(next_chained_call) = &program_output.chained_calls.first() {
             program_id = next_chained_call.program_id;
         } else if i != program_outputs.len() - 1 {
             panic!("Inner call without a chained call found")

@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::{
     Commitment, CommitmentSetDigest, Nullifier, NullifierPublicKey, PrivacyPreservingCircuitOutput,
     account::{Account, Nonce},
@@ -9,7 +10,7 @@ use crate::{AccountId, error::NssaError};
 
 pub type ViewTag = u8;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct EncryptedAccountData {
     pub ciphertext: Ciphertext,
     pub epk: EphemeralPublicKey,
@@ -42,7 +43,7 @@ impl EncryptedAccountData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Message {
     pub(crate) public_account_ids: Vec<AccountId>,
     pub(crate) nonces: Vec<Nonce>,
@@ -90,8 +91,6 @@ impl Message {
 
 #[cfg(test)]
 pub mod tests {
-    use std::io::Cursor;
-
     use nssa_core::{
         Commitment, EncryptionScheme, Nullifier, NullifierPublicKey, SharedSecretKey,
         account::Account,
@@ -138,17 +137,6 @@ pub mod tests {
             new_commitments: new_commitments.clone(),
             new_nullifiers: new_nullifiers.clone(),
         }
-    }
-
-    #[test]
-    fn test_message_serialization_roundtrip() {
-        let message = message_for_tests();
-
-        let bytes = message.to_bytes();
-        let mut cursor = Cursor::new(bytes.as_ref());
-        let message_from_cursor = Message::from_cursor(&mut cursor).unwrap();
-
-        assert_eq!(message, message_from_cursor);
     }
 
     #[test]

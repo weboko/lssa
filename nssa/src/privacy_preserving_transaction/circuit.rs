@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::{
     MembershipProof, NullifierPublicKey, NullifierSecretKey, PrivacyPreservingCircuitInput,
     PrivacyPreservingCircuitOutput, SharedSecretKey,
@@ -16,9 +17,10 @@ use crate::{
 };
 
 /// Proof of the privacy preserving execution circuit
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Proof(pub(crate) Vec<u8>);
 
+#[derive(Clone)]
 pub struct ProgramWithDependencies {
     pub program: Program,
     // TODO: avoid having a copy of the bytecode of each dependency.
@@ -72,7 +74,10 @@ pub fn execute_and_prove(
         // Prove circuit.
         env_builder.add_assumption(inner_receipt);
 
-        if let Some(next_call) = program_output.chained_call {
+        // TODO: Remove when multi-chain calls are supported in the circuit
+        assert!(program_output.chained_calls.len() <= 1);
+        // TODO: Modify when multi-chain calls are supported in the circuit
+        if let Some(next_call) = program_output.chained_calls.first() {
             program = dependencies
                 .get(&next_call.program_id)
                 .ok_or(NssaError::InvalidProgramBehavior)?;
@@ -85,20 +90,11 @@ pub fn execute_and_prove(
                 .zip(program_output.post_states)
             {
                 let mut post_with_metadata = pre.clone();
-                post_with_metadata.account = post.clone();
+                post_with_metadata.account = post.account().clone();
                 post_states_with_metadata.push(post_with_metadata);
             }
 
-            pre_states = next_call
-                .account_indices
-                .iter()
-                .map(|&i| {
-                    post_states_with_metadata
-                        .get(i)
-                        .ok_or_else(|| NssaError::InvalidInput("Invalid account indices".into()))
-                        .cloned()
-                })
-                .collect::<Result<Vec<_>, NssaError>>()?;
+            pre_states = next_call.pre_states.clone();
         } else {
             break;
         }

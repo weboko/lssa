@@ -1,7 +1,10 @@
 use anyhow::Result;
 use clap::Subcommand;
 
-use crate::{SubcommandReturnValue, WalletCore, cli::WalletSubcommand};
+use crate::{
+    WalletCore,
+    cli::{SubcommandReturnValue, WalletSubcommand},
+};
 
 /// Represents generic config CLI subcommand
 #[derive(Subcommand, Debug, Clone)]
@@ -52,19 +55,19 @@ impl WalletSubcommand for ConfigSubcommand {
                         wallet_core.storage.wallet_config.seq_poll_timeout_millis
                     );
                 }
-                "seq_poll_max_blocks" => {
-                    println!("{}", wallet_core.storage.wallet_config.seq_poll_max_blocks);
+                "seq_tx_poll_max_blocks" => {
+                    println!(
+                        "{}",
+                        wallet_core.storage.wallet_config.seq_tx_poll_max_blocks
+                    );
                 }
                 "seq_poll_max_retries" => {
                     println!("{}", wallet_core.storage.wallet_config.seq_poll_max_retries);
                 }
-                "seq_poll_retry_delay_millis" => {
+                "seq_block_poll_max_amount" => {
                     println!(
                         "{}",
-                        wallet_core
-                            .storage
-                            .wallet_config
-                            .seq_poll_retry_delay_millis
+                        wallet_core.storage.wallet_config.seq_block_poll_max_amount
                     );
                 }
                 "initial_accounts" => {
@@ -86,17 +89,15 @@ impl WalletSubcommand for ConfigSubcommand {
                         wallet_core.storage.wallet_config.seq_poll_timeout_millis =
                             value.parse()?;
                     }
-                    "seq_poll_max_blocks" => {
-                        wallet_core.storage.wallet_config.seq_poll_max_blocks = value.parse()?;
+                    "seq_tx_poll_max_blocks" => {
+                        wallet_core.storage.wallet_config.seq_tx_poll_max_blocks = value.parse()?;
                     }
                     "seq_poll_max_retries" => {
                         wallet_core.storage.wallet_config.seq_poll_max_retries = value.parse()?;
                     }
-                    "seq_poll_retry_delay_millis" => {
-                        wallet_core
-                            .storage
-                            .wallet_config
-                            .seq_poll_retry_delay_millis = value.parse()?;
+                    "seq_block_poll_max_amount" => {
+                        wallet_core.storage.wallet_config.seq_block_poll_max_amount =
+                            value.parse()?;
                     }
                     "initial_accounts" => {
                         anyhow::bail!("Setting this field from wallet is not supported");
@@ -122,19 +123,19 @@ impl WalletSubcommand for ConfigSubcommand {
                         "Sequencer client retry variable: how much time to wait between retries in milliseconds(can be zero)"
                     );
                 }
-                "seq_poll_max_blocks" => {
+                "seq_tx_poll_max_blocks" => {
                     println!(
-                        "Sequencer client polling variable: max number of blocks to poll in parallel"
+                        "Sequencer client polling variable: max number of blocks to poll to find a transaction"
                     );
                 }
                 "seq_poll_max_retries" => {
                     println!(
-                        "Sequencer client retry variable: MAX number of retries before failing(can be zero)"
+                        "Sequencer client retry variable: max number of retries before failing(can be zero)"
                     );
                 }
-                "seq_poll_retry_delay_millis" => {
+                "seq_block_poll_max_amount" => {
                     println!(
-                        "Sequencer client polling variable: how much time to wait in milliseconds between polling retries(can be zero)"
+                        "Sequencer client polling variable: max number of blocks to request in one polling call"
                     );
                 }
                 "initial_accounts" => {

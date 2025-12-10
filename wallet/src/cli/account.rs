@@ -1,14 +1,15 @@
 use anyhow::Result;
 use base58::ToBase58;
 use clap::Subcommand;
+use itertools::Itertools as _;
+use key_protocol::key_management::key_tree::chain_index::ChainIndex;
 use nssa::{Account, AccountId, program::Program};
 use serde::Serialize;
 
 use crate::{
-    SubcommandReturnValue, WalletCore,
-    cli::WalletSubcommand,
+    WalletCore,
+    cli::{SubcommandReturnValue, WalletSubcommand},
     helperfunctions::{AccountPrivacyKind, HumanReadableAccount, parse_addr_with_privacy_prefix},
-    parse_block_range,
 };
 
 const TOKEN_DEFINITION_TYPE: u8 = 0;
@@ -83,15 +84,26 @@ pub enum AccountSubcommand {
     New(NewSubcommand),
     /// Sync private accounts
     SyncPrivate {},
+    /// List all accounts owned by the wallet
+    #[command(visible_alias = "ls")]
+    List {},
 }
 
 /// Represents generic register CLI subcommand
 #[derive(Subcommand, Debug, Clone)]
 pub enum NewSubcommand {
     /// Register new public account
-    Public {},
+    Public {
+        #[arg(long)]
+        /// Chain index of a parent node
+        cci: ChainIndex,
+    },
     /// Register new private account
-    Private {},
+    Private {
+        #[arg(long)]
+        /// Chain index of a parent node
+        cci: ChainIndex,
+    },
 }
 
 impl WalletSubcommand for NewSubcommand {
@@ -100,8 +112,8 @@ impl WalletSubcommand for NewSubcommand {
         wallet_core: &mut WalletCore,
     ) -> Result<SubcommandReturnValue> {
         match self {
-            NewSubcommand::Public {} => {
-                let account_id = wallet_core.create_new_account_public();
+            NewSubcommand::Public { cci } => {
+                let account_id = wallet_core.create_new_account_public(cci);
 
                 println!("Generated new account with account_id Public/{account_id}");
 
@@ -111,8 +123,8 @@ impl WalletSubcommand for NewSubcommand {
 
                 Ok(SubcommandReturnValue::RegisterAccount { account_id })
             }
-            NewSubcommand::Private {} => {
-                let account_id = wallet_core.create_new_account_private();
+            NewSubcommand::Private { cci } => {
+                let account_id = wallet_core.create_new_account_private(cci);
 
                 let (key, _) = wallet_core
                     .storage
@@ -164,7 +176,12 @@ impl From<TokenDefinition> for TokedDefinitionAccountView {
     fn from(value: TokenDefinition) -> Self {
         Self {
             account_type: "Token definition".to_string(),
-            name: hex::encode(value.name),
+            name: {
+                // Assuming, that name does not have UTF-8 NULL and all zeroes are padding.
+                let name_trimmed: Vec<_> =
+                    value.name.into_iter().take_while(|ch| *ch != 0).collect();
+                String::from_utf8(name_trimmed).unwrap_or(hex::encode(value.name))
+            },
             total_supply: value.total_supply,
         }
     }
@@ -264,36 +281,105 @@ impl WalletSubcommand for AccountSubcommand {
                 new_subcommand.handle_subcommand(wallet_core).await
             }
             AccountSubcommand::SyncPrivate {} => {
-                let last_synced_block = wallet_core.last_synced_block;
                 let curr_last_block = wallet_core
                     .sequencer_client
                     .get_last_block()
                     .await?
                     .last_block;
 
-                if !wallet_core
+                if wallet_core
                     .storage
                     .user_data
-                    .user_private_accounts
+                    .private_key_tree
+                    .account_id_map
                     .is_empty()
                 {
-                    parse_block_range(
-                        last_synced_block + 1,
-                        curr_last_block,
-                        wallet_core.sequencer_client.clone(),
-                        wallet_core,
-                    )
-                    .await?;
-                } else {
                     wallet_core.last_synced_block = curr_last_block;
 
                     let path = wallet_core.store_persistent_data().await?;
 
                     println!("Stored persistent data at {path:#?}");
+                } else {
+                    wallet_core.sync_to_block(curr_last_block).await?;
                 }
 
                 Ok(SubcommandReturnValue::SyncedToBlock(curr_last_block))
             }
+            AccountSubcommand::List {} => {
+                let user_data = &wallet_core.storage.user_data;
+                let accounts = user_data
+                    .default_pub_account_signing_keys
+                    .keys()
+                    .map(|id| format!("Preconfigured Public/{id}"))
+                    .chain(
+                        user_data
+                            .default_user_private_accounts
+                            .keys()
+                            .map(|id| format!("Preconfigured Private/{id}")),
+                    )
+                    .chain(
+                        user_data
+                            .public_key_tree
+                            .account_id_map
+                            .iter()
+                            .map(|(id, chain_index)| format!("{chain_index} Public/{id}")),
+                    )
+                    .chain(
+                        user_data
+                            .private_key_tree
+                            .account_id_map
+                            .iter()
+                            .map(|(id, chain_index)| format!("{chain_index} Private/{id}")),
+                    )
+                    .format(",\n");
+
+                println!("{accounts}");
+                Ok(SubcommandReturnValue::Empty)
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cli::account::{TokedDefinitionAccountView, TokenDefinition};
+
+    #[test]
+    fn test_invalid_utf_8_name_of_token() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [137, 12, 14, 3, 5, 4],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "890c0e030504");
+    }
+
+    #[test]
+    fn test_valid_utf_8_name_of_token_all_bytes() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [240, 159, 146, 150, 66, 66],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "💖BB");
+    }
+
+    #[test]
+    fn test_valid_utf_8_name_of_token_less_bytes() {
+        let token_def = TokenDefinition {
+            account_type: 1,
+            name: [78, 65, 77, 69, 0, 0],
+            total_supply: 100,
+        };
+
+        let token_def_view: TokedDefinitionAccountView = token_def.into();
+
+        assert_eq!(token_def_view.name, "NAME");
     }
 }

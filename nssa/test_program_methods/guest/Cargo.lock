@@ -1579,6 +1579,7 @@ checksum = "a5b0c77c1b780822bc749a33e39aeb2c07584ab93332303babeabb645298a76e"
 name = "nssa-core"
 version = "0.1.0"
 dependencies = [
+ "borsh",
  "chacha20",
  "risc0-zkvm",
  "serde",
