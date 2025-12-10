@@ -1,8 +1,8 @@
-use std::io::Write;
+use std::{io::Write, path::PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use nssa::program::Program;
+use nssa::{ProgramDeploymentTransaction, program::Program};
 
 use crate::{
     WalletCore,
@@ -61,6 +61,8 @@ pub enum Command {
         /// Indicates, how deep in tree accounts may be. Affects command complexity.
         depth: u32,
     },
+    /// Deploy a program
+    DeployProgram { binary_filepath: PathBuf },
 }
 
 /// To execute commands, env var NSSA_WALLET_HOME_DIR must be set into directory with config
@@ -171,6 +173,21 @@ pub async fn execute_subcommand_with_auth(
         Command::RestoreKeys { depth } => {
             let password = read_password_from_stdin()?;
             execute_keys_restoration_with_auth(password, depth, auth).await?;
+
+            SubcommandReturnValue::Empty
+        }
+        Command::DeployProgram { binary_filepath } => {
+            let bytecode: Vec<u8> = std::fs::read(&binary_filepath).context(format!(
+                "Failed to read program binary at {}",
+                binary_filepath.display()
+            ))?;
+            let message = nssa::program_deployment_transaction::Message::new(bytecode);
+            let transaction = ProgramDeploymentTransaction::new(message);
+            let _response = wallet_core
+                .sequencer_client
+                .send_tx_program(transaction)
+                .await
+                .context("Transaction submission error");
 
             SubcommandReturnValue::Empty
         }
