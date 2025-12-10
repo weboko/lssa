@@ -1,6 +1,8 @@
 use risc0_zkvm::{DeserializeOwned, guest::env, serde::Deserializer};
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "host")]
+use crate::account::AccountId;
 use crate::account::{Account, AccountWithMetadata};
 
 pub type ProgramId = [u32; 8];
@@ -12,12 +14,50 @@ pub struct ProgramInput<T> {
     pub instruction: T,
 }
 
+/// A 32-byte seed used to compute a *Program-Derived AccountId* (PDA).
+///
+/// Each program can derive up to `2^256` unique account IDs by choosing different
+/// seeds. PDAs allow programs to control namespaced account identifiers without
+/// collisions between programs.
+#[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
+pub struct PdaSeed([u8; 32]);
+
+impl PdaSeed {
+    pub fn new(value: [u8; 32]) -> Self {
+        Self(value)
+    }
+}
+
+#[cfg(feature = "host")]
+impl From<(&ProgramId, &PdaSeed)> for AccountId {
+    fn from(value: (&ProgramId, &PdaSeed)) -> Self {
+        use risc0_zkvm::sha::{Impl, Sha256};
+        const PROGRAM_DERIVED_ACCOUNT_ID_PREFIX: &[u8; 32] =
+            b"/NSSA/v0.2/AccountId/PDA/\x00\x00\x00\x00\x00\x00\x00";
+
+        let mut bytes = [0; 96];
+        bytes[0..32].copy_from_slice(PROGRAM_DERIVED_ACCOUNT_ID_PREFIX);
+        let program_id_bytes: &[u8] =
+            bytemuck::try_cast_slice(value.0).expect("ProgramId should be castable to &[u8]");
+        bytes[32..64].copy_from_slice(program_id_bytes);
+        bytes[64..].copy_from_slice(&value.1.0);
+        AccountId::new(
+            Impl::hash_bytes(&bytes)
+                .as_bytes()
+                .try_into()
+                .expect("Hash output must be exactly 32 bytes long"),
+        )
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct ChainedCall {
     pub program_id: ProgramId,
     pub instruction_data: InstructionData,
     pub pre_states: Vec<AccountWithMetadata>,
+    pub pda_seeds: Vec<PdaSeed>,
 }
 
 /// Represents the final state of an `Account` after a program execution.
@@ -164,13 +204,51 @@ pub fn validate_execution(
     }
 
     // 7. Total balance is preserved
-    let total_balance_pre_states: u128 = pre_states.iter().map(|pre| pre.account.balance).sum();
-    let total_balance_post_states: u128 = post_states.iter().map(|post| post.account.balance).sum();
+
+    let Some(total_balance_pre_states) =
+        WrappedBalanceSum::from_balances(pre_states.iter().map(|pre| pre.account.balance))
+    else {
+        return false;
+    };
+
+    let Some(total_balance_post_states) =
+        WrappedBalanceSum::from_balances(post_states.iter().map(|post| post.account.balance))
+    else {
+        return false;
+    };
+
     if total_balance_pre_states != total_balance_post_states {
         return false;
     }
 
     true
+}
+
+/// Representation of a number as `lo + hi * 2^128`.
+#[derive(PartialEq, Eq)]
+struct WrappedBalanceSum {
+    lo: u128,
+    hi: u128,
+}
+
+impl WrappedBalanceSum {
+    /// Constructs a [`WrappedBalanceSum`] from an iterator of balances.
+    ///
+    /// Returns [`None`] if balance sum overflows `lo + hi * 2^128` representation, which is not
+    /// expected in practical scenarios.
+    fn from_balances(balances: impl Iterator<Item = u128>) -> Option<Self> {
+        let mut wrapped = WrappedBalanceSum { lo: 0, hi: 0 };
+
+        for balance in balances {
+            let (new_sum, did_overflow) = wrapped.lo.overflowing_add(balance);
+            if did_overflow {
+                wrapped.hi = wrapped.hi.checked_add(1)?;
+            }
+            wrapped.lo = new_sum;
+        }
+
+        Some(wrapped)
+    }
 }
 
 #[cfg(test)]
@@ -182,7 +260,7 @@ mod tests {
         let account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
-            data: vec![0xde, 0xad, 0xbe, 0xef],
+            data: vec![0xde, 0xad, 0xbe, 0xef].try_into().unwrap(),
             nonce: 10,
         };
 
@@ -197,7 +275,7 @@ mod tests {
         let account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
-            data: vec![0xde, 0xad, 0xbe, 0xef],
+            data: vec![0xde, 0xad, 0xbe, 0xef].try_into().unwrap(),
             nonce: 10,
         };
 
@@ -212,7 +290,7 @@ mod tests {
         let mut account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
-            data: vec![0xde, 0xad, 0xbe, 0xef],
+            data: vec![0xde, 0xad, 0xbe, 0xef].try_into().unwrap(),
             nonce: 10,
         };
 
