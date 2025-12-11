@@ -8,6 +8,7 @@ use key_protocol::{
     },
     key_protocol_core::NSSAUserData,
 };
+use log::debug;
 use nssa::program::Program;
 
 use crate::config::{InitialAccountData, PersistentAccountData, WalletConfig};
@@ -127,7 +128,7 @@ impl WalletChainStore {
         account_id: nssa::AccountId,
         account: nssa_core::account::Account,
     ) {
-        println!("inserting at address {account_id}, this account {account:?}");
+        debug!("inserting at address {account_id}, this account {account:?}");
 
         let entry = self
             .user_data
@@ -263,6 +264,7 @@ mod tests {
             seq_poll_max_retries: 10,
             seq_block_poll_max_amount: 100,
             initial_accounts: create_initial_accounts(),
+            basic_auth: None,
         }
     }
 
