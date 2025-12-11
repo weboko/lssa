@@ -1705,7 +1705,9 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         // Burn 3 tokens from `recipient_acc`
         let subcommand = TokenProgramAgnosticSubcommand::Burn {
-            definition: Some(make_public_account_input_from_str(&definition_account_id.to_string())),
+            definition: Some(make_public_account_input_from_str(
+                &definition_account_id.to_string(),
+            )),
             definition_npk: None,
             definition_ipk: None,
             holder: make_public_account_input_from_str(&recipient_account_id.to_string()),
@@ -1748,7 +1750,9 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // Mint 10 tokens at `recipient_acc`
         let subcommand = TokenProgramAgnosticSubcommand::Mint {
             definition: make_public_account_input_from_str(&definition_account_id.to_string()),
-            holder: Some(make_public_account_input_from_str(&recipient_account_id.to_string())),
+            holder: Some(make_public_account_input_from_str(
+                &recipient_account_id.to_string(),
+            )),
             holder_npk: None,
             holder_ipk: None,
             amount: 10,

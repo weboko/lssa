@@ -312,7 +312,7 @@ impl Token<'_> {
         let (instruction, program) = token_program_preparation_burn(amount);
 
         // ToDo: Fix this by updating `nssa::public_transaction::Message::try_new` to get raw bytes
-        let instruction: [u32; 23] = instruction.try_into().unwrap(); 
+        let instruction: [u32; 23] = instruction.try_into().unwrap();
 
         let Ok(nonces) = self.0.get_accounts_nonces(vec![holder_account_id]).await else {
             return Err(ExecutionFailureKind::SequencerError);
@@ -492,7 +492,7 @@ impl Token<'_> {
         let (instruction, program) = token_program_preparation_mint(amount);
 
         // ToDo: Fix this by updating `nssa::public_transaction::Message::try_new` to get raw bytes
-        let instruction: [u32; 23] = instruction.try_into().unwrap(); 
+        let instruction: [u32; 23] = instruction.try_into().unwrap();
 
         let Ok(nonces) = self
             .0
