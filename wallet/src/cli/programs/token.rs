@@ -4,7 +4,7 @@ use common::transaction::NSSATransaction;
 use nssa::AccountId;
 
 use crate::{
-    AccDecodeData::{Decode, Skip},
+    AccDecodeData::Decode,
     WalletCore,
     cli::{SubcommandReturnValue, WalletSubcommand},
     helperfunctions::{AccountPrivacyKind, parse_addr_with_privacy_prefix},
@@ -54,20 +54,14 @@ pub enum TokenProgramAgnosticSubcommand {
     ///
     /// `holder` is owned
     ///
-    /// If `definition` is private, then `definition` and (`definition_npk` , `definition_ipk`) is a
-    /// mutually exclusive patterns.
+    /// Also if `definition` is private then it is owned, because
+    /// we can not modify foreign accounts.
     ///
-    /// First is used for owned accounts, second otherwise.
+    /// ToDo: Return and add foreign variant when we could modify foreign accounts
     Burn {
         /// definition - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
-        definition: Option<String>,
-        /// definition_npk - valid 32 byte hex string
-        #[arg(long)]
-        definition_npk: Option<String>,
-        /// definition_ipk - valid 33 byte hex string
-        #[arg(long)]
-        definition_ipk: Option<String>,
+        definition: String,
         /// holder - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         holder: String,
@@ -256,89 +250,50 @@ impl WalletSubcommand for TokenProgramAgnosticSubcommand {
             }
             TokenProgramAgnosticSubcommand::Burn {
                 definition,
-                definition_npk,
-                definition_ipk,
                 holder,
                 amount,
             } => {
-                let underlying_subcommand = match (definition, definition_npk, definition_ipk) {
-                    (None, None, None) => {
-                        anyhow::bail!(
-                            "Provide either account account_id of definition or their public keys"
-                        );
-                    }
-                    (Some(_), Some(_), Some(_)) => {
-                        anyhow::bail!(
-                            "Provide only one variant: either account_id of definition or their public keys"
-                        );
-                    }
-                    (_, Some(_), None) | (_, None, Some(_)) => {
-                        anyhow::bail!("List of public keys is uncomplete");
-                    }
-                    (Some(definition), None, None) => {
-                        let (definition, definition_privacy) =
-                            parse_addr_with_privacy_prefix(&definition)?;
-                        let (holder, holder_privacy) = parse_addr_with_privacy_prefix(&holder)?;
+                let underlying_subcommand = {
+                    let (definition, definition_privacy) =
+                        parse_addr_with_privacy_prefix(&definition)?;
+                    let (holder, holder_privacy) = parse_addr_with_privacy_prefix(&holder)?;
 
-                        match (definition_privacy, holder_privacy) {
-                            (AccountPrivacyKind::Public, AccountPrivacyKind::Public) => {
-                                TokenProgramSubcommand::Public(
-                                    TokenProgramSubcommandPublic::BurnToken {
-                                        definition_account_id: definition,
-                                        holder_account_id: holder,
-                                        amount,
-                                    },
-                                )
-                            }
-                            (AccountPrivacyKind::Private, AccountPrivacyKind::Private) => {
-                                TokenProgramSubcommand::Private(
-                                    TokenProgramSubcommandPrivate::BurnTokenPrivateOwned {
-                                        definition_account_id: definition,
-                                        holder_account_id: holder,
-                                        amount,
-                                    },
-                                )
-                            }
-                            (AccountPrivacyKind::Private, AccountPrivacyKind::Public) => {
-                                TokenProgramSubcommand::Deshielded(
-                                    TokenProgramSubcommandDeshielded::BurnTokenDeshieldedOwned {
-                                        definition_account_id: definition,
-                                        holder_account_id: holder,
-                                        amount,
-                                    },
-                                )
-                            }
-                            (AccountPrivacyKind::Public, AccountPrivacyKind::Private) => {
-                                TokenProgramSubcommand::Shielded(
-                                    TokenProgramSubcommandShielded::BurnTokenShielded {
-                                        definition_account_id: definition,
-                                        holder_account_id: holder,
-                                        amount,
-                                    },
-                                )
-                            }
+                    match (definition_privacy, holder_privacy) {
+                        (AccountPrivacyKind::Public, AccountPrivacyKind::Public) => {
+                            TokenProgramSubcommand::Public(
+                                TokenProgramSubcommandPublic::BurnToken {
+                                    definition_account_id: definition,
+                                    holder_account_id: holder,
+                                    amount,
+                                },
+                            )
                         }
-                    }
-                    (None, Some(definition_npk), Some(definition_ipk)) => {
-                        let (holder, holder_privacy) = parse_addr_with_privacy_prefix(&holder)?;
-
-                        match holder_privacy {
-                            AccountPrivacyKind::Private => TokenProgramSubcommand::Private(
-                                TokenProgramSubcommandPrivate::BurnTokenPrivateForeign {
-                                    definition_npk,
-                                    definition_ipk,
+                        (AccountPrivacyKind::Private, AccountPrivacyKind::Private) => {
+                            TokenProgramSubcommand::Private(
+                                TokenProgramSubcommandPrivate::BurnTokenPrivateOwned {
+                                    definition_account_id: definition,
                                     holder_account_id: holder,
                                     amount,
                                 },
-                            ),
-                            AccountPrivacyKind::Public => TokenProgramSubcommand::Deshielded(
-                                TokenProgramSubcommandDeshielded::BurnTokenDeshieldedForeign {
-                                    definition_npk,
-                                    definition_ipk,
+                            )
+                        }
+                        (AccountPrivacyKind::Private, AccountPrivacyKind::Public) => {
+                            TokenProgramSubcommand::Deshielded(
+                                TokenProgramSubcommandDeshielded::BurnTokenDeshieldedOwned {
+                                    definition_account_id: definition,
                                     holder_account_id: holder,
                                     amount,
                                 },
-                            ),
+                            )
+                        }
+                        (AccountPrivacyKind::Public, AccountPrivacyKind::Private) => {
+                            TokenProgramSubcommand::Shielded(
+                                TokenProgramSubcommandShielded::BurnTokenShielded {
+                                    definition_account_id: definition,
+                                    holder_account_id: holder,
+                                    amount,
+                                },
+                            )
                         }
                     }
                 };
@@ -536,17 +491,6 @@ pub enum TokenProgramSubcommandPrivate {
         #[arg(short, long)]
         amount: u128,
     },
-    // Burn tokens using the token program
-    BurnTokenPrivateForeign {
-        #[arg(short, long)]
-        definition_npk: String,
-        #[arg(short, long)]
-        definition_ipk: String,
-        #[arg(short, long)]
-        holder_account_id: String,
-        #[arg(short, long)]
-        amount: u128,
-    },
     // Transfer tokens using the token program
     MintTokenPrivateForeign {
         #[arg(short, long)]
@@ -585,17 +529,6 @@ pub enum TokenProgramSubcommandDeshielded {
     MintTokenDeshielded {
         #[arg(short, long)]
         definition_account_id: String,
-        #[arg(short, long)]
-        holder_account_id: String,
-        #[arg(short, long)]
-        amount: u128,
-    },
-    // Burn tokens using the token program
-    BurnTokenDeshieldedForeign {
-        #[arg(short, long)]
-        definition_npk: String,
-        #[arg(short, long)]
-        definition_ipk: String,
         #[arg(short, long)]
         holder_account_id: String,
         #[arg(short, long)]
@@ -906,57 +839,6 @@ impl WalletSubcommand for TokenProgramSubcommandPrivate {
 
                 Ok(SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash })
             }
-            TokenProgramSubcommandPrivate::BurnTokenPrivateForeign {
-                definition_npk,
-                definition_ipk,
-                holder_account_id,
-                amount,
-            } => {
-                let definition_npk_res = hex::decode(definition_npk)?;
-                let mut definition_npk = [0; 32];
-                definition_npk.copy_from_slice(&definition_npk_res);
-                let definition_npk = nssa_core::NullifierPublicKey(definition_npk);
-
-                let definition_ipk_res = hex::decode(definition_ipk)?;
-                let mut definition_ipk = [0u8; 33];
-                definition_ipk.copy_from_slice(&definition_ipk_res);
-                let definition_ipk = nssa_core::encryption::shared_key_derivation::Secp256k1Point(
-                    definition_ipk.to_vec(),
-                );
-
-                let holder_account_id: AccountId = holder_account_id.parse().unwrap();
-
-                let (res, [_, secret_holder]) = Token(wallet_core)
-                    .send_burn_transaction_private_foreign_account(
-                        definition_npk,
-                        definition_ipk,
-                        holder_account_id,
-                        amount,
-                    )
-                    .await?;
-
-                println!("Results of tx send are {res:#?}");
-
-                let tx_hash = res.tx_hash;
-                let transfer_tx = wallet_core
-                    .poll_native_token_transfer(tx_hash.clone())
-                    .await?;
-
-                if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
-                    let acc_decode_data = vec![Skip, Decode(secret_holder, holder_account_id)];
-
-                    wallet_core.decode_insert_privacy_preserving_transaction_results(
-                        tx,
-                        &acc_decode_data,
-                    )?;
-                }
-
-                let path = wallet_core.store_persistent_data().await?;
-
-                println!("Stored persistent accounts at {path:#?}");
-
-                Ok(SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash })
-            }
             TokenProgramSubcommandPrivate::MintTokenPrivateOwned {
                 definition_account_id,
                 holder_account_id,
@@ -1127,52 +1009,6 @@ impl WalletSubcommand for TokenProgramSubcommandDeshielded {
                         tx,
                         &acc_decode_data,
                     )?;
-                }
-
-                let path = wallet_core.store_persistent_data().await?;
-
-                println!("Stored persistent accounts at {path:#?}");
-
-                Ok(SubcommandReturnValue::PrivacyPreservingTransfer { tx_hash })
-            }
-            TokenProgramSubcommandDeshielded::BurnTokenDeshieldedForeign {
-                definition_npk,
-                definition_ipk,
-                holder_account_id,
-                amount,
-            } => {
-                let definition_npk_res = hex::decode(definition_npk)?;
-                let mut definition_npk = [0; 32];
-                definition_npk.copy_from_slice(&definition_npk_res);
-                let definition_npk = nssa_core::NullifierPublicKey(definition_npk);
-
-                let definition_ipk_res = hex::decode(definition_ipk)?;
-                let mut definition_ipk = [0u8; 33];
-                definition_ipk.copy_from_slice(&definition_ipk_res);
-                let definition_ipk = nssa_core::encryption::shared_key_derivation::Secp256k1Point(
-                    definition_ipk.to_vec(),
-                );
-
-                let holder_account_id: AccountId = holder_account_id.parse().unwrap();
-
-                let (res, _) = Token(wallet_core)
-                    .send_burn_transaction_deshielded_foreign_account(
-                        definition_npk,
-                        definition_ipk,
-                        holder_account_id,
-                        amount,
-                    )
-                    .await?;
-
-                println!("Results of tx send are {res:#?}");
-
-                let tx_hash = res.tx_hash;
-                let transfer_tx = wallet_core
-                    .poll_native_token_transfer(tx_hash.clone())
-                    .await?;
-
-                if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
-                    println!("Transaction data is {:?}", tx.message);
                 }
 
                 let path = wallet_core.store_persistent_data().await?;

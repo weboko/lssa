@@ -367,36 +367,6 @@ impl Token<'_> {
             })
     }
 
-    pub async fn send_burn_transaction_private_foreign_account(
-        &self,
-        definition_npk: NullifierPublicKey,
-        definition_ipk: IncomingViewingPublicKey,
-        holder_account_id: AccountId,
-        amount: u128,
-    ) -> Result<(SendTxResponse, [SharedSecretKey; 2]), ExecutionFailureKind> {
-        let (instruction_data, program) = token_program_preparation_burn(amount);
-
-        self.0
-            .send_privacy_preserving_tx(
-                vec![
-                    PrivacyPreservingAccount::PrivateForeign {
-                        npk: definition_npk,
-                        ipk: definition_ipk,
-                    },
-                    PrivacyPreservingAccount::PrivateOwned(holder_account_id),
-                ],
-                &instruction_data,
-                &program,
-            )
-            .await
-            .map(|(resp, secrets)| {
-                let mut iter = secrets.into_iter();
-                let first = iter.next().expect("expected definition's secret");
-                let second = iter.next().expect("expected holder's secret");
-                (resp, [first, second])
-            })
-    }
-
     pub async fn send_burn_transaction_deshielded_owned_account(
         &self,
         definition_account_id: AccountId,
@@ -447,37 +417,6 @@ impl Token<'_> {
                     .into_iter()
                     .next()
                     .expect("expected holder's secret");
-                (resp, first)
-            })
-    }
-
-    pub async fn send_burn_transaction_deshielded_foreign_account(
-        &self,
-        definition_npk: NullifierPublicKey,
-        definition_ipk: IncomingViewingPublicKey,
-        holder_account_id: AccountId,
-        amount: u128,
-    ) -> Result<(SendTxResponse, SharedSecretKey), ExecutionFailureKind> {
-        let (instruction_data, program) = token_program_preparation_burn(amount);
-
-        self.0
-            .send_privacy_preserving_tx(
-                vec![
-                    PrivacyPreservingAccount::PrivateForeign {
-                        npk: definition_npk,
-                        ipk: definition_ipk,
-                    },
-                    PrivacyPreservingAccount::Public(holder_account_id),
-                ],
-                &instruction_data,
-                &program,
-            )
-            .await
-            .map(|(resp, secrets)| {
-                let first = secrets
-                    .into_iter()
-                    .next()
-                    .expect("expected definition's secret");
                 (resp, first)
             })
     }
