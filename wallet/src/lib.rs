@@ -126,13 +126,19 @@ impl WalletCore {
         Ok(config_path)
     }
 
-    pub fn create_new_account_public(&mut self, chain_index: ChainIndex) -> AccountId {
+    pub fn create_new_account_public(
+        &mut self,
+        chain_index: Option<ChainIndex>,
+    ) -> (AccountId, ChainIndex) {
         self.storage
             .user_data
             .generate_new_public_transaction_private_key(chain_index)
     }
 
-    pub fn create_new_account_private(&mut self, chain_index: ChainIndex) -> AccountId {
+    pub fn create_new_account_private(
+        &mut self,
+        chain_index: Option<ChainIndex>,
+    ) -> (AccountId, ChainIndex) {
         self.storage
             .user_data
             .generate_new_privacy_preserving_transaction_key_chain(chain_index)
@@ -277,7 +283,7 @@ impl WalletCore {
                 .map(|keys| (keys.npk.clone(), keys.ssk.clone()))
                 .collect::<Vec<_>>(),
             &acc_manager.private_account_auth(),
-            program,
+            &program.to_owned().into(),
         )
         .unwrap();
 
@@ -320,11 +326,14 @@ impl WalletCore {
         }
 
         let before_polling = std::time::Instant::now();
+        let num_of_blocks = block_id - self.last_synced_block;
+        println!("Syncing to block {block_id}. Blocks to sync: {num_of_blocks}");
 
         let poller = self.poller.clone();
         let mut blocks =
             std::pin::pin!(poller.poll_block_range(self.last_synced_block + 1..=block_id));
 
+        let bar = indicatif::ProgressBar::new(num_of_blocks);
         while let Some(block) = blocks.try_next().await? {
             for tx in block.transactions {
                 let nssa_tx = NSSATransaction::try_from(&tx)?;
@@ -333,7 +342,9 @@ impl WalletCore {
 
             self.last_synced_block = block.block_id;
             self.store_persistent_data().await?;
+            bar.inc(1);
         }
+        bar.finish();
 
         println!(
             "Synced to block {block_id} in {:?}",
@@ -393,7 +404,7 @@ impl WalletCore {
             .collect::<Vec<_>>();
 
         for (affected_account_id, new_acc) in affected_accounts {
-            println!(
+            info!(
                 "Received new account for account_id {affected_account_id:#?} with account object {new_acc:#?}"
             );
             self.storage
