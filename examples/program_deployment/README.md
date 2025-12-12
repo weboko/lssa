@@ -340,7 +340,7 @@ Luckily all that complexity is hidden behind the `wallet_core.send_privacy_prese
         .send_privacy_preserving_tx(
             accounts,
             &Program::serialize_instruction(greeting).unwrap(),
-            &program,
+            &program.into(),
         )
         .await
         .unwrap();
@@ -567,6 +567,28 @@ echo -n SG9sYSBtdW5kbyFIZWxsbyBmcm9tIHRhaWwgY2FsbA== | base64 -d
 Output:
 ```
 Hola mundo!Hello from tail call
+```
+## Private tail-calls
+There's support for tail calls in privacy preserving executions too. The `run_hello_world_through_tail_call_private.rs` runner walks you through the process of invoking such an execution.
+The only difference is that, since the execution is local, the runner will need both programs: the `simple_tail_call` and it's dependency `hello_world`.
+
+Let's use our existing private account with id `8vzkK7vsdrS2gdPhLk72La8X4FJkgJ5kJLUBRbEVkReU`. This one is already owned by the `hello_world` program.
+
+You can test the privacy tail calls with
+```bash
+cargo run --bin run_hello_world_through_tail_call_private \
+    $EXAMPLE_PROGRAMS_BUILD_DIR/simple_tail_call.bin \
+    $EXAMPLE_PROGRAMS_BUILD_DIR/hello_world.bin \
+    8vzkK7vsdrS2gdPhLk72La8X4FJkgJ5kJLUBRbEVkReU
+```
+
+>[!NOTE]
+> The above command may take longer than the previous privacy executions because needs to generate proofs of execution of both the `simple_tail_call` and the `hello_world` programs.
+
+Once finished run the following to see the changes
+```bash
+wallet account sync-private
+wallet account get --account-id Private/8vzkK7vsdrS2gdPhLk72La8X4FJkgJ5kJLUBRbEVkReU
 ```
 
 # 13. Program derived accounts: authorizing accounts through tail calls
