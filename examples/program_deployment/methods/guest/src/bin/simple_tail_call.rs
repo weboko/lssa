@@ -10,6 +10,10 @@ use nssa_core::program::{
 // to the Hello World program with a fixed greeting.
 
 
+/// This needs to be set to the ID of the Hello world program.
+/// To get the ID run **from the root directoy of the repository**:
+/// `cargo risczero build --manifest-path examples/program_deployment/methods/guest/Cargo.toml`
+/// This compiles the programs and outputs the IDs in hex that can be used to copy here.
 const HELLO_WORLD_PROGRAM_ID_HEX: &str =
     "7e99d6e2d158f4dea59597011da5d1c2eef17beed6667657f515b387035b935a";
 
