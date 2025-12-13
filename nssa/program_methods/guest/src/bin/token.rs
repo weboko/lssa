@@ -37,12 +37,23 @@ use nssa_core::{
 //      * Authorization required: definition_account
 //      * An instruction data byte string of length 23, indicating the balance to mint with the folloiwng layout
 //       [0x04 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
-// 6. Print NFT copy from Master NFT
+// 6. New token definition with metadata.
 //    Arguments to this function are:
-//      * Two accounts: [master_nft, account_to_initialize].
+//      * Three **default** accounts: [definition_account, metadata_account. holding_account].
+//        The first default account will be initialized with the token definition account values. The second account
+//        will be initialized to a token metadata account for the new token definition. The third account will be
+//        initialized to a token holding account for the new token, holding the entire total supply.
+//      * An instruction data of 474-bytes, indicating the token name, total supply, token standard, metadata standard
+//        and metadata_values (uri and creators).
+//        the following layout:
+//        [0x05 || total_supply (little-endian 16 bytes) || name (6 bytes) || token_standard || metadata_standard || metadata_values]
+//        The name cannot be equal to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+// 7. Print NFT copy from Master NFT
+//    Arguments to this function are:
+//      * Two accounts: [master_nft, printed_account (default)].
 //      * Authorization required: master_nft
 //      * An dummy byte string of length 23, with the following layout
-//        [0x05 || 0x00 || 0x00 || 0x00 || ... || 0x00 || 0x00].
+//        [0x06 || 0x00 || 0x00 || 0x00 || ... || 0x00 || 0x00].
 const TOKEN_STANDARD_FUNGIBLE_TOKEN: u8 = 0;
 const TOKEN_STANDARD_FUNGIBLE_ASSET: u8 = 1;
 const TOKEN_STANDARD_NONFUNGIBLE: u8 = 2;
@@ -170,7 +181,6 @@ struct TokenHolding {
     definition_id: AccountId,
     balance: u128,
 }
-
 
 impl TokenHolding {
     fn new(definition_id: &AccountId) -> Self {
