@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 risc0-zkvm = { version = "3.0.3", features = ['std'] }
 serde = { version = "1.0", default-features = false }
-thiserror = { version = "2.0.12", optional = true }
-bytemuck = { version = "1.13", optional = true }
+thiserror = { version = "2.0.12" }
+bytemuck = "1.13"
 chacha20 = { version = "0.9", default-features = false }
 k256 = { version = "0.13.3", optional = true }
 base58 = { version = "0.2.0", optional = true }
@@ -19,4 +19,4 @@ serde_json = "1.0.81"
 
 [features]
 default = []
-host = ["dep:bytemuck", "dep:k256", "dep:base58", "dep:anyhow"]
+host = ["dep:k256", "dep:base58", "dep:anyhow"]

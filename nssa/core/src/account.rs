@@ -32,6 +32,7 @@ pub struct AccountWithMetadata {
     pub is_authorized: bool,
     pub account_id: AccountId,
 }
+
 #[cfg(feature = "host")]
 impl AccountWithMetadata {
     pub fn new(account: Account, is_authorized: bool, account_id: impl Into<AccountId>) -> Self {
@@ -43,7 +44,7 @@ impl AccountWithMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(
     any(feature = "host", test),
     derive(Debug, Copy, PartialOrd, Ord)
