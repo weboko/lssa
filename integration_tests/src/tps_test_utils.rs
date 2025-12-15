@@ -8,8 +8,7 @@ use nssa::{
     public_transaction as putx,
 };
 use nssa_core::{
-    MembershipProof, NullifierPublicKey,
-    account::{AccountWithMetadata, data::Data},
+    MembershipProof, NullifierPublicKey, account::AccountWithMetadata,
     encryption::IncomingViewingPublicKey,
 };
 use sequencer_core::config::{AccountInitialData, CommitmentsInitialData, SequencerConfig};
@@ -91,7 +90,7 @@ impl TpsTestManager {
             balance: 100,
             nonce: 0xdeadbeef,
             program_owner: Program::authenticated_transfer_program().id(),
-            data: Data::default(),
+            data: vec![],
         };
         let initial_commitment = CommitmentsInitialData {
             npk: sender_npk,
@@ -130,7 +129,7 @@ fn build_privacy_transaction() -> PrivacyPreservingTransaction {
             balance: 100,
             nonce: 0xdeadbeef,
             program_owner: program.id(),
-            data: Data::default(),
+            data: vec![],
         },
         true,
         AccountId::from(&sender_npk),
@@ -168,7 +167,7 @@ fn build_privacy_transaction() -> PrivacyPreservingTransaction {
             (recipient_npk.clone(), recipient_ss),
         ],
         &[(sender_nsk, proof)],
-        &program.into(),
+        &program,
     )
     .unwrap();
     let message = pptx::message::Message::try_from_circuit_output(

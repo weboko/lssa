@@ -96,13 +96,13 @@ pub enum NewSubcommand {
     Public {
         #[arg(long)]
         /// Chain index of a parent node
-        cci: Option<ChainIndex>,
+        cci: ChainIndex,
     },
     /// Register new private account
     Private {
         #[arg(long)]
         /// Chain index of a parent node
-        cci: Option<ChainIndex>,
+        cci: ChainIndex,
     },
 }
 
@@ -113,11 +113,9 @@ impl WalletSubcommand for NewSubcommand {
     ) -> Result<SubcommandReturnValue> {
         match self {
             NewSubcommand::Public { cci } => {
-                let (account_id, chain_index) = wallet_core.create_new_account_public(cci);
+                let account_id = wallet_core.create_new_account_public(cci);
 
-                println!(
-                    "Generated new account with account_id Public/{account_id} at path {chain_index}"
-                );
+                println!("Generated new account with account_id Public/{account_id}");
 
                 let path = wallet_core.store_persistent_data().await?;
 
@@ -126,7 +124,7 @@ impl WalletSubcommand for NewSubcommand {
                 Ok(SubcommandReturnValue::RegisterAccount { account_id })
             }
             NewSubcommand::Private { cci } => {
-                let (account_id, chain_index) = wallet_core.create_new_account_private(cci);
+                let account_id = wallet_core.create_new_account_private(cci);
 
                 let (key, _) = wallet_core
                     .storage
@@ -135,7 +133,7 @@ impl WalletSubcommand for NewSubcommand {
                     .unwrap();
 
                 println!(
-                    "Generated new account with account_id Private/{} at path {chain_index}",
+                    "Generated new account with account_id Private/{}",
                     account_id.to_bytes().to_base58()
                 );
                 println!("With npk {}", hex::encode(key.nullifer_public_key.0));

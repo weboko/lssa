@@ -25,16 +25,14 @@ use nssa_core::{
 //      * Two accounts: [definition_account, account_to_initialize].
 //      * An dummy byte string of length 23, with the following layout
 //        [0x02 || 0x00 || 0x00 || 0x00 || ... || 0x00 || 0x00].
-// 4. Burn tokens from a Token Holding account (thus lowering total supply)
+// 4. Burn tokens from a Toking Holding account (thus lowering total supply)
 //    Arguments to this function are:
 //      * Two accounts: [definition_account, holding_account].
-//      * Authorization required: holding_account
 //      * An instruction data byte string of length 23, indicating the balance to burn with the folloiwng layout
 //       [0x03 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
-// 5. Mint additional supply of tokens tokens to a Token Holding account (thus increasing total supply)
+// 5. Mint additional supply of tokens tokens to a Toking Holding account (thus increasing total supply)
 //    Arguments to this function are:
 //      * Two accounts: [definition_account, holding_account].
-//      * Authorization required: definition_account
 //      * An instruction data byte string of length 23, indicating the balance to mint with the folloiwng layout
 //       [0x04 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
 
@@ -57,15 +55,12 @@ struct TokenHolding {
 }
 
 impl TokenDefinition {
-    fn into_data(self) -> Data {
+    fn into_data(self) -> Vec<u8> {
         let mut bytes = [0; TOKEN_DEFINITION_DATA_SIZE];
         bytes[0] = self.account_type;
         bytes[1..7].copy_from_slice(&self.name);
         bytes[7..].copy_from_slice(&self.total_supply.to_le_bytes());
-        bytes
-            .to_vec()
-            .try_into()
-            .expect("23 bytes should fit into Data")
+        bytes.into()
     }
 
     fn parse(data: &[u8]) -> Option<Self> {
@@ -125,10 +120,7 @@ impl TokenHolding {
         bytes[0] = self.account_type;
         bytes[1..33].copy_from_slice(&self.definition_id.to_bytes());
         bytes[33..].copy_from_slice(&self.balance.to_le_bytes());
-        bytes
-            .to_vec()
-            .try_into()
-            .expect("33 bytes should fit into Data")
+        bytes.into()
     }
 }
 
@@ -163,7 +155,7 @@ fn transfer(pre_states: &[AccountWithMetadata], balance_to_move: u128) -> Vec<Ac
     recipient_holding.balance = recipient_holding
         .balance
         .checked_add(balance_to_move)
-        .expect("Recipient balance overflow");
+        .expect("Recipient balance overflow.");
 
     let sender_post = {
         let mut this = sender.account.clone();
@@ -290,19 +282,13 @@ fn burn(pre_states: &[AccountWithMetadata], balance_to_burn: u128) -> Vec<Accoun
     post_user_holding.data = TokenHolding::into_data(TokenHolding {
         account_type: user_values.account_type,
         definition_id: user_values.definition_id,
-        balance: user_values
-            .balance
-            .checked_sub(balance_to_burn)
-            .expect("Checked above"),
+        balance: user_values.balance - balance_to_burn,
     });
 
     post_definition.data = TokenDefinition::into_data(TokenDefinition {
         account_type: definition_values.account_type,
         name: definition_values.name,
-        total_supply: definition_values
-            .total_supply
-            .checked_sub(balance_to_burn)
-            .expect("Total supply underflow"),
+        total_supply: definition_values.total_supply - balance_to_burn,
     });
 
     vec![
@@ -329,6 +315,9 @@ fn mint_additional_supply(
     let definition_values =
         TokenDefinition::parse(&definition.account.data).expect("Definition account must be valid");
 
+    //TODO: add overflow protection
+    // TokenDefinition.supply_limit + amount_to_mint
+
     let token_holding_values: TokenHolding = if token_holding.account == Account::default() {
         TokenHolding::new(&definition.account_id)
     } else {
@@ -342,21 +331,13 @@ fn mint_additional_supply(
     let token_holding_post_data = TokenHolding {
         account_type: token_holding_values.account_type,
         definition_id: token_holding_values.definition_id,
-        balance: token_holding_values
-            .balance
-            .checked_add(amount_to_mint)
-            .expect("New balance overflow"),
+        balance: token_holding_values.balance + amount_to_mint,
     };
-
-    let post_total_supply = definition_values
-        .total_supply
-        .checked_add(amount_to_mint)
-        .expect("Total supply overflow");
 
     let post_definition_data = TokenDefinition {
         account_type: definition_values.account_type,
         name: definition_values.name,
-        total_supply: post_total_supply,
+        total_supply: definition_values.total_supply + amount_to_mint,
     };
 
     let post_definition = {
@@ -382,13 +363,10 @@ fn mint_additional_supply(
 type Instruction = [u8; 23];
 
 fn main() {
-    let (
-        ProgramInput {
-            pre_states,
-            instruction,
-        },
-        instruction_words,
-    ) = read_nssa_inputs::<Instruction>();
+    let ProgramInput {
+        pre_states,
+        instruction,
+    } = read_nssa_inputs::<Instruction>();
 
     let post_states = match instruction[0] {
         0 => {
@@ -459,7 +437,7 @@ fn main() {
         _ => panic!("Invalid instruction"),
     };
 
-    write_nssa_outputs(instruction_words, pre_states, post_states);
+    write_nssa_outputs(pre_states, post_states);
 }
 
 #[cfg(test)]
@@ -571,15 +549,15 @@ mod tests {
         let post_states = new_definition(&pre_states, [0xca, 0xfe, 0xca, 0xfe, 0xca, 0xfe], 10);
         let [definition_account, holding_account] = post_states.try_into().ok().unwrap();
         assert_eq!(
-            definition_account.account().data.as_ref(),
-            &[
+            definition_account.account().data,
+            vec![
                 0, 0xca, 0xfe, 0xca, 0xfe, 0xca, 0xfe, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0
             ]
         );
         assert_eq!(
-            holding_account.account().data.as_ref(),
-            &[
+            holding_account.account().data,
+            vec![
                 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0
@@ -629,9 +607,7 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // First byte should be `TOKEN_HOLDING_TYPE` for token holding accounts
-                    data: vec![invalid_type; TOKEN_HOLDING_DATA_SIZE]
-                        .try_into()
-                        .unwrap(),
+                    data: vec![invalid_type; TOKEN_HOLDING_DATA_SIZE],
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -653,7 +629,7 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // Data must be of exact length `TOKEN_HOLDING_DATA_SIZE`
-                    data: vec![1; TOKEN_HOLDING_DATA_SIZE - 1].try_into().unwrap(),
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE - 1],
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -675,7 +651,7 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // Data must be of exact length `TOKEN_HOLDING_DATA_SIZE`
-                    data: vec![1; TOKEN_HOLDING_DATA_SIZE + 1].try_into().unwrap(),
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE + 1],
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -696,7 +672,7 @@ mod tests {
         let pre_states = vec![
             AccountWithMetadata {
                 account: Account {
-                    data: vec![1; TOKEN_HOLDING_DATA_SIZE].try_into().unwrap(),
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE],
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -704,12 +680,10 @@ mod tests {
             },
             AccountWithMetadata {
                 account: Account {
-                    data: [1]
+                    data: vec![1]
                         .into_iter()
                         .chain(vec![2; TOKEN_HOLDING_DATA_SIZE - 1])
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap(),
+                        .collect(),
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -726,12 +700,10 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // Account with balance 37
-                    data: [1; TOKEN_HOLDING_DATA_SIZE - 16]
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE - 16]
                         .into_iter()
                         .chain(u128::to_le_bytes(37))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap(),
+                        .collect(),
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -739,7 +711,7 @@ mod tests {
             },
             AccountWithMetadata {
                 account: Account {
-                    data: vec![1; TOKEN_HOLDING_DATA_SIZE].try_into().unwrap(),
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE],
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -757,12 +729,10 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // Account with balance 37
-                    data: [1; TOKEN_HOLDING_DATA_SIZE - 16]
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE - 16]
                         .into_iter()
                         .chain(u128::to_le_bytes(37))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap(),
+                        .collect(),
                     ..Account::default()
                 },
                 is_authorized: false,
@@ -770,7 +740,7 @@ mod tests {
             },
             AccountWithMetadata {
                 account: Account {
-                    data: vec![1; TOKEN_HOLDING_DATA_SIZE].try_into().unwrap(),
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE],
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -786,12 +756,10 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // Account with balance 37
-                    data: [1; TOKEN_HOLDING_DATA_SIZE - 16]
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE - 16]
                         .into_iter()
                         .chain(u128::to_le_bytes(37))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap(),
+                        .collect(),
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -800,12 +768,10 @@ mod tests {
             AccountWithMetadata {
                 account: Account {
                     // Account with balance 255
-                    data: [1; TOKEN_HOLDING_DATA_SIZE - 16]
+                    data: vec![1; TOKEN_HOLDING_DATA_SIZE - 16]
                         .into_iter()
                         .chain(u128::to_le_bytes(255))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap(),
+                        .collect(),
                     ..Account::default()
                 },
                 is_authorized: true,
@@ -815,15 +781,15 @@ mod tests {
         let post_states = transfer(&pre_states, 11);
         let [sender_post, recipient_post] = post_states.try_into().ok().unwrap();
         assert_eq!(
-            sender_post.account().data.as_ref(),
-            [
+            sender_post.account().data,
+            vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
         assert_eq!(
-            recipient_post.account().data.as_ref(),
-            [
+            recipient_post.account().data,
+            vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
@@ -839,9 +805,7 @@ mod tests {
                     data: [0; TOKEN_DEFINITION_DATA_SIZE - 16]
                         .into_iter()
                         .chain(u128::to_le_bytes(1000))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap(),
+                        .collect(),
                     ..Account::default()
                 },
                 is_authorized: false,
@@ -855,13 +819,10 @@ mod tests {
         ];
         let post_states = initialize_account(&pre_states);
         let [definition, holding] = post_states.try_into().ok().unwrap();
+        assert_eq!(definition.account().data, pre_states[0].account.data);
         assert_eq!(
-            definition.account().data.as_ref(),
-            pre_states[0].account.data.as_ref()
-        );
-        assert_eq!(
-            holding.account().data.as_ref(),
-            [
+            holding.account().data,
+            vec![
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
@@ -878,7 +839,6 @@ mod tests {
         MintSuccess,
         InitSupplyMint,
         HoldingBalanceMint,
-        MintOverflow,
     }
 
     enum AccountsEnum {
@@ -887,14 +847,12 @@ mod tests {
         HoldingDiffDef,
         HoldingSameDefAuth,
         HoldingSameDefNotAuth,
-        HoldingSameDefNotAuthOverflow,
         DefinitionAccountPostBurn,
         HoldingAccountPostBurn,
         Uninit,
         InitMint,
         DefinitionAccountMint,
         HoldingSameDefMint,
-        HoldingSameDefAuthLargeBalance,
     }
 
     enum IdEnum {
@@ -969,20 +927,6 @@ mod tests {
                         account_type: TOKEN_HOLDING_TYPE,
                         definition_id: helper_id_constructor(IdEnum::PoolDefinitionId),
                         balance: helper_balance_constructor(BalanceEnum::HoldingBalance),
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: false,
-                account_id: helper_id_constructor(IdEnum::HoldingId),
-            },
-            AccountsEnum::HoldingSameDefNotAuthOverflow => AccountWithMetadata {
-                account: Account {
-                    program_owner: [5u32; 8],
-                    balance: 0u128,
-                    data: TokenHolding::into_data(TokenHolding {
-                        account_type: TOKEN_HOLDING_TYPE,
-                        definition_id: helper_id_constructor(IdEnum::PoolDefinitionId),
-                        balance: helper_balance_constructor(BalanceEnum::InitSupply),
                     }),
                     nonce: 0,
                 },
@@ -1064,20 +1008,6 @@ mod tests {
                 is_authorized: true,
                 account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            AccountsEnum::HoldingSameDefAuthLargeBalance => AccountWithMetadata {
-                account: Account {
-                    program_owner: [5u32; 8],
-                    balance: 0u128,
-                    data: TokenHolding::into_data(TokenHolding {
-                        account_type: TOKEN_HOLDING_TYPE,
-                        definition_id: helper_id_constructor(IdEnum::PoolDefinitionId),
-                        balance: helper_balance_constructor(BalanceEnum::MintOverflow),
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: true,
-                account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
-            },
             _ => panic!("Invalid selection"),
         }
     }
@@ -1093,7 +1023,6 @@ mod tests {
             BalanceEnum::MintSuccess => 50_000,
             BalanceEnum::InitSupplyMint => 150_000,
             BalanceEnum::HoldingBalanceMint => 51_000,
-            BalanceEnum::MintOverflow => (2 as u128).pow(128) - 40_000,
             _ => panic!("Invalid selection"),
         }
     }
@@ -1154,19 +1083,6 @@ mod tests {
         let _post_states = burn(
             &pre_states,
             helper_balance_constructor(BalanceEnum::BurnInsufficient),
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "Total supply underflow")]
-    fn test_burn_total_supply_underflow() {
-        let pre_states = vec![
-            helper_account_constructor(AccountsEnum::DefinitionAccountAuth),
-            helper_account_constructor(AccountsEnum::HoldingSameDefAuthLargeBalance),
-        ];
-        let _post_states = burn(
-            &pre_states,
-            helper_balance_constructor(BalanceEnum::MintOverflow),
         );
     }
 
@@ -1291,31 +1207,5 @@ mod tests {
             *holding_post.account() == helper_account_constructor(AccountsEnum::InitMint).account
         );
         assert!(holding_post.requires_claim() == true);
-    }
-
-    #[test]
-    #[should_panic(expected = "Total supply overflow")]
-    fn test_mint_total_supply_overflow() {
-        let pre_states = vec![
-            helper_account_constructor(AccountsEnum::DefinitionAccountAuth),
-            helper_account_constructor(AccountsEnum::HoldingSameDefNotAuth),
-        ];
-        let _post_states = mint_additional_supply(
-            &pre_states,
-            helper_balance_constructor(BalanceEnum::MintOverflow),
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "New balance overflow")]
-    fn test_mint_holding_account_overflow() {
-        let pre_states = vec![
-            helper_account_constructor(AccountsEnum::DefinitionAccountAuth),
-            helper_account_constructor(AccountsEnum::HoldingSameDefNotAuthOverflow),
-        ];
-        let _post_states = mint_additional_supply(
-            &pre_states,
-            helper_balance_constructor(BalanceEnum::MintOverflow),
-        );
     }
 }

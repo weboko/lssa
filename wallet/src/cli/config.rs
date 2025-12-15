@@ -9,6 +9,10 @@ use crate::{
 /// Represents generic config CLI subcommand
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConfigSubcommand {
+    /// Command to explicitly setup config and storage
+    ///
+    /// Does nothing in case if both already present
+    Setup {},
     /// Getter of config fields
     Get { key: String },
     /// Setter of config fields
@@ -23,6 +27,11 @@ impl WalletSubcommand for ConfigSubcommand {
         wallet_core: &mut WalletCore,
     ) -> Result<SubcommandReturnValue> {
         match self {
+            ConfigSubcommand::Setup {} => {
+                let path = wallet_core.store_persistent_data().await?;
+
+                println!("Stored persistent accounts at {path:#?}");
+            }
             ConfigSubcommand::Get { key } => match key.as_str() {
                 "all" => {
                     let config_str =
@@ -64,13 +73,6 @@ impl WalletSubcommand for ConfigSubcommand {
                 "initial_accounts" => {
                     println!("{:#?}", wallet_core.storage.wallet_config.initial_accounts);
                 }
-                "basic_auth" => {
-                    if let Some(basic_auth) = &wallet_core.storage.wallet_config.basic_auth {
-                        println!("{basic_auth}");
-                    } else {
-                        println!("Not set");
-                    }
-                }
                 _ => {
                     println!("Unknown field");
                 }
@@ -96,9 +98,6 @@ impl WalletSubcommand for ConfigSubcommand {
                     "seq_block_poll_max_amount" => {
                         wallet_core.storage.wallet_config.seq_block_poll_max_amount =
                             value.parse()?;
-                    }
-                    "basic_auth" => {
-                        wallet_core.storage.wallet_config.basic_auth = Some(value.parse()?);
                     }
                     "initial_accounts" => {
                         anyhow::bail!("Setting this field from wallet is not supported");
@@ -141,9 +140,6 @@ impl WalletSubcommand for ConfigSubcommand {
                 }
                 "initial_accounts" => {
                     println!("List of initial accounts' keys(both public and private)");
-                }
-                "basic_auth" => {
-                    println!("Basic authentication credentials for sequencer HTTP requests");
                 }
                 _ => {
                     println!("Unknown field");

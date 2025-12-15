@@ -17,12 +17,7 @@ pub mod public_transaction;
 mod signature;
 mod state;
 
-pub use nssa_core::{
-    SharedSecretKey,
-    account::{Account, AccountId},
-    encryption::EphemeralPublicKey,
-    program::ProgramId,
-};
+pub use nssa_core::account::{Account, AccountId};
 pub use privacy_preserving_transaction::{
     PrivacyPreservingTransaction, circuit::execute_and_prove,
 };
