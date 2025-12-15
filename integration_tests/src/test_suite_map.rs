@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     pin::Pin,
+    str::FromStr,
     time::{Duration, Instant},
 };
 
@@ -10,7 +11,7 @@ use anyhow::Result;
 use common::{PINATA_BASE58, sequencer_client::SequencerClient};
 use key_protocol::key_management::key_tree::chain_index::ChainIndex;
 use log::info;
-use nssa::{AccountId, ProgramDeploymentTransaction, program::Program};
+use nssa::{AccountId, program::Program};
 use nssa_core::{NullifierPublicKey, encryption::shared_key_derivation::Secp256k1Point};
 use sequencer_runner::startup_sequencer;
 use tempfile::TempDir;
@@ -86,9 +87,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     #[nssa_integration_test]
     pub async fn test_success_move_to_another_account() {
         info!("########## test_success_move_to_another_account ##########");
-        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Public {
-            cci: ChainIndex::root(),
-        }));
+        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Public { cci: None }));
 
         let wallet_config = fetch_config().await.unwrap();
 
@@ -292,9 +291,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -305,9 +302,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -318,9 +313,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -356,8 +349,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -375,11 +368,14 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x01 || corresponding_token_definition_id (32 bytes) || balance (little endian 16
         // bytes) ] First byte of the data equal to 1 means it's a token holding account
-        assert_eq!(supply_acc.data[0], 1);
+        assert_eq!(supply_acc.data.as_ref()[0], 1);
         // Bytes from 1 to 33 represent the id of the token this account is associated with.
         // In this example, this is a token account of the newly created token, so it is expected
         // to be equal to the account_id of the token definition account.
-        assert_eq!(&supply_acc.data[1..33], definition_account_id.to_bytes());
+        assert_eq!(
+            &supply_acc.data.as_ref()[1..33],
+            definition_account_id.to_bytes()
+        );
         assert_eq!(
             u128::from_le_bytes(supply_acc.data[33..].try_into().unwrap()),
             37
@@ -441,20 +437,18 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     }
 
     /// This test creates a new private token using the token program. After creating the token, the
-    /// test executes a private token transfer to a new account. All accounts are owned except
-    /// definition.
+    /// test executes a private token transfer to a new account. All accounts are private owned
+    /// except definition which is public.
     #[nssa_integration_test]
-    pub async fn test_success_token_program_private_owned() {
-        info!("########## test_success_token_program_private_owned ##########");
+    pub async fn test_success_token_program_private_owned_supply() {
+        info!("########## test_success_token_program_private_owned_supply ##########");
         let wallet_config = fetch_config().await.unwrap();
 
         // Create new account for the token definition (public)
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -465,9 +459,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Private {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Private { cci: None },
         )))
         .await
         .unwrap()
@@ -478,9 +470,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Private {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Private { cci: None },
         )))
         .await
         .unwrap()
@@ -518,8 +508,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -602,19 +592,104 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         assert!(verify_commitment_is_in_state(new_commitment2, &seq_client).await);
     }
 
-    /// This test creates a new private token using the token program. After creating the token, the
-    /// test executes a private token transfer to a new account.
+    /// This test creates a new private token using the token program. All accounts are private
+    /// owned except supply which is public.
     #[nssa_integration_test]
-    pub async fn test_success_token_program_private_claiming_path() {
-        info!("########## test_success_token_program_private_claiming_path ##########");
+    pub async fn test_success_token_program_private_owned_definition() {
+        info!("########## test_success_token_program_private_owned_definition ##########");
         let wallet_config = fetch_config().await.unwrap();
 
-        // Create new account for the token definition (public)
+        // Create new account for the token definition (private)
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
+            NewSubcommand::Private {
+                cci: Some(ChainIndex::root()),
+            },
+        )))
+        .await
+        .unwrap()
+        else {
+            panic!("invalid subcommand return value");
+        };
+        // Create new account for the token supply holder (public)
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: supply_account_id,
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Public {
-                cci: ChainIndex::root(),
+                cci: Some(ChainIndex::root()),
+            },
+        )))
+        .await
+        .unwrap()
+        else {
+            panic!("invalid subcommand return value");
+        };
+
+        // Create new token
+        let subcommand = TokenProgramAgnosticSubcommand::New {
+            definition_account_id: make_private_account_input_from_str(
+                &definition_account_id.to_string(),
+            ),
+            supply_account_id: make_public_account_input_from_str(&supply_account_id.to_string()),
+            name: "A NAME".to_string(),
+            total_supply: 37,
+        };
+
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
+            .await
+            .unwrap();
+
+        info!("Waiting for next block creation");
+        tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+        let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+        let wallet_config = fetch_config().await.unwrap();
+        let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config)
+            .await
+            .unwrap();
+
+        let new_commitment1 = wallet_storage
+            .get_private_account_commitment(&definition_account_id)
+            .unwrap();
+        assert!(verify_commitment_is_in_state(new_commitment1, &seq_client).await);
+
+        // Check the status of the token definition account is the expected after the execution
+        let supply_acc = seq_client
+            .get_account(supply_account_id.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        assert_eq!(supply_acc.program_owner, Program::token().id());
+        // The data of a token definition account has the following layout:
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        assert_eq!(
+            supply_acc.data.as_ref(),
+            &[
+                1, 128, 101, 5, 31, 43, 36, 97, 108, 164, 92, 25, 157, 173, 5, 14, 194, 121, 239,
+                84, 19, 160, 243, 47, 193, 2, 250, 247, 232, 253, 191, 232, 173, 37, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+    }
+
+    /// This test creates a new private token using the token program. All accounts are private
+    /// owned.
+    #[nssa_integration_test]
+    pub async fn test_success_token_program_private_owned_definition_and_supply() {
+        info!(
+            "########## test_success_token_program_private_owned_definition_and_supply ##########"
+        );
+        let wallet_config = fetch_config().await.unwrap();
+
+        // Create new account for the token definition (private)
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: definition_account_id,
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
+            NewSubcommand::Private {
+                cci: Some(ChainIndex::root()),
             },
         )))
         .await
@@ -627,8 +702,102 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             account_id: supply_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
             NewSubcommand::Private {
-                cci: ChainIndex::root(),
+                cci: Some(ChainIndex::root()),
             },
+        )))
+        .await
+        .unwrap()
+        else {
+            panic!("invalid subcommand return value");
+        };
+
+        // Create new token
+        let subcommand = TokenProgramAgnosticSubcommand::New {
+            definition_account_id: make_private_account_input_from_str(
+                &definition_account_id.to_string(),
+            ),
+            supply_account_id: make_private_account_input_from_str(&supply_account_id.to_string()),
+            name: "A NAME".to_string(),
+            total_supply: 37,
+        };
+
+        wallet::cli::execute_subcommand(Command::Token(subcommand))
+            .await
+            .unwrap();
+
+        info!("Waiting for next block creation");
+        tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+        let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+
+        let wallet_config = fetch_config().await.unwrap();
+        let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config)
+            .await
+            .unwrap();
+
+        let new_commitment1 = wallet_storage
+            .get_private_account_commitment(&definition_account_id)
+            .unwrap();
+        assert!(verify_commitment_is_in_state(new_commitment1, &seq_client).await);
+
+        let new_commitment2 = wallet_storage
+            .get_private_account_commitment(&supply_account_id)
+            .unwrap();
+        assert!(verify_commitment_is_in_state(new_commitment2, &seq_client).await);
+
+        let definition_acc = wallet_storage
+            .get_account_private(&definition_account_id)
+            .unwrap();
+        let supply_acc = wallet_storage
+            .get_account_private(&supply_account_id)
+            .unwrap();
+
+        assert_eq!(definition_acc.program_owner, Program::token().id());
+        // The data of a token definition account has the following layout:
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        assert_eq!(
+            definition_acc.data.as_ref(),
+            &[
+                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+
+        assert_eq!(supply_acc.program_owner, Program::token().id());
+        // The data of a token definition account has the following layout:
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        assert_eq!(
+            supply_acc.data.as_ref(),
+            &[
+                1, 128, 101, 5, 31, 43, 36, 97, 108, 164, 92, 25, 157, 173, 5, 14, 194, 121, 239,
+                84, 19, 160, 243, 47, 193, 2, 250, 247, 232, 253, 191, 232, 173, 37, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+    }
+
+    /// This test creates a new private token using the token program. After creating the token, the
+    /// test executes a private token transfer to a new account.
+    #[nssa_integration_test]
+    pub async fn test_success_token_program_private_claiming_path() {
+        info!("########## test_success_token_program_private_claiming_path ##########");
+        let wallet_config = fetch_config().await.unwrap();
+
+        // Create new account for the token definition (public)
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: definition_account_id,
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
+            NewSubcommand::Public { cci: None },
+        )))
+        .await
+        .unwrap()
+        else {
+            panic!("invalid subcommand return value");
+        };
+        // Create new account for the token supply holder (private)
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: supply_account_id,
+        } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
+            NewSubcommand::Private { cci: None },
         )))
         .await
         .unwrap()
@@ -639,9 +808,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Private {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Private { cci: None },
         )))
         .await
         .unwrap()
@@ -679,8 +846,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -755,9 +922,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -768,9 +933,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -781,9 +944,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Private {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Private { cci: None },
         )))
         .await
         .unwrap()
@@ -821,8 +982,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -897,9 +1058,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: definition_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -910,9 +1069,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: supply_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Private {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Private { cci: None },
         )))
         .await
         .unwrap()
@@ -923,9 +1080,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: recipient_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Public {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Public { cci: None },
         )))
         .await
         .unwrap()
@@ -963,8 +1118,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // The data of a token definition account has the following layout:
         // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
         assert_eq!(
-            definition_acc.data,
-            vec![
+            definition_acc.data.as_ref(),
+            &[
                 0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
@@ -1126,9 +1281,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         );
         let from: AccountId = ACC_SENDER_PRIVATE.parse().unwrap();
 
-        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            cci: ChainIndex::root(),
-        }));
+        let command =
+            Command::Account(AccountSubcommand::New(NewSubcommand::Private { cci: None }));
 
         let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
         let SubcommandReturnValue::RegisterAccount {
@@ -1441,14 +1595,17 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     #[nssa_integration_test]
     pub async fn test_program_deployment() {
         info!("########## test program deployment ##########");
-        let bytecode = NSSA_PROGRAM_FOR_TEST_DATA_CHANGER.to_vec();
-        let message = nssa::program_deployment_transaction::Message::new(bytecode.clone());
-        let transaction = ProgramDeploymentTransaction::new(message);
+
+        let binary_filepath: PathBuf = NSSA_PROGRAM_FOR_TEST_DATA_CHANGER.parse().unwrap();
+
+        let command = Command::DeployProgram {
+            binary_filepath: binary_filepath.clone(),
+        };
+
+        wallet::cli::execute_subcommand(command).await.unwrap();
 
         let wallet_config = fetch_config().await.unwrap();
         let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
-
-        let _response = seq_client.send_tx_program(transaction).await.unwrap();
 
         info!("Waiting for next block creation");
         tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
@@ -1457,13 +1614,15 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         // We pass an uninitialized account and we expect after execution to be owned by the data
         // changer program (NSSA account claiming mechanism) with data equal to [0] (due to program
         // logic)
+        //
+        let bytecode = std::fs::read(binary_filepath).unwrap();
         let data_changer = Program::new(bytecode).unwrap();
         let account_id: AccountId = "11".repeat(16).parse().unwrap();
         let message = nssa::public_transaction::Message::try_new(
             data_changer.id(),
             vec![account_id],
             vec![],
-            (),
+            vec![0],
         )
         .unwrap();
         let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[]);
@@ -1480,7 +1639,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .account;
         assert_eq!(post_state_account.program_owner, data_changer.id());
         assert_eq!(post_state_account.balance, 0);
-        assert_eq!(post_state_account.data, vec![0]);
+        assert_eq!(post_state_account.data.as_ref(), &[0]);
         assert_eq!(post_state_account.nonce, 0);
 
         info!("Success!");
@@ -1489,9 +1648,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     #[nssa_integration_test]
     pub async fn test_authenticated_transfer_initialize_function() {
         info!("########## test initialize account for authenticated transfer ##########");
-        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Public {
-            cci: ChainIndex::root(),
-        }));
+        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Public { cci: None }));
         let SubcommandReturnValue::RegisterAccount { account_id } =
             wallet::cli::execute_subcommand(command).await.unwrap()
         else {
@@ -1589,9 +1746,7 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         let SubcommandReturnValue::RegisterAccount {
             account_id: winner_account_id,
         } = wallet::cli::execute_subcommand(Command::Account(AccountSubcommand::New(
-            NewSubcommand::Private {
-                cci: ChainIndex::root(),
-            },
+            NewSubcommand::Private { cci: None },
         )))
         .await
         .unwrap()
@@ -1665,6 +1820,217 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             value: old_seq_poll_timeout_millis.to_string(),
         });
         wallet::cli::execute_subcommand(command).await.unwrap();
+
+        info!("Success!");
+    }
+
+    #[nssa_integration_test]
+    pub async fn test_keys_restoration() {
+        info!("########## test_keys_restoration ##########");
+        let from: AccountId = ACC_SENDER_PRIVATE.parse().unwrap();
+
+        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
+            cci: Some(ChainIndex::root()),
+        }));
+
+        let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: to_account_id1,
+        } = sub_ret
+        else {
+            panic!("FAILED TO REGISTER ACCOUNT");
+        };
+
+        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
+            cci: Some(ChainIndex::from_str("/0").unwrap()),
+        }));
+
+        let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: to_account_id2,
+        } = sub_ret
+        else {
+            panic!("FAILED TO REGISTER ACCOUNT");
+        };
+
+        let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
+            from: make_private_account_input_from_str(&from.to_string()),
+            to: Some(make_private_account_input_from_str(
+                &to_account_id1.to_string(),
+            )),
+            to_npk: None,
+            to_ipk: None,
+            amount: 100,
+        });
+
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
+            from: make_private_account_input_from_str(&from.to_string()),
+            to: Some(make_private_account_input_from_str(
+                &to_account_id2.to_string(),
+            )),
+            to_npk: None,
+            to_ipk: None,
+            amount: 101,
+        });
+
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        let from: AccountId = ACC_SENDER.parse().unwrap();
+
+        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+            cci: Some(ChainIndex::root()),
+        }));
+
+        let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: to_account_id3,
+        } = sub_ret
+        else {
+            panic!("FAILED TO REGISTER ACCOUNT");
+        };
+
+        let command = Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+            cci: Some(ChainIndex::from_str("/0").unwrap()),
+        }));
+
+        let sub_ret = wallet::cli::execute_subcommand(command).await.unwrap();
+        let SubcommandReturnValue::RegisterAccount {
+            account_id: to_account_id4,
+        } = sub_ret
+        else {
+            panic!("FAILED TO REGISTER ACCOUNT");
+        };
+
+        let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
+            from: make_public_account_input_from_str(&from.to_string()),
+            to: Some(make_public_account_input_from_str(
+                &to_account_id3.to_string(),
+            )),
+            to_npk: None,
+            to_ipk: None,
+            amount: 102,
+        });
+
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
+            from: make_public_account_input_from_str(&from.to_string()),
+            to: Some(make_public_account_input_from_str(
+                &to_account_id4.to_string(),
+            )),
+            to_npk: None,
+            to_ipk: None,
+            amount: 103,
+        });
+
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        info!("########## PREPARATION END ##########");
+
+        wallet::cli::execute_keys_restoration("test_pass".to_string(), 10)
+            .await
+            .unwrap();
+
+        let wallet_config = fetch_config().await.unwrap();
+        let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config.clone())
+            .await
+            .unwrap();
+
+        let acc1 = wallet_storage
+            .storage
+            .user_data
+            .private_key_tree
+            .get_node(to_account_id1)
+            .expect("Acc 1 should be restored");
+
+        let acc2 = wallet_storage
+            .storage
+            .user_data
+            .private_key_tree
+            .get_node(to_account_id2)
+            .expect("Acc 2 should be restored");
+
+        let _ = wallet_storage
+            .storage
+            .user_data
+            .public_key_tree
+            .get_node(to_account_id3)
+            .expect("Acc 3 should be restored");
+
+        let _ = wallet_storage
+            .storage
+            .user_data
+            .public_key_tree
+            .get_node(to_account_id4)
+            .expect("Acc 4 should be restored");
+
+        assert_eq!(
+            acc1.value.1.program_owner,
+            Program::authenticated_transfer_program().id()
+        );
+        assert_eq!(
+            acc2.value.1.program_owner,
+            Program::authenticated_transfer_program().id()
+        );
+
+        assert_eq!(acc1.value.1.balance, 100);
+        assert_eq!(acc2.value.1.balance, 101);
+
+        info!("########## TREE CHECKS END ##########");
+
+        let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
+            from: make_private_account_input_from_str(&to_account_id1.to_string()),
+            to: Some(make_private_account_input_from_str(
+                &to_account_id2.to_string(),
+            )),
+            to_npk: None,
+            to_ipk: None,
+            amount: 10,
+        });
+
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
+            from: make_public_account_input_from_str(&to_account_id3.to_string()),
+            to: Some(make_public_account_input_from_str(
+                &to_account_id4.to_string(),
+            )),
+            to_npk: None,
+            to_ipk: None,
+            amount: 11,
+        });
+
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        let wallet_config = fetch_config().await.unwrap();
+        let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+        let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config.clone())
+            .await
+            .unwrap();
+
+        let comm1 = wallet_storage
+            .get_private_account_commitment(&to_account_id1)
+            .expect("Acc 1 commitment should exist");
+        let comm2 = wallet_storage
+            .get_private_account_commitment(&to_account_id2)
+            .expect("Acc 2 commitment should exist");
+
+        assert!(verify_commitment_is_in_state(comm1, &seq_client).await);
+        assert!(verify_commitment_is_in_state(comm2, &seq_client).await);
+
+        let acc3 = seq_client
+            .get_account_balance(to_account_id3.to_string())
+            .await
+            .expect("Acc 3 must be present in public state");
+        let acc4 = seq_client
+            .get_account_balance(to_account_id4.to_string())
+            .await
+            .expect("Acc 4 must be present in public state");
+
+        assert_eq!(acc3.balance, 91);
+        assert_eq!(acc4.balance, 114);
 
         info!("Success!");
     }

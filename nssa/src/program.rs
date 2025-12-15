@@ -14,7 +14,7 @@ use crate::{
 /// TODO: Make this variable when fees are implemented
 const MAX_NUM_CYCLES_PUBLIC_EXECUTION: u64 = 1024 * 1024 * 32; // 32M cycles
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
     id: ProgramId,
     elf: Vec<u8>,
@@ -226,6 +226,13 @@ mod tests {
                 id: CLAIMER_ID,
                 elf: CLAIMER_ELF.to_vec(),
             }
+        }
+
+        pub fn modified_transfer_program() -> Self {
+            use test_program_methods::MODIFIED_TRANSFER_ELF;
+            // This unwrap won't panic since the `MODIFIED_TRANSFER_ELF` comes from risc0 build of
+            // `program_methods`
+            Self::new(MODIFIED_TRANSFER_ELF.to_vec()).unwrap()
         }
     }
 
