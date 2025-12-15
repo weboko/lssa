@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use risc0_zkvm::{DeserializeOwned, guest::env, serde::Deserializer};
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +10,7 @@ use crate::account::{Account, AccountWithMetadata};
 pub type ProgramId = [u32; 8];
 pub type InstructionData = Vec<u32>;
 pub const DEFAULT_PROGRAM_ID: ProgramId = [0; 8];
+pub const MAX_NUMBER_CHAINED_CALLS: usize = 10;
 
 pub struct ProgramInput<T> {
     pub pre_states: Vec<AccountWithMetadata>,
@@ -54,7 +57,9 @@ impl From<(&ProgramId, &PdaSeed)> for AccountId {
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, Eq))]
 pub struct ChainedCall {
+    /// The program ID of the program to execute
     pub program_id: ProgramId,
+    /// The instruction data to pass
     pub instruction_data: InstructionData,
     pub pre_states: Vec<AccountWithMetadata>,
     pub pda_seeds: Vec<PdaSeed>,
@@ -111,26 +116,34 @@ impl AccountPostState {
 #[derive(Serialize, Deserialize, Clone)]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialEq, Eq))]
 pub struct ProgramOutput {
+    /// The instruction data the program received to produce this output
+    pub instruction_data: InstructionData,
+    /// The account pre states the program received to produce this output
     pub pre_states: Vec<AccountWithMetadata>,
     pub post_states: Vec<AccountPostState>,
     pub chained_calls: Vec<ChainedCall>,
 }
 
-pub fn read_nssa_inputs<T: DeserializeOwned>() -> ProgramInput<T> {
+pub fn read_nssa_inputs<T: DeserializeOwned>() -> (ProgramInput<T>, InstructionData) {
     let pre_states: Vec<AccountWithMetadata> = env::read();
     let instruction_words: InstructionData = env::read();
     let instruction = T::deserialize(&mut Deserializer::new(instruction_words.as_ref())).unwrap();
-    ProgramInput {
-        pre_states,
-        instruction,
-    }
+    (
+        ProgramInput {
+            pre_states,
+            instruction,
+        },
+        instruction_words,
+    )
 }
 
 pub fn write_nssa_outputs(
+    instruction_data: InstructionData,
     pre_states: Vec<AccountWithMetadata>,
     post_states: Vec<AccountPostState>,
 ) {
     let output = ProgramOutput {
+        instruction_data,
         pre_states,
         post_states,
         chained_calls: Vec::new(),
@@ -139,11 +152,13 @@ pub fn write_nssa_outputs(
 }
 
 pub fn write_nssa_outputs_with_chained_call(
+    instruction_data: InstructionData,
     pre_states: Vec<AccountWithMetadata>,
     post_states: Vec<AccountPostState>,
     chained_calls: Vec<ChainedCall>,
 ) {
     let output = ProgramOutput {
+        instruction_data,
         pre_states,
         post_states,
         chained_calls,
@@ -162,32 +177,37 @@ pub fn validate_execution(
     post_states: &[AccountPostState],
     executing_program_id: ProgramId,
 ) -> bool {
-    // 1. Lengths must match
+    // 1. Check account ids are all different
+    if !validate_uniqueness_of_account_ids(pre_states) {
+        return false;
+    }
+
+    // 2. Lengths must match
     if pre_states.len() != post_states.len() {
         return false;
     }
 
     for (pre, post) in pre_states.iter().zip(post_states) {
-        // 2. Nonce must remain unchanged
+        // 3. Nonce must remain unchanged
         if pre.account.nonce != post.account.nonce {
             return false;
         }
 
-        // 3. Program ownership changes are not allowed
+        // 4. Program ownership changes are not allowed
         if pre.account.program_owner != post.account.program_owner {
             return false;
         }
 
         let account_program_owner = pre.account.program_owner;
 
-        // 4. Decreasing balance only allowed if owned by executing program
+        // 5. Decreasing balance only allowed if owned by executing program
         if post.account.balance < pre.account.balance
             && account_program_owner != executing_program_id
         {
             return false;
         }
 
-        // 5. Data changes only allowed if owned by executing program or if account pre state has
+        // 6. Data changes only allowed if owned by executing program or if account pre state has
         //    default values
         if pre.account.data != post.account.data
             && pre.account != Account::default()
@@ -196,21 +216,70 @@ pub fn validate_execution(
             return false;
         }
 
-        // 6. If a post state has default program owner, the pre state must have been a default
+        // 7. If a post state has default program owner, the pre state must have been a default
         //    account
         if post.account.program_owner == DEFAULT_PROGRAM_ID && pre.account != Account::default() {
             return false;
         }
     }
 
-    // 7. Total balance is preserved
-    let total_balance_pre_states: u128 = pre_states.iter().map(|pre| pre.account.balance).sum();
-    let total_balance_post_states: u128 = post_states.iter().map(|post| post.account.balance).sum();
+    // 8. Total balance is preserved
+
+    let Some(total_balance_pre_states) =
+        WrappedBalanceSum::from_balances(pre_states.iter().map(|pre| pre.account.balance))
+    else {
+        return false;
+    };
+
+    let Some(total_balance_post_states) =
+        WrappedBalanceSum::from_balances(post_states.iter().map(|post| post.account.balance))
+    else {
+        return false;
+    };
+
     if total_balance_pre_states != total_balance_post_states {
         return false;
     }
 
     true
+}
+
+fn validate_uniqueness_of_account_ids(pre_states: &[AccountWithMetadata]) -> bool {
+    let number_of_accounts = pre_states.len();
+    let number_of_account_ids = pre_states
+        .iter()
+        .map(|account| &account.account_id)
+        .collect::<HashSet<_>>()
+        .len();
+
+    number_of_accounts == number_of_account_ids
+}
+
+/// Representation of a number as `lo + hi * 2^128`.
+#[derive(PartialEq, Eq)]
+struct WrappedBalanceSum {
+    lo: u128,
+    hi: u128,
+}
+
+impl WrappedBalanceSum {
+    /// Constructs a [`WrappedBalanceSum`] from an iterator of balances.
+    ///
+    /// Returns [`None`] if balance sum overflows `lo + hi * 2^128` representation, which is not
+    /// expected in practical scenarios.
+    fn from_balances(balances: impl Iterator<Item = u128>) -> Option<Self> {
+        let mut wrapped = WrappedBalanceSum { lo: 0, hi: 0 };
+
+        for balance in balances {
+            let (new_sum, did_overflow) = wrapped.lo.overflowing_add(balance);
+            if did_overflow {
+                wrapped.hi = wrapped.hi.checked_add(1)?;
+            }
+            wrapped.lo = new_sum;
+        }
+
+        Some(wrapped)
+    }
 }
 
 #[cfg(test)]
@@ -222,7 +291,7 @@ mod tests {
         let account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
-            data: vec![0xde, 0xad, 0xbe, 0xef],
+            data: vec![0xde, 0xad, 0xbe, 0xef].try_into().unwrap(),
             nonce: 10,
         };
 
@@ -237,7 +306,7 @@ mod tests {
         let account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
-            data: vec![0xde, 0xad, 0xbe, 0xef],
+            data: vec![0xde, 0xad, 0xbe, 0xef].try_into().unwrap(),
             nonce: 10,
         };
 
@@ -252,7 +321,7 @@ mod tests {
         let mut account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
-            data: vec![0xde, 0xad, 0xbe, 0xef],
+            data: vec![0xde, 0xad, 0xbe, 0xef].try_into().unwrap(),
             nonce: 10,
         };
 
