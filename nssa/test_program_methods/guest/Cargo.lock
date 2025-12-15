@@ -1584,6 +1584,7 @@ dependencies = [
  "chacha20",
  "risc0-zkvm",
  "serde",
+ "thiserror",
 ]
 
 [[package]]

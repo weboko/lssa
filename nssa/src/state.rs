@@ -154,6 +154,12 @@ impl V02State {
             *current_account = post;
         }
 
+        // 5. Increment nonces for public signers
+        for account_id in tx.signer_account_ids() {
+            let current_account = self.get_account_by_id_mut(account_id);
+            current_account.nonce += 1;
+        }
+
         Ok(())
     }
 
@@ -234,7 +240,7 @@ impl V02State {
                 program_owner: Program::pinata().id(),
                 balance: 1500,
                 // Difficulty: 3
-                data: vec![3; 33],
+                data: vec![3; 33].try_into().expect("should fit"),
                 nonce: 0,
             },
         );
@@ -248,7 +254,7 @@ impl V02State {
             Account {
                 program_owner: Program::pinata_token().id(),
                 // Difficulty: 3
-                data: vec![3; 33],
+                data: vec![3; 33].try_into().expect("should fit"),
                 ..Account::default()
             },
         );
@@ -258,12 +264,11 @@ impl V02State {
 #[cfg(test)]
 pub mod tests {
 
-    use serde::Serialize;
     use std::collections::HashMap;
 
     use nssa_core::{
         Commitment, Nullifier, NullifierPublicKey, NullifierSecretKey, SharedSecretKey,
-        account::{Account, AccountId, AccountWithMetadata, Data, Nonce},
+        account::{Account, AccountId, AccountWithMetadata, Nonce, data::Data},
         encryption::{EphemeralPublicKey, IncomingViewingPublicKey, Scalar},
         program::{PdaSeed, ProgramId},
     };
@@ -273,10 +278,13 @@ pub mod tests {
         error::NssaError,
         execute_and_prove,
         privacy_preserving_transaction::{
-            PrivacyPreservingTransaction, circuit, message::Message, witness_set::WitnessSet,
+            PrivacyPreservingTransaction,
+            circuit::{self, ProgramWithDependencies},
+            message::Message,
+            witness_set::WitnessSet,
         },
         program::Program,
-        program_methods, public_transaction,
+        public_transaction,
         signature::PrivateKey,
         state::MAX_NUMBER_CHAINED_CALLS,
     };
@@ -507,7 +515,7 @@ pub mod tests {
                 ..Account::default()
             };
             let account_with_default_values_except_data = Account {
-                data: vec![0xca, 0xfe],
+                data: vec![0xca, 0xfe].try_into().unwrap(),
                 ..Account::default()
             };
             self.force_insert_account(
@@ -732,7 +740,8 @@ pub mod tests {
             program_id
         );
         let message =
-            public_transaction::Message::try_new(program_id, vec![account_id], vec![], ()).unwrap();
+            public_transaction::Message::try_new(program_id, vec![account_id], vec![], vec![0])
+                .unwrap();
         let witness_set = public_transaction::WitnessSet::for_message(&message, &[]);
         let tx = PublicTransaction::new(message, witness_set);
 
@@ -860,7 +869,7 @@ pub mod tests {
             &[0xdeadbeef],
             &[(recipient_keys.npk(), shared_secret)],
             &[],
-            &Program::authenticated_transfer_program(),
+            &Program::authenticated_transfer_program().into(),
         )
         .unwrap();
 
@@ -912,7 +921,7 @@ pub mod tests {
                 sender_keys.nsk,
                 state.get_proof_for_commitment(&sender_commitment).unwrap(),
             )],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -964,7 +973,7 @@ pub mod tests {
                 sender_keys.nsk,
                 state.get_proof_for_commitment(&sender_commitment).unwrap(),
             )],
-            &program,
+            &program.into(),
         )
         .unwrap();
 
@@ -1029,7 +1038,7 @@ pub mod tests {
             program_owner: Program::authenticated_transfer_program().id(),
             balance: 100,
             nonce: 0xdeadbeef,
-            data: vec![],
+            data: Data::default(),
         };
         let recipient_keys = test_private_account_keys_2();
 
@@ -1053,7 +1062,7 @@ pub mod tests {
                 program_owner: Program::authenticated_transfer_program().id(),
                 nonce: 0xcafecafe,
                 balance: sender_private_account.balance - balance_to_move,
-                data: vec![],
+                data: Data::default(),
             },
         );
 
@@ -1095,7 +1104,7 @@ pub mod tests {
             program_owner: Program::authenticated_transfer_program().id(),
             balance: 100,
             nonce: 0xdeadbeef,
-            data: vec![],
+            data: Data::default(),
         };
         let recipient_keys = test_public_account_keys_1();
         let recipient_initial_balance = 400;
@@ -1128,7 +1137,7 @@ pub mod tests {
                 program_owner: Program::authenticated_transfer_program().id(),
                 nonce: 0xcafecafe,
                 balance: sender_private_account.balance - balance_to_move,
-                data: vec![],
+                data: Data::default(),
             },
         );
 
@@ -1177,7 +1186,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1203,7 +1212,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1229,7 +1238,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1250,15 +1259,43 @@ pub mod tests {
 
         let result = execute_and_prove(
             &[public_account],
-            &Program::serialize_instruction(()).unwrap(),
+            &Program::serialize_instruction(vec![0]).unwrap(),
             &[0],
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn test_data_changer_program_should_fail_for_too_large_data_in_privacy_preserving_circuit() {
+        let program = Program::data_changer();
+        let public_account = AccountWithMetadata::new(
+            Account {
+                program_owner: program.id(),
+                balance: 0,
+                ..Account::default()
+            },
+            true,
+            AccountId::new([0; 32]),
+        );
+
+        let large_data: Vec<u8> = vec![0; nssa_core::account::data::DATA_MAX_LENGTH_IN_BYTES + 1];
+
+        let result = execute_and_prove(
+            &[public_account],
+            &Program::serialize_instruction(large_data).unwrap(),
+            &[0],
+            &[],
+            &[],
+            &[],
+            &program.to_owned().into(),
+        );
+
+        assert!(matches!(result, Err(NssaError::ProgramProveFailed(_))));
     }
 
     #[test]
@@ -1281,7 +1318,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1316,7 +1353,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1342,7 +1379,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1377,7 +1414,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1414,7 +1451,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1455,7 +1492,7 @@ pub mod tests {
                 ),
             ],
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1489,7 +1526,7 @@ pub mod tests {
             &[0xdeadbeef1, 0xdeadbeef2],
             &private_account_keys,
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1530,7 +1567,7 @@ pub mod tests {
                 ),
             ],
             &private_account_auth,
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1578,7 +1615,7 @@ pub mod tests {
             &[0xdeadbeef1, 0xdeadbeef2],
             &private_account_keys,
             &private_account_auth,
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1624,7 +1661,7 @@ pub mod tests {
                 ),
             ],
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1671,7 +1708,7 @@ pub mod tests {
                 ),
             ],
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1694,7 +1731,7 @@ pub mod tests {
         let private_account_2 = AccountWithMetadata::new(
             Account {
                 // Non default data
-                data: b"hola mundo".to_vec(),
+                data: b"hola mundo".to_vec().try_into().unwrap(),
                 ..Account::default()
             },
             false,
@@ -1717,7 +1754,7 @@ pub mod tests {
                 ),
             ],
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1763,7 +1800,7 @@ pub mod tests {
                 ),
             ],
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1807,7 +1844,7 @@ pub mod tests {
                 ),
             ],
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1836,7 +1873,7 @@ pub mod tests {
             &[],
             &[],
             &[],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1878,7 +1915,7 @@ pub mod tests {
                 ),
             ],
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1924,7 +1961,7 @@ pub mod tests {
             &[0xdeadbeef1, 0xdeadbeef2],
             &private_account_keys,
             &[(sender_keys.nsk, (0, vec![]))],
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1970,7 +2007,7 @@ pub mod tests {
                 ),
             ],
             &private_account_auth,
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -1983,7 +2020,7 @@ pub mod tests {
             program_owner: Program::authenticated_transfer_program().id(),
             balance: 100,
             nonce: 0xdeadbeef,
-            data: vec![],
+            data: Data::default(),
         };
         let recipient_keys = test_private_account_keys_2();
 
@@ -2009,7 +2046,7 @@ pub mod tests {
             program_owner: Program::authenticated_transfer_program().id(),
             balance: 100 - balance_to_move,
             nonce: 0xcafecafe,
-            data: vec![],
+            data: Data::default(),
         };
 
         let tx = private_balance_transfer_for_tests(
@@ -2061,7 +2098,7 @@ pub mod tests {
                 (sender_keys.npk(), shared_secret),
             ],
             &private_account_auth,
-            &program,
+            &program.into(),
         );
 
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
@@ -2104,7 +2141,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_chained_call_succeeds() {
+    fn test_public_chained_call() {
         let program = Program::chain_caller();
         let key = PrivateKey::try_new([1; 32]).unwrap();
         let from = AccountId::from(&PublicKey::new_from_private_key(&key));
@@ -2185,11 +2222,11 @@ pub mod tests {
         ));
     }
 
-    //TODO: repeated code needs to be cleaned up
-    //from token.rs (also repeated in amm.rs)
-    const TOKEN_DEFINITION_TYPE: u8 = 0;
+    // TODO: repeated code needs to be cleaned up
+    // from token.rs (also repeated in amm.rs)
     const TOKEN_DEFINITION_DATA_SIZE: usize = 23;
 
+    #[allow(unused)]
     const TOKEN_HOLDING_TYPE: u8 = 1;
     const TOKEN_HOLDING_DATA_SIZE: usize = 49;
 
@@ -2216,39 +2253,16 @@ pub mod tests {
     }
 
     impl TokenHolding {
-        fn new(definition_id: &AccountId) -> Self {
-            Self {
-                account_type: TOKEN_HOLDING_TYPE,
-                definition_id: definition_id.clone(),
-                balance: 0,
-            }
-        }
-
-        fn parse(data: &[u8]) -> Option<Self> {
-            if data.len() != TOKEN_HOLDING_DATA_SIZE || data[0] != TOKEN_HOLDING_TYPE {
-                None
-            } else {
-                let account_type = data[0];
-                let definition_id = AccountId::new(data[1..33].try_into().unwrap());
-                let balance = u128::from_le_bytes(data[33..].try_into().unwrap());
-                Some(Self {
-                    definition_id,
-                    balance,
-                    account_type,
-                })
-            }
-        }
-
         fn into_data(self) -> Data {
             let mut bytes = [0; TOKEN_HOLDING_DATA_SIZE];
             bytes[0] = self.account_type;
             bytes[1..33].copy_from_slice(&self.definition_id.to_bytes());
             bytes[33..].copy_from_slice(&self.balance.to_le_bytes());
-            bytes.into()
+            bytes.to_vec().try_into().expect("Data too big")
         }
     }
 
-    //TODO repeated code should ultimately be removed;
+    // TODO repeated code should ultimately be removed;
     fn compute_pool_pda(
         amm_program_id: ProgramId,
         definition_token_a_id: AccountId,
@@ -2371,52 +2385,6 @@ pub mod tests {
             bytes[208..224].copy_from_slice(&self.fees.to_le_bytes());
             bytes[224] = self.active as u8;
             bytes.into()
-        }
-
-        fn parse(data: &[u8]) -> Option<Self> {
-            if data.len() != POOL_DEFINITION_DATA_SIZE {
-                None
-            } else {
-                let definition_token_a_id = AccountId::new(data[0..32].try_into().expect("Parse data: The AMM program must be provided a valid AccountId for Token A definition"));
-                let definition_token_b_id = AccountId::new(data[32..64].try_into().expect("Parse data: The AMM program must be provided a valid AccountId for Vault B definition"));
-                let vault_a_addr = AccountId::new(data[64..96].try_into().expect(
-                    "Parse data: The AMM program must be provided a valid AccountId for Vault A",
-                ));
-                let vault_b_addr = AccountId::new(data[96..128].try_into().expect(
-                    "Parse data: The AMM program must be provided a valid AccountId for Vault B",
-                ));
-                let liquidity_pool_id = AccountId::new(data[128..160].try_into().expect("Parse data: The AMM program must be provided a valid AccountId for Token liquidity pool definition"));
-                let liquidity_pool_supply = u128::from_le_bytes(data[160..176].try_into().expect(
-                    "Parse data: The AMM program must be provided a valid u128 for liquidity cap",
-                ));
-                let reserve_a = u128::from_le_bytes(data[176..192].try_into().expect("Parse data: The AMM program must be provided a valid u128 for reserve A balance"));
-                let reserve_b = u128::from_le_bytes(data[192..208].try_into().expect("Parse data: The AMM program must be provided a valid u128 for reserve B balance"));
-                let fees =
-                    u128::from_le_bytes(data[208..224].try_into().expect(
-                        "Parse data: The AMM program must be provided a valid u128 for fees",
-                    ));
-
-                let active = match data[224] {
-                    0 => false,
-                    1 => true,
-                    _ => panic!(
-                        "Parse data: The AMM program must be provided a valid bool for active"
-                    ),
-                };
-
-                Some(Self {
-                    definition_token_a_id,
-                    definition_token_b_id,
-                    vault_a_addr,
-                    vault_b_addr,
-                    liquidity_pool_id,
-                    liquidity_pool_supply,
-                    reserve_a,
-                    reserve_b,
-                    fees,
-                    active,
-                })
-            }
         }
     }
 
@@ -2567,7 +2535,6 @@ pub mod tests {
             BalancesEnum::TokenLPSupplyRemove => 4_000,
             BalancesEnum::UserTokenAHoldingNewDef => 5_000,
             BalancesEnum::UserTokenBHoldingNewDef => 7_500,
-            _ => panic!("Invalid selection"),
         }
     }
 
@@ -2582,7 +2549,6 @@ pub mod tests {
             PrivateKeysEnum::UserTokenLPKey => {
                 PrivateKey::try_new([33; 32]).expect("Keys constructor expects valid private key")
             }
-            _ => panic!("Invalid selection"),
         }
     }
 
@@ -2618,7 +2584,6 @@ pub mod tests {
             IdEnum::UserTokenLPId => AccountId::from(&PublicKey::new_from_private_key(
                 &helper_private_keys_constructor(PrivateKeysEnum::UserTokenLPKey),
             )),
-            _ => panic!("Invalid selection"),
         }
     }
 
@@ -2660,7 +2625,9 @@ pub mod tests {
                     reserve_b: helper_balances_constructor(BalancesEnum::VaultBBalanceInit),
                     fees: 0u128,
                     active: true,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::TokenADefinitionAcc => Account {
@@ -2670,7 +2637,9 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: helper_balances_constructor(BalancesEnum::TokenASupply),
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::TokenBDefinitionAcc => Account {
@@ -2680,7 +2649,9 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: helper_balances_constructor(BalancesEnum::TokenBSupply),
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::TokenLPDefinitionAcc => Account {
@@ -2690,7 +2661,9 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: helper_balances_constructor(BalancesEnum::TokenLPSupply),
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::VaultAInit => Account {
@@ -2759,7 +2732,9 @@ pub mod tests {
                     reserve_b: helper_balances_constructor(BalancesEnum::VaultBBalanceSwap1),
                     fees: 0u128,
                     active: true,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::UserTokenAHoldingSwap1 => Account {
@@ -2818,7 +2793,9 @@ pub mod tests {
                     reserve_b: helper_balances_constructor(BalancesEnum::VaultBBalanceSwap2),
                     fees: 0u128,
                     active: true,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::UserTokenAHoldingSwap2 => Account {
@@ -2877,7 +2854,9 @@ pub mod tests {
                     reserve_b: helper_balances_constructor(BalancesEnum::VaultBBalanceAdd),
                     fees: 0u128,
                     active: true,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::UserTokenAHoldingAdd => Account {
@@ -2917,7 +2896,9 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: helper_balances_constructor(BalancesEnum::TokenLPSupplyAdd),
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::VaultARemove => Account {
@@ -2956,7 +2937,9 @@ pub mod tests {
                     reserve_b: helper_balances_constructor(BalancesEnum::VaultBBalanceRemove),
                     fees: 0u128,
                     active: true,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::UserTokenAHoldingRemove => Account {
@@ -2996,7 +2979,9 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: helper_balances_constructor(BalancesEnum::TokenLPSupplyRemove),
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::TokenLPDefinitionInitInactive => Account {
@@ -3006,7 +2991,9 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: 0,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::VaultAInitInactive => Account {
@@ -3043,7 +3030,9 @@ pub mod tests {
                     reserve_b: 0,
                     fees: 0u128,
                     active: false,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::UserTokenAHoldingNewInit => Account {
@@ -3083,7 +3072,9 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: helper_balances_constructor(BalancesEnum::VaultABalanceInit),
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::PoolDefinitionNewInit => Account {
@@ -3102,7 +3093,9 @@ pub mod tests {
                     reserve_b: helper_balances_constructor(BalancesEnum::VaultBBalanceInit),
                     fees: 0u128,
                     active: true,
-                }),
+                })
+                .try_into()
+                .expect("Data too big"),
                 nonce: 0,
             },
             AccountsEnum::UserTokenLPHoldingInitZero => Account {
@@ -3115,7 +3108,6 @@ pub mod tests {
                 }),
                 nonce: 0,
             },
-            _ => panic!("Invalid selection"),
         }
     }
 
@@ -3827,6 +3819,128 @@ pub mod tests {
     }
 
     #[test]
+    fn test_private_chained_call() {
+        // Arrange
+        let chain_caller = Program::chain_caller();
+        let auth_transfers = Program::authenticated_transfer_program();
+        let from_keys = test_private_account_keys_1();
+        let to_keys = test_private_account_keys_2();
+        let initial_balance = 100;
+        let from_account = AccountWithMetadata::new(
+            Account {
+                program_owner: auth_transfers.id(),
+                balance: initial_balance,
+                ..Account::default()
+            },
+            true,
+            &from_keys.npk(),
+        );
+        let to_account = AccountWithMetadata::new(
+            Account {
+                program_owner: auth_transfers.id(),
+                ..Account::default()
+            },
+            true,
+            &to_keys.npk(),
+        );
+
+        let from_commitment = Commitment::new(&from_keys.npk(), &from_account.account);
+        let to_commitment = Commitment::new(&to_keys.npk(), &to_account.account);
+        let mut state = V02State::new_with_genesis_accounts(
+            &[],
+            &[from_commitment.clone(), to_commitment.clone()],
+        )
+        .with_test_programs();
+        let amount: u128 = 37;
+        let instruction: (u128, ProgramId, u32, Option<PdaSeed>) = (
+            amount,
+            Program::authenticated_transfer_program().id(),
+            1,
+            None,
+        );
+
+        let from_esk = [3; 32];
+        let from_ss = SharedSecretKey::new(&from_esk, &from_keys.ivk());
+        let from_epk = EphemeralPublicKey::from_scalar(from_esk);
+
+        let to_esk = [3; 32];
+        let to_ss = SharedSecretKey::new(&to_esk, &to_keys.ivk());
+        let to_epk = EphemeralPublicKey::from_scalar(to_esk);
+
+        let mut dependencies = HashMap::new();
+
+        dependencies.insert(auth_transfers.id(), auth_transfers);
+        let program_with_deps = ProgramWithDependencies::new(chain_caller, dependencies);
+
+        let from_new_nonce = 0xdeadbeef1;
+        let to_new_nonce = 0xdeadbeef2;
+
+        let from_expected_post = Account {
+            balance: initial_balance - amount,
+            nonce: from_new_nonce,
+            ..from_account.account.clone()
+        };
+        let from_expected_commitment = Commitment::new(&from_keys.npk(), &from_expected_post);
+
+        let to_expected_post = Account {
+            balance: amount,
+            nonce: to_new_nonce,
+            ..to_account.account.clone()
+        };
+        let to_expected_commitment = Commitment::new(&to_keys.npk(), &to_expected_post);
+
+        // Act
+        let (output, proof) = execute_and_prove(
+            &[to_account, from_account],
+            &Program::serialize_instruction(instruction).unwrap(),
+            &[1, 1],
+            &[from_new_nonce, to_new_nonce],
+            &[(from_keys.npk(), to_ss), (to_keys.npk(), from_ss)],
+            &[
+                (
+                    from_keys.nsk,
+                    state.get_proof_for_commitment(&from_commitment).unwrap(),
+                ),
+                (
+                    to_keys.nsk,
+                    state.get_proof_for_commitment(&to_commitment).unwrap(),
+                ),
+            ],
+            &program_with_deps,
+        )
+        .unwrap();
+
+        let message = Message::try_from_circuit_output(
+            vec![],
+            vec![],
+            vec![
+                (to_keys.npk(), to_keys.ivk(), to_epk),
+                (from_keys.npk(), from_keys.ivk(), from_epk),
+            ],
+            output,
+        )
+        .unwrap();
+        let witness_set = WitnessSet::for_message(&message, proof, &[]);
+        let transaction = PrivacyPreservingTransaction::new(message, witness_set);
+
+        state
+            .transition_from_privacy_preserving_transaction(&transaction)
+            .unwrap();
+
+        // Assert
+        assert!(
+            state
+                .get_proof_for_commitment(&from_expected_commitment)
+                .is_some()
+        );
+        assert!(
+            state
+                .get_proof_for_commitment(&to_expected_commitment)
+                .is_some()
+        );
+    }
+
+    #[test]
     fn test_pda_mechanism_with_pinata_token_program() {
         let pinata_token = Program::pinata_token();
         let token = Program::token();
@@ -3843,7 +3957,7 @@ pub mod tests {
         expected_winner_account_data[33..].copy_from_slice(&150u128.to_le_bytes());
         let expected_winner_token_holding_post = Account {
             program_owner: token.id(),
-            data: expected_winner_account_data.to_vec(),
+            data: expected_winner_account_data.to_vec().try_into().unwrap(),
             ..Account::default()
         };
 
@@ -3930,5 +4044,71 @@ pub mod tests {
         let result = state.transition_from_public_transaction(&tx);
 
         assert!(matches!(result, Err(NssaError::InvalidProgramBehavior)))
+    }
+
+    /// This test ensures that even if a malicious program tries to perform overflow of balances
+    /// it will not be able to break the balance validation.
+    #[test]
+    fn test_malicious_program_cannot_break_balance_validation() {
+        let sender_key = PrivateKey::try_new([37; 32]).unwrap();
+        let sender_id = AccountId::from(&PublicKey::new_from_private_key(&sender_key));
+        let sender_init_balance: u128 = 10;
+
+        let recipient_key = PrivateKey::try_new([42; 32]).unwrap();
+        let recipient_id = AccountId::from(&PublicKey::new_from_private_key(&recipient_key));
+        let recipient_init_balance: u128 = 10;
+
+        let mut state = V02State::new_with_genesis_accounts(
+            &[
+                (sender_id, sender_init_balance),
+                (recipient_id, recipient_init_balance),
+            ],
+            &[],
+        );
+
+        state.insert_program(Program::modified_transfer_program());
+
+        let balance_to_move: u128 = 4;
+
+        let sender =
+            AccountWithMetadata::new(state.get_account_by_id(&sender_id.clone()), true, sender_id);
+
+        let sender_nonce = sender.account.nonce;
+
+        let _recipient =
+            AccountWithMetadata::new(state.get_account_by_id(&recipient_id), false, sender_id);
+
+        let message = public_transaction::Message::try_new(
+            Program::modified_transfer_program().id(),
+            vec![sender_id, recipient_id],
+            vec![sender_nonce],
+            balance_to_move,
+        )
+        .unwrap();
+
+        let witness_set = public_transaction::WitnessSet::for_message(&message, &[&sender_key]);
+        let tx = PublicTransaction::new(message, witness_set);
+        let res = state.transition_from_public_transaction(&tx);
+        assert!(matches!(res, Err(NssaError::InvalidProgramBehavior)));
+
+        let sender_post = state.get_account_by_id(&sender_id);
+        let recipient_post = state.get_account_by_id(&recipient_id);
+
+        let expected_sender_post = {
+            let mut this = state.get_account_by_id(&sender_id);
+            this.balance = sender_init_balance;
+            this.nonce = 0;
+            this
+        };
+
+        let expected_recipient_post = {
+            let mut this = state.get_account_by_id(&sender_id);
+            this.balance = recipient_init_balance;
+            this.nonce = 0;
+            this
+        };
+
+        assert!(expected_sender_post == sender_post);
+        assert!(expected_recipient_post == recipient_post);
     }
 }

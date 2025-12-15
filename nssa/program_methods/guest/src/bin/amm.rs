@@ -209,17 +209,17 @@ impl TokenHolding {
         bytes[0] = self.account_type;
         bytes[1..33].copy_from_slice(&self.definition_id.to_bytes());
         bytes[33..].copy_from_slice(&self.balance.to_le_bytes());
-        bytes.into()
+        bytes.to_vec().try_into().expect("Data too big")
     }
 }
 
 
 type Instruction = Vec<u8>;
 fn main() {
-    let ProgramInput {
+    let ( ProgramInput {
         pre_states,
         instruction,
-    } = read_nssa_inputs::<Instruction>();
+    }, instruction_data) = read_nssa_inputs::<Instruction>();
 
     let (post_states, chained_calls) = match instruction[0] {
         0 => {
@@ -266,7 +266,7 @@ fn main() {
         _ => panic!("Invalid instruction"),
     };
 
-    write_nssa_outputs_with_chained_call(pre_states, post_states, chained_calls);
+    write_nssa_outputs_with_chained_call(instruction_data, pre_states, post_states, chained_calls);
 }
 
 
@@ -434,7 +434,7 @@ fn new_definition (
             active: true, 
     };
 
-    pool_post.data = pool_post_definition.into_data();
+    pool_post.data = pool_post_definition.into_data().try_into().expect("Data too big");
     let pool_post: AccountPostState = 
         if pool.account == Account::default() { AccountPostState::new_claimed(pool_post.clone()) }
         else { AccountPostState::new(pool_post.clone()) };
@@ -590,7 +590,7 @@ fn swap(
             active: true, 
     };
 
-    pool_post.data = pool_post_definition.into_data();
+    pool_post.data = pool_post_definition.into_data().try_into().expect("Data too big");
     
     let post_states = vec![
         AccountPostState::new(pool_post.clone()),
@@ -769,7 +769,7 @@ fn add_liquidity(pre_states: &[AccountWithMetadata],
             active: true,  
     };
     
-    pool_post.data = pool_post_definition.into_data();
+    pool_post.data = pool_post_definition.into_data().try_into().expect("Data too big");
     let mut chained_call = Vec::new();
 
     // Chain call for Token A (UserHoldingA -> Vault_A)
@@ -925,7 +925,7 @@ fn remove_liquidity(pre_states: &[AccountWithMetadata],
             active,  
     };
 
-    pool_post.data = pool_post_definition.into_data();
+    pool_post.data = pool_post_definition.into_data().try_into().expect("Data too big");
 
     let mut chained_calls = Vec::new();
 

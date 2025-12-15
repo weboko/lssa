@@ -4,12 +4,14 @@ use std::{fmt::Display, str::FromStr};
 #[cfg(feature = "host")]
 use base58::{FromBase58, ToBase58};
 use borsh::{BorshDeserialize, BorshSerialize};
+pub use data::Data;
 use serde::{Deserialize, Serialize};
 
 use crate::program::ProgramId;
 
+pub mod data;
+
 pub type Nonce = u128;
-pub type Data = Vec<u8>;
 
 /// Account to be used both in public and private contexts
 #[derive(
@@ -23,8 +25,8 @@ pub struct Account {
     pub nonce: Nonce,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
-#[cfg_attr(any(feature = "host", test), derive(Debug, Eq))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(any(feature = "host", test), derive(Debug))]
 pub struct AccountWithMetadata {
     pub account: Account,
     pub is_authorized: bool,
@@ -41,11 +43,10 @@ impl AccountWithMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, Default)]
-#[cfg_attr(
-    any(feature = "host", test),
-    derive(Debug, Copy, PartialOrd, Ord)
+#[derive(
+    Serialize, Deserialize, Clone, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, Default,
 )]
+#[cfg_attr(any(feature = "host", test), derive(Debug, Copy, PartialOrd, Ord))]
 pub struct AccountId {
     value: [u8; 32],
 }
@@ -138,7 +139,10 @@ mod tests {
         let account = Account {
             program_owner: [1, 2, 3, 4, 5, 6, 7, 8],
             balance: 1337,
-            data: b"testing_account_with_metadata_constructor".to_vec(),
+            data: b"testing_account_with_metadata_constructor"
+                .to_vec()
+                .try_into()
+                .unwrap(),
             nonce: 0xdeadbeef,
         };
         let fingerprint = AccountId::new([8; 32]);
@@ -179,7 +183,7 @@ mod tests {
     #[test]
     fn default_account_id() {
         let default_account_id = AccountId::default();
-        let expected_account_id = AccountId::new([0;32]);
+        let expected_account_id = AccountId::new([0; 32]);
         assert!(default_account_id == expected_account_id);
     }
 }
