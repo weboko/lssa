@@ -33,7 +33,6 @@ sequencer_core = { path = "sequencer_core" }
 sequencer_rpc = { path = "sequencer_rpc" }
 sequencer_runner = { path = "sequencer_runner" }
 wallet = { path = "wallet" }
-program_methods = { path = "program_methods" }
 test_program_methods = { path = "test_program_methods" }
 
 tokio = { version = "1.28.2", features = [

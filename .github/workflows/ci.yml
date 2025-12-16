@@ -93,7 +93,7 @@ jobs:
       - name: Unit tests
         env:
           RISC0_DEV_MODE: "1"
-        run: cargo test --workspace --features no_docker
+        run: cargo test --workspace
 
       - name: Test valid proof
         env:
@@ -108,3 +108,27 @@ jobs:
           RISC0_DEV_MODE: "1"
         run: cargo run --bin integration-tests -- ./integration-tests/configs/debug/ all
 
+  artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    name: artifacts
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/install-risc0
+
+      - name: Install just
+        run: cargo install just
+
+      - name: Build artifacts
+        run: just build-artifacts
+
+      - name: Check if artifacts match repository
+        run: |
+          if ! git diff --exit-code artifacts/; then
+            echo "❌ Artifacts in the repository are out of date!"
+            echo "Please run 'just build-artifacts' and commit the changes."
+            exit 1
+          fi
+          echo "✅ Artifacts are up to date"

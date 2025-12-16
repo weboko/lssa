@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 nssa_core = { workspace = true, features = ["host"] }
-nssa = { workspace = true, features = ["no_docker"] }
+nssa.workspace = true
 sequencer_core = { workspace = true, features = ["testnet"] }
 sequencer_runner.workspace = true
 wallet.workspace = true
