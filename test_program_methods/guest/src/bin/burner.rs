@@ -20,5 +20,9 @@ fn main() {
     let mut account_post = account_pre.clone();
     account_post.balance -= balance_to_burn;
 
-    write_nssa_outputs(instruction_words, vec![pre], vec![AccountPostState::new(account_post)]);
+    write_nssa_outputs(
+        instruction_words,
+        vec![pre],
+        vec![AccountPostState::new(account_post)],
+    );
 }

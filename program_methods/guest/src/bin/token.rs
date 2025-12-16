@@ -6,36 +6,35 @@ use nssa_core::{
 };
 
 // The token program has three functions:
-// 1. New token definition.
-//    Arguments to this function are:
-//      * Two **default** accounts: [definition_account, holding_account].
-//        The first default account will be initialized with the token definition account values. The second account will
-//        be initialized to a token holding account for the new token, holding the entire total supply.
-//      * An instruction data of 23-bytes, indicating the total supply and the token name, with
-//        the following layout:
-//        [0x00 || total_supply (little-endian 16 bytes) || name (6 bytes)]
-//        The name cannot be equal to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-// 2. Token transfer
-//    Arguments to this function are:
+// 1. New token definition. Arguments to this function are:
+//      * Two **default** accounts: [definition_account, holding_account]. The first default account
+//        will be initialized with the token definition account values. The second account will be
+//        initialized to a token holding account for the new token, holding the entire total supply.
+//      * An instruction data of 23-bytes, indicating the total supply and the token name, with the
+//        following layout: [0x00 || total_supply (little-endian 16 bytes) || name (6 bytes)] The
+//        name cannot be equal to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+// 2. Token transfer Arguments to this function are:
 //      * Two accounts: [sender_account, recipient_account].
-//      * An instruction data byte string of length 23, indicating the total supply with the following layout
-//        [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
-// 3. Initialize account with zero balance
-//    Arguments to this function are:
+//      * An instruction data byte string of length 23, indicating the total supply with the
+//        following layout [0x01 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00
+//        || 0x00 || 0x00].
+// 3. Initialize account with zero balance Arguments to this function are:
 //      * Two accounts: [definition_account, account_to_initialize].
-//      * An dummy byte string of length 23, with the following layout
-//        [0x02 || 0x00 || 0x00 || 0x00 || ... || 0x00 || 0x00].
-// 4. Burn tokens from a Token Holding account (thus lowering total supply)
-//    Arguments to this function are:
+//      * An dummy byte string of length 23, with the following layout [0x02 || 0x00 || 0x00 || 0x00
+//        || ... || 0x00 || 0x00].
+// 4. Burn tokens from a Token Holding account (thus lowering total supply) Arguments to this
+//    function are:
 //      * Two accounts: [definition_account, holding_account].
 //      * Authorization required: holding_account
-//      * An instruction data byte string of length 23, indicating the balance to burn with the folloiwng layout
+//      * An instruction data byte string of length 23, indicating the balance to burn with the
+//        folloiwng layout
 //       [0x03 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
-// 5. Mint additional supply of tokens tokens to a Token Holding account (thus increasing total supply)
-//    Arguments to this function are:
+// 5. Mint additional supply of tokens tokens to a Token Holding account (thus increasing total
+//    supply) Arguments to this function are:
 //      * Two accounts: [definition_account, holding_account].
 //      * Authorization required: definition_account
-//      * An instruction data byte string of length 23, indicating the balance to mint with the folloiwng layout
+//      * An instruction data byte string of length 23, indicating the balance to mint with the
+//        folloiwng layout
 //       [0x04 || amount (little-endian 16 bytes) || 0x00 || 0x00 || 0x00 || 0x00 || 0x00 || 0x00].
 
 const TOKEN_DEFINITION_TYPE: u8 = 0;
@@ -89,10 +88,10 @@ impl TokenDefinition {
 }
 
 impl TokenHolding {
-    fn new(definition_id: &AccountId) -> Self {
+    fn new(definition_id: AccountId) -> Self {
         Self {
             account_type: TOKEN_HOLDING_TYPE,
-            definition_id: definition_id.clone(),
+            definition_id,
             balance: 0,
         }
     }
@@ -142,7 +141,7 @@ fn transfer(pre_states: &[AccountWithMetadata], balance_to_move: u128) -> Vec<Ac
     let mut sender_holding =
         TokenHolding::parse(&sender.account.data).expect("Invalid sender data");
     let mut recipient_holding = if recipient.account == Account::default() {
-        TokenHolding::new(&sender_holding.definition_id)
+        TokenHolding::new(sender_holding.definition_id)
     } else {
         TokenHolding::parse(&recipient.account.data).expect("Invalid recipient data")
     };
@@ -213,7 +212,7 @@ fn new_definition(
 
     let token_holding = TokenHolding {
         account_type: TOKEN_HOLDING_TYPE,
-        definition_id: definition_target_account.account_id.clone(),
+        definition_id: definition_target_account.account_id,
         balance: total_supply,
     };
 
@@ -247,7 +246,7 @@ fn initialize_account(pre_states: &[AccountWithMetadata]) -> Vec<AccountPostStat
     // Check definition account is valid
     let _definition_values =
         TokenDefinition::parse(&definition.account.data).expect("Definition account must be valid");
-    let holding_values = TokenHolding::new(&definition.account_id);
+    let holding_values = TokenHolding::new(definition.account_id);
 
     let definition_post = definition.account.clone();
     let mut account_to_initialize = account_to_initialize.account.clone();
@@ -330,7 +329,7 @@ fn mint_additional_supply(
         TokenDefinition::parse(&definition.account.data).expect("Definition account must be valid");
 
     let token_holding_values: TokenHolding = if token_holding.account == Account::default() {
-        TokenHolding::new(&definition.account_id)
+        TokenHolding::new(definition.account_id)
     } else {
         TokenHolding::parse(&token_holding.account.data).expect("Holding account must be valid")
     };
@@ -1078,7 +1077,6 @@ mod tests {
                 is_authorized: true,
                 account_id: helper_id_constructor(IdEnum::PoolDefinitionId),
             },
-            _ => panic!("Invalid selection"),
         }
     }
 
@@ -1093,8 +1091,7 @@ mod tests {
             BalanceEnum::MintSuccess => 50_000,
             BalanceEnum::InitSupplyMint => 150_000,
             BalanceEnum::HoldingBalanceMint => 51_000,
-            BalanceEnum::MintOverflow => (2 as u128).pow(128) - 40_000,
-            _ => panic!("Invalid selection"),
+            BalanceEnum::MintOverflow => 2u128.pow(128) - 40_000,
         }
     }
 
@@ -1290,7 +1287,7 @@ mod tests {
         assert!(
             *holding_post.account() == helper_account_constructor(AccountsEnum::InitMint).account
         );
-        assert!(holding_post.requires_claim() == true);
+        assert!(holding_post.requires_claim());
     }
 
     #[test]

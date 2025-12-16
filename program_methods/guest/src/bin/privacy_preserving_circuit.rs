@@ -107,7 +107,7 @@ fn main() {
             } else {
                 pre_states.push(pre.clone());
             }
-            state_diff.insert(pre.account_id.clone(), post.account().clone());
+            state_diff.insert(pre.account_id, post.account().clone());
         }
 
         // TODO: Modify when multi-chain calls are supported in the circuit

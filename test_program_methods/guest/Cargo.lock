@@ -1576,7 +1576,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5b0c77c1b780822bc749a33e39aeb2c07584ab93332303babeabb645298a76e"
 
 [[package]]
-name = "nssa-core"
+name = "nssa_core"
 version = "0.1.0"
 dependencies = [
  "borsh",
@@ -1825,7 +1825,7 @@ dependencies = [
 name = "programs"
 version = "0.1.0"
 dependencies = [
- "nssa-core",
+ "nssa_core",
  "risc0-zkvm",
  "serde",
 ]
