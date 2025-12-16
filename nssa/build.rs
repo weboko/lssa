@@ -15,12 +15,13 @@ fn build_deterministic() -> Result<(), Box<dyn std::error::Error>> {
     let mod_dir = out_dir.join("program_methods");
     let mod_file = mod_dir.join("mod.rs");
 
-    println!("cargo:rerun-if-changed=program_methods/guest/src");
-    println!("cargo:rerun-if-changed=program_methods/guest/Cargo.toml");
+    println!("cargo:rerun-if-changed=../program_methods/guest/src");
+    println!("cargo:rerun-if-changed=../program_methods/guest/Cargo.toml");
 
-    let guest_manifest = manifest_dir.join("program_methods/guest/Cargo.toml");
-
+    let build_cur_dir = manifest_dir.join("..").canonicalize()?;
+    let guest_manifest = build_cur_dir.join("program_methods/guest/Cargo.toml");
     let status = Command::new("cargo")
+        .current_dir(build_cur_dir)
         .args(["risczero", "build", "--manifest-path"])
         .arg(&guest_manifest)
         .status()?;
@@ -29,7 +30,7 @@ fn build_deterministic() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let target_dir =
-        manifest_dir.join("program_methods/guest/target/riscv32im-risc0-zkvm-elf/docker/");
+        manifest_dir.join("../program_methods/guest/target/riscv32im-risc0-zkvm-elf/docker/");
 
     let bins = fs::read_dir(&target_dir)?
         .filter_map(Result::ok)
