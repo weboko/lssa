@@ -52,6 +52,7 @@ itertools = "0.14.0"
 
 rocksdb = { version = "0.24.0", default-features = false, features = [
   "snappy",
+  "bindgen-runtime",
 ] }
 
 [workspace.dependencies.rand]
