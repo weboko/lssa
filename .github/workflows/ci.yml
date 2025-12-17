@@ -75,11 +75,9 @@ jobs:
           RISC0_SKIP_BUILD: "1"
         run: cargo clippy -p "*programs" -- -D warnings
 
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-
-    name: test
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -93,23 +91,49 @@ jobs:
       - name: Install nextest
         run: cargo install cargo-nextest
 
-      - name: Unit tests
+      - name: Run unit tests
         env:
           RISC0_DEV_MODE: "1"
         run: cargo nextest run --no-fail-fast
 
+  valid-proof-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/install-system-deps
+
+      - uses: ./.github/actions/install-risc0
+
+      - name: Install active toolchain
+        run: rustup install
+
       - name: Test valid proof
         env:
-          NSSA_WALLET_HOME_DIR: ./integration-tests/configs/debug/wallet
+          NSSA_WALLET_HOME_DIR: ./integration_tests/configs/debug/wallet
           RUST_LOG: "info"
-        run: cargo run --bin integration-tests -- ./integration-tests/configs/debug/ test_success_private_transfer_to_another_owned_account
+        run: cargo run --bin integration_tests -- ./integration_tests/configs/debug/ test_success_private_transfer_to_another_owned_account
 
-      - name: Integration tests
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/install-system-deps
+
+      - uses: ./.github/actions/install-risc0
+
+      - name: Install active toolchain
+        run: rustup install
+
+      - name: Run integration tests
         env:
-          NSSA_WALLET_HOME_DIR: ./integration-tests/configs/debug/wallet
+          NSSA_WALLET_HOME_DIR: ./integration_tests/configs/debug/wallet
           RUST_LOG: "info"
           RISC0_DEV_MODE: "1"
-        run: cargo run --bin integration-tests -- ./integration-tests/configs/debug/ all
+        run: cargo run --bin integration_tests -- ./integration_tests/configs/debug/ all
 
   artifacts:
     runs-on: ubuntu-latest
