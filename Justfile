@@ -13,7 +13,7 @@ build-artifacts:
     @echo "🔨 Building artifacts"
     @for methods_path in {{METHODS_PATH}} {{TEST_METHODS_PATH}}; do \
         echo "Building artifacts for $methods_path"; \
-        cargo risczero build --manifest-path $methods_path/guest/Cargo.toml; \
+        CARGO_TARGET_DIR=target/$methods_path cargo risczero build --manifest-path $methods_path/guest/Cargo.toml; \
         mkdir -p {{ARTIFACTS}}/$methods_path; \
-        cp target/riscv32im-risc0-zkvm-elf/docker/*.bin {{ARTIFACTS}}/$methods_path; \
+        cp target/$methods_path/riscv32im-risc0-zkvm-elf/docker/*.bin {{ARTIFACTS}}/$methods_path; \
     done
