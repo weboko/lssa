@@ -90,10 +90,13 @@ jobs:
       - name: Install active toolchain
         run: rustup install
 
+      - name: Install nextest
+        run: cargo install cargo-nextest
+
       - name: Unit tests
         env:
           RISC0_DEV_MODE: "1"
-        run: cargo test --workspace
+        run: cargo nextest run --no-fail-fast
 
       - name: Test valid proof
         env:
