@@ -15,18 +15,6 @@ pub enum AmmProgramAgnosticSubcommand {
     ///
     /// user_holding_a and user_holding_b must be owned.
     New {
-        /// amm_pool - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        amm_pool: String,
-        /// vault_holding_a - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_a: String,
-        /// vault_holding_b - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_b: String,
-        /// pool_lp - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        pool_lp: String,
         /// user_holding_a - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         user_holding_a: String,
@@ -45,15 +33,6 @@ pub enum AmmProgramAgnosticSubcommand {
     ///
     /// The account associated with swapping token must be owned
     Swap {
-        /// amm_pool - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        amm_pool: String,
-        /// vault_holding_1 - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_1: String,
-        /// vault_holding_2 - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_2: String,
         /// user_holding_a - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         user_holding_a: String,
@@ -141,28 +120,12 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
     ) -> Result<SubcommandReturnValue> {
         match self {
             AmmProgramAgnosticSubcommand::New {
-                amm_pool,
-                vault_holding_a,
-                vault_holding_b,
-                pool_lp,
                 user_holding_a,
                 user_holding_b,
                 user_holding_lp,
                 balance_a,
                 balance_b,
             } => {
-                let amm_pool = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&amm_pool)?,
-                )?;
-                let vault_holding_a = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_a)?,
-                )?;
-                let vault_holding_b = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_b)?,
-                )?;
-                let pool_lp = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&pool_lp)?,
-                )?;
                 let user_holding_a = PrivacyPreservingAccount::parse_with_privacy(
                     parse_addr_with_privacy_prefix(&user_holding_a)?,
                 )?;
@@ -173,25 +136,13 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                     parse_addr_with_privacy_prefix(&user_holding_lp)?,
                 )?;
 
-                let is_public_tx = [
-                    &amm_pool,
-                    &vault_holding_a,
-                    &vault_holding_b,
-                    &pool_lp,
-                    &user_holding_a,
-                    &user_holding_b,
-                    &user_holding_lp,
-                ]
-                .into_iter()
-                .all(|acc| acc.is_public());
+                let is_public_tx = [&user_holding_a, &user_holding_b, &user_holding_lp]
+                    .into_iter()
+                    .all(|acc| acc.is_public());
 
                 if is_public_tx {
                     AMM(wallet_core)
                         .send_new_amm_definition(
-                            amm_pool,
-                            vault_holding_a,
-                            vault_holding_b,
-                            pool_lp,
                             user_holding_a,
                             user_holding_b,
                             user_holding_lp,
@@ -203,10 +154,6 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 } else {
                     AMM(wallet_core)
                         .send_new_amm_definition_privacy_preserving(
-                            amm_pool,
-                            vault_holding_a,
-                            vault_holding_b,
-                            pool_lp,
                             user_holding_a,
                             user_holding_b,
                             user_holding_lp,
@@ -219,24 +166,12 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 }
             }
             AmmProgramAgnosticSubcommand::Swap {
-                amm_pool,
-                vault_holding_1,
-                vault_holding_2,
                 user_holding_a,
                 user_holding_b,
                 amount_in,
                 min_amount_out,
                 token_definition,
             } => {
-                let amm_pool = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&amm_pool)?,
-                )?;
-                let vault_holding_1 = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_1)?,
-                )?;
-                let vault_holding_2 = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_2)?,
-                )?;
                 let user_holding_a = PrivacyPreservingAccount::parse_with_privacy(
                     parse_addr_with_privacy_prefix(&user_holding_a)?,
                 )?;
@@ -244,22 +179,13 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                     parse_addr_with_privacy_prefix(&user_holding_b)?,
                 )?;
 
-                let is_public_tx = [
-                    &amm_pool,
-                    &vault_holding_1,
-                    &vault_holding_2,
-                    &user_holding_a,
-                    &user_holding_b,
-                ]
-                .into_iter()
-                .all(|acc| acc.is_public());
+                let is_public_tx = [&user_holding_a, &user_holding_b]
+                    .into_iter()
+                    .all(|acc| acc.is_public());
 
                 if is_public_tx {
                     AMM(wallet_core)
                         .send_swap(
-                            amm_pool,
-                            vault_holding_1,
-                            vault_holding_2,
                             user_holding_a,
                             user_holding_b,
                             amount_in,
@@ -271,9 +197,6 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 } else {
                     AMM(wallet_core)
                         .send_swap_privacy_preserving(
-                            amm_pool,
-                            vault_holding_1,
-                            vault_holding_2,
                             user_holding_a,
                             user_holding_b,
                             amount_in,

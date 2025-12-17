@@ -23,6 +23,7 @@ impl Message {
         instruction: T,
     ) -> Result<Self, NssaError> {
         let instruction_data = Program::serialize_instruction(instruction)?;
+
         Ok(Self {
             program_id,
             account_ids,
