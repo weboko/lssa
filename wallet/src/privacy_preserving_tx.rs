@@ -8,7 +8,7 @@ use nssa_core::{
     encryption::{EphemeralPublicKey, IncomingViewingPublicKey},
 };
 
-use crate::{WalletCore, helperfunctions::AccountPrivacyKind};
+use crate::WalletCore;
 
 #[derive(Clone)]
 pub enum PrivacyPreservingAccount {
@@ -21,15 +21,6 @@ pub enum PrivacyPreservingAccount {
 }
 
 impl PrivacyPreservingAccount {
-    pub fn parse_with_privacy(input: (String, AccountPrivacyKind)) -> Result<Self> {
-        let acc_id: AccountId = input.0.parse()?;
-
-        match input.1 {
-            AccountPrivacyKind::Public => Ok(Self::Public(acc_id)),
-            AccountPrivacyKind::Private => Ok(Self::PrivateOwned(acc_id)),
-        }
-    }
-
     pub fn is_public(&self) -> bool {
         matches!(&self, Self::Public(_))
     }

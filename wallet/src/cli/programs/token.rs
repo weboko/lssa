@@ -4,6 +4,7 @@ use common::transaction::NSSATransaction;
 use nssa::AccountId;
 
 use crate::{
+    AccDecodeData::Decode,
     WalletCore,
     cli::{SubcommandReturnValue, WalletSubcommand},
     helperfunctions::{AccountPrivacyKind, parse_addr_with_privacy_prefix},
@@ -421,8 +422,8 @@ impl WalletSubcommand for TokenProgramSubcommandPrivate {
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
                     let acc_decode_data = vec![
-                        (secret_sender, sender_account_id),
-                        (secret_recipient, recipient_account_id),
+                        Decode(secret_sender, sender_account_id),
+                        Decode(secret_recipient, recipient_account_id),
                     ];
 
                     wallet_core.decode_insert_privacy_preserving_transaction_results(
@@ -473,7 +474,7 @@ impl WalletSubcommand for TokenProgramSubcommandPrivate {
                     .await?;
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
-                    let acc_decode_data = vec![(secret_sender, sender_account_id)];
+                    let acc_decode_data = vec![Decode(secret_sender, sender_account_id)];
 
                     wallet_core.decode_insert_privacy_preserving_transaction_results(
                         tx,
@@ -521,7 +522,7 @@ impl WalletSubcommand for TokenProgramSubcommandDeshielded {
                     .await?;
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
-                    let acc_decode_data = vec![(secret_sender, sender_account_id)];
+                    let acc_decode_data = vec![Decode(secret_sender, sender_account_id)];
 
                     wallet_core.decode_insert_privacy_preserving_transaction_results(
                         tx,
@@ -614,7 +615,7 @@ impl WalletSubcommand for TokenProgramSubcommandShielded {
                     .await?;
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
-                    let acc_decode_data = vec![(secret_recipient, recipient_account_id)];
+                    let acc_decode_data = vec![Decode(secret_recipient, recipient_account_id)];
 
                     wallet_core.decode_insert_privacy_preserving_transaction_results(
                         tx,
@@ -673,8 +674,8 @@ impl WalletSubcommand for CreateNewTokenProgramSubcommand {
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
                     let acc_decode_data = vec![
-                        (secret_definition, definition_account_id),
-                        (secret_supply, supply_account_id),
+                        Decode(secret_definition, definition_account_id),
+                        Decode(secret_supply, supply_account_id),
                     ];
 
                     wallet_core.decode_insert_privacy_preserving_transaction_results(
@@ -723,7 +724,7 @@ impl WalletSubcommand for CreateNewTokenProgramSubcommand {
                     .await?;
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
-                    let acc_decode_data = vec![(secret_definition, definition_account_id)];
+                    let acc_decode_data = vec![Decode(secret_definition, definition_account_id)];
 
                     wallet_core.decode_insert_privacy_preserving_transaction_results(
                         tx,
@@ -771,7 +772,7 @@ impl WalletSubcommand for CreateNewTokenProgramSubcommand {
                     .await?;
 
                 if let NSSATransaction::PrivacyPreserving(tx) = transfer_tx {
-                    let acc_decode_data = vec![(secret_supply, supply_account_id)];
+                    let acc_decode_data = vec![Decode(secret_supply, supply_account_id)];
 
                     wallet_core.decode_insert_privacy_preserving_transaction_results(
                         tx,

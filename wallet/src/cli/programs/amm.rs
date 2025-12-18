@@ -1,10 +1,11 @@
 use anyhow::Result;
 use clap::Subcommand;
+use nssa::AccountId;
 
 use crate::{
-    PrivacyPreservingAccount, WalletCore,
+    WalletCore,
     cli::{SubcommandReturnValue, WalletSubcommand},
-    helperfunctions::parse_addr_with_privacy_prefix,
+    helperfunctions::{AccountPrivacyKind, parse_addr_with_privacy_prefix},
     program_facades::amm::AMM,
 };
 
@@ -14,6 +15,8 @@ pub enum AmmProgramAgnosticSubcommand {
     /// Produce a new token
     ///
     /// user_holding_a and user_holding_b must be owned.
+    ///
+    /// Only public execution allowed
     New {
         /// user_holding_a - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
@@ -32,6 +35,8 @@ pub enum AmmProgramAgnosticSubcommand {
     /// Swap with variable privacy
     ///
     /// The account associated with swapping token must be owned
+    ///
+    /// Only public execution allowed
     Swap {
         /// user_holding_a - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
@@ -50,19 +55,9 @@ pub enum AmmProgramAgnosticSubcommand {
     /// Add liquidity with variable privacy
     ///
     /// user_holding_a and user_holding_b must be owned.
+    ///
+    /// Only public execution allowed
     AddLiquidity {
-        /// amm_pool - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        amm_pool: String,
-        /// vault_holding_a - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_a: String,
-        /// vault_holding_b - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_b: String,
-        /// pool_lp - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        pool_lp: String,
         /// user_holding_a - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         user_holding_a: String,
@@ -82,19 +77,9 @@ pub enum AmmProgramAgnosticSubcommand {
     /// Remove liquidity with variable privacy
     ///
     /// user_holding_lp must be owned.
+    ///
+    /// Only public execution allowed
     RemoveLiquidity {
-        /// amm_pool - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        amm_pool: String,
-        /// vault_holding_a - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_a: String,
-        /// vault_holding_b - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        vault_holding_b: String,
-        /// pool_lp - valid 32 byte base58 string with privacy prefix
-        #[arg(long)]
-        pool_lp: String,
         /// user_holding_a - valid 32 byte base58 string with privacy prefix
         #[arg(long)]
         user_holding_a: String,
@@ -126,43 +111,43 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 balance_a,
                 balance_b,
             } => {
-                let user_holding_a = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_a)?,
-                )?;
-                let user_holding_b = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_b)?,
-                )?;
-                let user_holding_lp = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_lp)?,
-                )?;
+                let (user_holding_a, user_holding_a_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_a)?;
+                let (user_holding_b, user_holding_b_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_b)?;
+                let (user_holding_lp, user_holding_lp_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_lp)?;
 
-                let is_public_tx = [&user_holding_a, &user_holding_b, &user_holding_lp]
-                    .into_iter()
-                    .all(|acc| acc.is_public());
+                let user_holding_a: AccountId = user_holding_a.parse()?;
+                let user_holding_b: AccountId = user_holding_b.parse()?;
+                let user_holding_lp: AccountId = user_holding_lp.parse()?;
 
-                if is_public_tx {
-                    AMM(wallet_core)
-                        .send_new_amm_definition(
-                            user_holding_a,
-                            user_holding_b,
-                            user_holding_lp,
-                            balance_a,
-                            balance_b,
-                        )
-                        .await?;
-                    Ok(SubcommandReturnValue::Empty)
-                } else {
-                    AMM(wallet_core)
-                        .send_new_amm_definition_privacy_preserving(
-                            user_holding_a,
-                            user_holding_b,
-                            user_holding_lp,
-                            balance_a,
-                            balance_b,
-                        )
-                        .await?;
-                    // ToDo: change into correct return value
-                    Ok(SubcommandReturnValue::Empty)
+                match (
+                    user_holding_a_privacy,
+                    user_holding_b_privacy,
+                    user_holding_lp_privacy,
+                ) {
+                    (
+                        AccountPrivacyKind::Public,
+                        AccountPrivacyKind::Public,
+                        AccountPrivacyKind::Public,
+                    ) => {
+                        AMM(wallet_core)
+                            .send_new_amm_definition(
+                                user_holding_a,
+                                user_holding_b,
+                                user_holding_lp,
+                                balance_a,
+                                balance_b,
+                            )
+                            .await?;
+
+                        Ok(SubcommandReturnValue::Empty)
+                    }
+                    _ => {
+                        // ToDo: Implement after private multi-chain calls is available
+                        anyhow::bail!("Only public execution allowed for AMM calls");
+                    }
                 }
             }
             AmmProgramAgnosticSubcommand::Swap {
@@ -172,47 +157,35 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 min_amount_out,
                 token_definition,
             } => {
-                let user_holding_a = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_a)?,
-                )?;
-                let user_holding_b = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_b)?,
-                )?;
+                let (user_holding_a, user_holding_a_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_a)?;
+                let (user_holding_b, user_holding_b_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_b)?;
 
-                let is_public_tx = [&user_holding_a, &user_holding_b]
-                    .into_iter()
-                    .all(|acc| acc.is_public());
+                let user_holding_a: AccountId = user_holding_a.parse()?;
+                let user_holding_b: AccountId = user_holding_b.parse()?;
 
-                if is_public_tx {
-                    AMM(wallet_core)
-                        .send_swap(
-                            user_holding_a,
-                            user_holding_b,
-                            amount_in,
-                            min_amount_out,
-                            token_definition.parse()?,
-                        )
-                        .await?;
-                    Ok(SubcommandReturnValue::Empty)
-                } else {
-                    AMM(wallet_core)
-                        .send_swap_privacy_preserving(
-                            user_holding_a,
-                            user_holding_b,
-                            amount_in,
-                            min_amount_out,
-                            token_definition.parse()?,
-                        )
-                        .await?;
-                    // ToDo: change into correct return value
-                    Ok(SubcommandReturnValue::Empty)
+                match (user_holding_a_privacy, user_holding_b_privacy) {
+                    (AccountPrivacyKind::Public, AccountPrivacyKind::Public) => {
+                        AMM(wallet_core)
+                            .send_swap(
+                                user_holding_a,
+                                user_holding_b,
+                                amount_in,
+                                min_amount_out,
+                                token_definition.parse()?,
+                            )
+                            .await?;
+
+                        Ok(SubcommandReturnValue::Empty)
+                    }
+                    _ => {
+                        // ToDo: Implement after private multi-chain calls is available
+                        anyhow::bail!("Only public execution allowed for AMM calls");
+                    }
                 }
             }
             AmmProgramAgnosticSubcommand::AddLiquidity {
-                amm_pool,
-                vault_holding_a,
-                vault_holding_b,
-                pool_lp,
                 user_holding_a,
                 user_holding_b,
                 user_holding_lp,
@@ -220,80 +193,47 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 max_amount_a,
                 max_amount_b,
             } => {
-                let amm_pool = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&amm_pool)?,
-                )?;
-                let vault_holding_a = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_a)?,
-                )?;
-                let vault_holding_b = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_b)?,
-                )?;
-                let pool_lp = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&pool_lp)?,
-                )?;
-                let user_holding_a = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_a)?,
-                )?;
-                let user_holding_b = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_b)?,
-                )?;
-                let user_holding_lp = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_lp)?,
-                )?;
+                let (user_holding_a, user_holding_a_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_a)?;
+                let (user_holding_b, user_holding_b_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_b)?;
+                let (user_holding_lp, user_holding_lp_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_lp)?;
 
-                let is_public_tx = [
-                    &amm_pool,
-                    &vault_holding_a,
-                    &vault_holding_b,
-                    &pool_lp,
-                    &user_holding_a,
-                    &user_holding_b,
-                    &user_holding_lp,
-                ]
-                .into_iter()
-                .all(|acc| acc.is_public());
+                let user_holding_a: AccountId = user_holding_a.parse()?;
+                let user_holding_b: AccountId = user_holding_b.parse()?;
+                let user_holding_lp: AccountId = user_holding_lp.parse()?;
 
-                if is_public_tx {
-                    AMM(wallet_core)
-                        .send_add_liq(
-                            amm_pool,
-                            vault_holding_a,
-                            vault_holding_b,
-                            pool_lp,
-                            user_holding_a,
-                            user_holding_b,
-                            user_holding_lp,
-                            min_amount_lp,
-                            max_amount_a,
-                            max_amount_b,
-                        )
-                        .await?;
-                    Ok(SubcommandReturnValue::Empty)
-                } else {
-                    AMM(wallet_core)
-                        .send_add_liq_privacy_preserving(
-                            amm_pool,
-                            vault_holding_a,
-                            vault_holding_b,
-                            pool_lp,
-                            user_holding_a,
-                            user_holding_b,
-                            user_holding_lp,
-                            min_amount_lp,
-                            max_amount_a,
-                            max_amount_b,
-                        )
-                        .await?;
-                    // ToDo: change into correct return value
-                    Ok(SubcommandReturnValue::Empty)
+                match (
+                    user_holding_a_privacy,
+                    user_holding_b_privacy,
+                    user_holding_lp_privacy,
+                ) {
+                    (
+                        AccountPrivacyKind::Public,
+                        AccountPrivacyKind::Public,
+                        AccountPrivacyKind::Public,
+                    ) => {
+                        AMM(wallet_core)
+                            .send_add_liq(
+                                user_holding_a,
+                                user_holding_b,
+                                user_holding_lp,
+                                min_amount_lp,
+                                max_amount_a,
+                                max_amount_b,
+                            )
+                            .await?;
+
+                        Ok(SubcommandReturnValue::Empty)
+                    }
+                    _ => {
+                        // ToDo: Implement after private multi-chain calls is available
+                        anyhow::bail!("Only public execution allowed for AMM calls");
+                    }
                 }
             }
             AmmProgramAgnosticSubcommand::RemoveLiquidity {
-                amm_pool,
-                vault_holding_a,
-                vault_holding_b,
-                pool_lp,
                 user_holding_a,
                 user_holding_b,
                 user_holding_lp,
@@ -301,73 +241,44 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 max_amount_a,
                 max_amount_b,
             } => {
-                let amm_pool = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&amm_pool)?,
-                )?;
-                let vault_holding_a = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_a)?,
-                )?;
-                let vault_holding_b = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&vault_holding_b)?,
-                )?;
-                let pool_lp = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&pool_lp)?,
-                )?;
-                let user_holding_a = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_a)?,
-                )?;
-                let user_holding_b = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_b)?,
-                )?;
-                let user_holding_lp = PrivacyPreservingAccount::parse_with_privacy(
-                    parse_addr_with_privacy_prefix(&user_holding_lp)?,
-                )?;
+                let (user_holding_a, user_holding_a_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_a)?;
+                let (user_holding_b, user_holding_b_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_b)?;
+                let (user_holding_lp, user_holding_lp_privacy) =
+                    parse_addr_with_privacy_prefix(&user_holding_lp)?;
 
-                let is_public_tx = [
-                    &amm_pool,
-                    &vault_holding_a,
-                    &vault_holding_b,
-                    &pool_lp,
-                    &user_holding_a,
-                    &user_holding_b,
-                    &user_holding_lp,
-                ]
-                .into_iter()
-                .all(|acc| acc.is_public());
+                let user_holding_a: AccountId = user_holding_a.parse()?;
+                let user_holding_b: AccountId = user_holding_b.parse()?;
+                let user_holding_lp: AccountId = user_holding_lp.parse()?;
 
-                if is_public_tx {
-                    AMM(wallet_core)
-                        .send_remove_liq(
-                            amm_pool,
-                            vault_holding_a,
-                            vault_holding_b,
-                            pool_lp,
-                            user_holding_a,
-                            user_holding_b,
-                            user_holding_lp,
-                            balance_lp,
-                            max_amount_a,
-                            max_amount_b,
-                        )
-                        .await?;
-                    Ok(SubcommandReturnValue::Empty)
-                } else {
-                    AMM(wallet_core)
-                        .send_remove_liq_privacy_preserving(
-                            amm_pool,
-                            vault_holding_a,
-                            vault_holding_b,
-                            pool_lp,
-                            user_holding_a,
-                            user_holding_b,
-                            user_holding_lp,
-                            balance_lp,
-                            max_amount_a,
-                            max_amount_b,
-                        )
-                        .await?;
-                    // ToDo: change into correct return value
-                    Ok(SubcommandReturnValue::Empty)
+                match (
+                    user_holding_a_privacy,
+                    user_holding_b_privacy,
+                    user_holding_lp_privacy,
+                ) {
+                    (
+                        AccountPrivacyKind::Public,
+                        AccountPrivacyKind::Public,
+                        AccountPrivacyKind::Public,
+                    ) => {
+                        AMM(wallet_core)
+                            .send_remove_liq(
+                                user_holding_a,
+                                user_holding_b,
+                                user_holding_lp,
+                                balance_lp,
+                                max_amount_a,
+                                max_amount_b,
+                            )
+                            .await?;
+
+                        Ok(SubcommandReturnValue::Empty)
+                    }
+                    _ => {
+                        // ToDo: Implement after private multi-chain calls is available
+                        anyhow::bail!("Only public execution allowed for AMM calls");
+                    }
                 }
             }
         }

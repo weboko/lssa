@@ -2224,30 +2224,18 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .account;
 
         assert_eq!(
-            user_holding_a_acc.data.as_ref(),
-            &[
-                1, 216, 180, 23, 229, 146, 37, 77, 185, 234, 186, 245, 33, 228, 197, 251, 244, 10,
-                137, 115, 157, 2, 246, 137, 52, 234, 64, 155, 199, 101, 15, 43, 83, 4, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ]
+            u128::from_le_bytes(user_holding_a_acc.data[33..].try_into().unwrap()),
+            4
         );
 
         assert_eq!(
-            user_holding_b_acc.data.as_ref(),
-            &[
-                1, 244, 191, 88, 67, 111, 12, 245, 25, 212, 169, 62, 209, 159, 73, 107, 101, 173,
-                88, 13, 55, 71, 91, 113, 88, 208, 91, 136, 222, 139, 2, 97, 110, 4, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ]
+            u128::from_le_bytes(user_holding_b_acc.data[33..].try_into().unwrap()),
+            4
         );
 
         assert_eq!(
-            user_holding_lp_acc.data.as_ref(),
-            &[
-                1, 16, 61, 24, 200, 168, 141, 91, 149, 164, 35, 114, 25, 6, 40, 204, 181, 95, 39,
-                59, 56, 56, 96, 222, 157, 226, 48, 111, 53, 30, 1, 41, 94, 3, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0
-            ]
+            u128::from_le_bytes(user_holding_lp_acc.data[33..].try_into().unwrap()),
+            3
         );
 
         info!("=================== AMM DEFINITION FINISHED ===============");
@@ -2287,30 +2275,173 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .account;
 
         assert_eq!(
-            user_holding_a_acc.data.as_ref(),
-            &[
-                1, 216, 180, 23, 229, 146, 37, 77, 185, 234, 186, 245, 33, 228, 197, 251, 244, 10,
-                137, 115, 157, 2, 246, 137, 52, 234, 64, 155, 199, 101, 15, 43, 83, 2, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ]
+            u128::from_le_bytes(user_holding_a_acc.data[33..].try_into().unwrap()),
+            2
         );
 
         assert_eq!(
-            user_holding_b_acc.data.as_ref(),
-            &[
-                1, 244, 191, 88, 67, 111, 12, 245, 25, 212, 169, 62, 209, 159, 73, 107, 101, 173,
-                88, 13, 55, 71, 91, 113, 88, 208, 91, 136, 222, 139, 2, 97, 110, 5, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            ]
+            u128::from_le_bytes(user_holding_b_acc.data[33..].try_into().unwrap()),
+            5
         );
 
         assert_eq!(
-            user_holding_lp_acc.data.as_ref(),
-            &[
-                1, 16, 61, 24, 200, 168, 141, 91, 149, 164, 35, 114, 25, 6, 40, 204, 181, 95, 39,
-                59, 56, 56, 96, 222, 157, 226, 48, 111, 53, 30, 1, 41, 94, 3, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0
-            ]
+            u128::from_le_bytes(user_holding_lp_acc.data[33..].try_into().unwrap()),
+            3
+        );
+
+        info!("=================== FIRST SWAP FINISHED ===============");
+
+        // Make swap
+
+        let subcommand = AmmProgramAgnosticSubcommand::Swap {
+            user_holding_a: make_public_account_input_from_str(&recipient_account_id_1.to_string()),
+            user_holding_b: make_public_account_input_from_str(&recipient_account_id_2.to_string()),
+            amount_in: 2,
+            min_amount_out: 1,
+            token_definition: definition_account_id_2.to_string(),
+        };
+
+        wallet::cli::execute_subcommand(Command::AMM(subcommand))
+            .await
+            .unwrap();
+        info!("Waiting for next block creation");
+        tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+        let user_holding_a_acc = seq_client
+            .get_account(recipient_account_id_1.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        let user_holding_b_acc = seq_client
+            .get_account(recipient_account_id_2.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        let user_holding_lp_acc = seq_client
+            .get_account(user_holding_lp.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_a_acc.data[33..].try_into().unwrap()),
+            4
+        );
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_b_acc.data[33..].try_into().unwrap()),
+            3
+        );
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_lp_acc.data[33..].try_into().unwrap()),
+            3
+        );
+
+        info!("=================== SECOND SWAP FINISHED ===============");
+
+        // Add liquidity
+
+        let subcommand = AmmProgramAgnosticSubcommand::AddLiquidity {
+            user_holding_a: make_public_account_input_from_str(&recipient_account_id_1.to_string()),
+            user_holding_b: make_public_account_input_from_str(&recipient_account_id_2.to_string()),
+            user_holding_lp: make_public_account_input_from_str(&user_holding_lp.to_string()),
+            min_amount_lp: 1,
+            max_amount_a: 2,
+            max_amount_b: 2,
+        };
+
+        wallet::cli::execute_subcommand(Command::AMM(subcommand))
+            .await
+            .unwrap();
+        info!("Waiting for next block creation");
+        tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+        let user_holding_a_acc = seq_client
+            .get_account(recipient_account_id_1.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        let user_holding_b_acc = seq_client
+            .get_account(recipient_account_id_2.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        let user_holding_lp_acc = seq_client
+            .get_account(user_holding_lp.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_a_acc.data[33..].try_into().unwrap()),
+            3
+        );
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_b_acc.data[33..].try_into().unwrap()),
+            1
+        );
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_lp_acc.data[33..].try_into().unwrap()),
+            4
+        );
+
+        info!("=================== ADD LIQ FINISHED ===============");
+
+        // Remove liquidity
+
+        let subcommand = AmmProgramAgnosticSubcommand::RemoveLiquidity {
+            user_holding_a: make_public_account_input_from_str(&recipient_account_id_1.to_string()),
+            user_holding_b: make_public_account_input_from_str(&recipient_account_id_2.to_string()),
+            user_holding_lp: make_public_account_input_from_str(&user_holding_lp.to_string()),
+            balance_lp: 2,
+            max_amount_a: 1,
+            max_amount_b: 1,
+        };
+
+        wallet::cli::execute_subcommand(Command::AMM(subcommand))
+            .await
+            .unwrap();
+        info!("Waiting for next block creation");
+        tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+        let user_holding_a_acc = seq_client
+            .get_account(recipient_account_id_1.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        let user_holding_b_acc = seq_client
+            .get_account(recipient_account_id_2.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        let user_holding_lp_acc = seq_client
+            .get_account(user_holding_lp.to_string())
+            .await
+            .unwrap()
+            .account;
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_a_acc.data[33..].try_into().unwrap()),
+            5
+        );
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_b_acc.data[33..].try_into().unwrap()),
+            4
+        );
+
+        assert_eq!(
+            u128::from_le_bytes(user_holding_lp_acc.data[33..].try_into().unwrap()),
+            2
         );
 
         info!("Success!");
