@@ -9,8 +9,6 @@ RUN apt-get update && apt-get install -y \
     clang \
     && rm -rf /var/lib/apt/lists/*
 
-# RUN find / -regex ".*libcrypto.so.3.*"
-
 WORKDIR /sequencer_runner
 
 # Planner stage - generates dependency recipe
@@ -36,18 +34,22 @@ RUN strip /sequencer_runner/target/release/sequencer_runner
 # Runtime stage - minimal image
 FROM debian:trixie-slim
 
+# Install runtime dependencies
+RUN apt-get update \
+ && apt-get install -y gosu jq \
+ && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user for security
 RUN useradd -m -u 1000 -s /bin/bash sequencer_user && \
     mkdir -p /sequencer_runner /etc/sequencer_runner && \
     chown -R sequencer_user:sequencer_user /sequencer_runner /etc/sequencer_runner
 
-WORKDIR /sequencer_runner
-
 # Copy binary from builder
 COPY --from=builder --chown=sequencer_user:sequencer_user /sequencer_runner/target/release/sequencer_runner /usr/local/bin/sequencer_runner
 
-# Switch to non-root user
-USER sequencer_user
+# Copy entrypoint script
+COPY sequencer_runner/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Volume for configuration directory
 VOLUME ["/etc/sequencer_runner"]
@@ -69,4 +71,9 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Run the application
 ENV RUST_LOG=info
 
+USER root
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+
+WORKDIR /sequencer_runner
 CMD ["sequencer_runner", "/etc/sequencer_runner"]
