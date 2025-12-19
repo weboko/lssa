@@ -9,7 +9,6 @@ use nssa_core::program::{
 // It reads a single account, emits it unchanged, and then triggers a tail call
 // to the Hello World program with a fixed greeting.
 
-
 /// This needs to be set to the ID of the Hello world program.
 /// To get the ID run **from the root directoy of the repository**:
 /// `cargo risczero build --manifest-path examples/program_deployment/methods/guest/Cargo.toml`
