@@ -204,6 +204,7 @@ Commands:
   account        Account view and sync subcommand
   pinata         Pinata program interaction subcommand
   token          Token program interaction subcommand
+  amm            AMM program interaction subcommand
   check-health   Check the wallet can connect to the node and builtin local programs match the remote versions
 ```
 
