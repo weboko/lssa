@@ -2401,8 +2401,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             user_holding_b: make_public_account_input_from_str(&recipient_account_id_2.to_string()),
             user_holding_lp: make_public_account_input_from_str(&user_holding_lp.to_string()),
             balance_lp: 2,
-            max_amount_a: 1,
-            max_amount_b: 1,
+            min_amount_a: 1,
+            min_amount_b: 1,
         };
 
         wallet::cli::execute_subcommand(Command::AMM(subcommand))

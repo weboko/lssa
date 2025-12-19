@@ -92,9 +92,9 @@ pub enum AmmProgramAgnosticSubcommand {
         #[arg(long)]
         balance_lp: u128,
         #[arg(long)]
-        max_amount_a: u128,
+        min_amount_a: u128,
         #[arg(long)]
-        max_amount_b: u128,
+        min_amount_b: u128,
     },
 }
 
@@ -238,8 +238,8 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                 user_holding_b,
                 user_holding_lp,
                 balance_lp,
-                max_amount_a,
-                max_amount_b,
+                min_amount_a,
+                min_amount_b,
             } => {
                 let (user_holding_a, user_holding_a_privacy) =
                     parse_addr_with_privacy_prefix(&user_holding_a)?;
@@ -268,8 +268,8 @@ impl WalletSubcommand for AmmProgramAgnosticSubcommand {
                                 user_holding_b,
                                 user_holding_lp,
                                 balance_lp,
-                                max_amount_a,
-                                max_amount_b,
+                                min_amount_a,
+                                min_amount_b,
                             )
                             .await?;
 

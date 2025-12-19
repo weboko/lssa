@@ -123,7 +123,7 @@ impl AMM<'_> {
             .ok_or(ExecutionFailureKind::AccountDataError(user_holding_a))?
             .definition_id;
         let definition_token_b_id = TokenHolding::parse(&user_b_acc.data)
-            .ok_or(ExecutionFailureKind::AccountDataError(user_holding_a))?
+            .ok_or(ExecutionFailureKind::AccountDataError(user_holding_b))?
             .definition_id;
 
         let amm_pool =
@@ -289,11 +289,11 @@ impl AMM<'_> {
         user_holding_b: AccountId,
         user_holding_lp: AccountId,
         balance_lp: u128,
-        max_amount_a: u128,
-        max_amount_b: u128,
+        min_amount_a: u128,
+        min_amount_b: u128,
     ) -> Result<SendTxResponse, ExecutionFailureKind> {
         let (instruction, program) =
-            amm_program_preparation_remove_liq(balance_lp, max_amount_a, max_amount_b);
+            amm_program_preparation_remove_liq(balance_lp, min_amount_a, min_amount_b);
 
         let amm_program_id = Program::amm().id();
 
@@ -431,8 +431,8 @@ fn amm_program_preparation_add_liq(
 
 fn amm_program_preparation_remove_liq(
     balance_lp: u128,
-    max_amount_a: u128,
-    max_amount_b: u128,
+    min_amount_a: u128,
+    min_amount_b: u128,
 ) -> (OrphanHack49BytesInput, Program) {
     // An instruction data byte string of length 49, amounts for minimum amount of liquidity to
     // redeem (balance_lp), minimum balance of each token to remove (min_amount_a and
@@ -441,32 +441,11 @@ fn amm_program_preparation_remove_liq(
     instruction[0] = 0x03;
 
     instruction[1..17].copy_from_slice(&balance_lp.to_le_bytes());
-    instruction[17..33].copy_from_slice(&max_amount_a.to_le_bytes());
-    instruction[33..49].copy_from_slice(&max_amount_b.to_le_bytes());
+    instruction[17..33].copy_from_slice(&min_amount_a.to_le_bytes());
+    instruction[33..49].copy_from_slice(&min_amount_b.to_le_bytes());
 
     let instruction_data = OrphanHack49BytesInput::expand(instruction);
     let program = Program::amm();
 
     (instruction_data, program)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::program_facades::amm::OrphanHack65BytesInput;
-
-    #[test]
-    fn test_correct_ser() {
-        let mut arr = [0u8; 65];
-
-        for (i, item) in arr.iter_mut().enumerate().take(64) {
-            *item = i as u8;
-        }
-
-        let hack = OrphanHack65BytesInput::expand(arr);
-        let instruction_data = serde_json::to_string(&hack).unwrap();
-
-        println!("{instruction_data:?}");
-
-        // assert_eq!(serialization_res_1, serialization_res_2);
-    }
 }
