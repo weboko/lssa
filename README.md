@@ -667,6 +667,9 @@ NSSA includes an AMM program that manages liquidity pools and enables swaps betw
 
 We start by creating a new pool for the tokens previously created. In return for providing liquidity, we will receive liquidity provider (LP) tokens, which represent our share of the pool and are required to withdraw liquidity later.
 
+>[!NOTE]
+> The AMM program does not currently charge swap fees or distribute rewards to liquidity providers. LP tokens therefore only represent a proportional share of the pool reserves and do not provide additional value from swap activity. Fee support for liquidity providers will be added in future versions of the AMM program.
+
 To hold these LP tokens, we first create a new account:
 
 ```bash
