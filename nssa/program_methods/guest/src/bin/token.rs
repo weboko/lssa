@@ -124,7 +124,7 @@ impl TokenDefinition {
             panic!("Invalid Token Definition data");
         }
 
-        Data::try_from(bytes).expect("Invalid data")
+        Data::try_from(bytes).expect("Token definition data size must fit into data")
     }
 
     fn parse(data: &Data) -> Option<Self> {
