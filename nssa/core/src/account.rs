@@ -45,9 +45,9 @@ impl AccountWithMetadata {
 }
 
 #[derive(
-    Serialize, Deserialize, Clone, Default, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize,
+    Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize,
 )]
-#[cfg_attr(any(feature = "host", test), derive(Debug, Copy, PartialOrd, Ord))]
+#[cfg_attr(any(feature = "host", test), derive(Debug, PartialOrd, Ord, Default))]
 pub struct AccountId {
     value: [u8; 32],
 }

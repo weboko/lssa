@@ -1596,7 +1596,10 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
     pub async fn test_program_deployment() {
         info!("########## test program deployment ##########");
 
-        let binary_filepath: PathBuf = NSSA_PROGRAM_FOR_TEST_DATA_CHANGER.parse().unwrap();
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let binary_filepath: PathBuf = PathBuf::from(manifest_dir)
+            .join("../artifacts/test_program_methods")
+            .join(NSSA_PROGRAM_FOR_TEST_DATA_CHANGER);
 
         let command = Command::DeployProgram {
             binary_filepath: binary_filepath.clone(),
@@ -1679,6 +1682,49 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
         assert!(account.data.is_empty());
 
         info!("Success!");
+    }
+
+    #[nssa_integration_test]
+    pub async fn test_authenticated_transfer_initialize_function_private() {
+        info!("########## test initialize private account for authenticated transfer ##########");
+        let command =
+            Command::Account(AccountSubcommand::New(NewSubcommand::Private { cci: None }));
+        let SubcommandReturnValue::RegisterAccount { account_id } =
+            wallet::cli::execute_subcommand(command).await.unwrap()
+        else {
+            panic!("Error creating account");
+        };
+
+        let command = Command::AuthTransfer(AuthTransferSubcommand::Init {
+            account_id: make_private_account_input_from_str(&account_id.to_string()),
+        });
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+        info!("Checking correct execution");
+        let command = Command::Account(AccountSubcommand::SyncPrivate {});
+        wallet::cli::execute_subcommand(command).await.unwrap();
+
+        let wallet_config = fetch_config().await.unwrap();
+        let seq_client = SequencerClient::new(wallet_config.sequencer_addr.clone()).unwrap();
+        let wallet_storage = WalletCore::start_from_config_update_chain(wallet_config)
+            .await
+            .unwrap();
+
+        let new_commitment1 = wallet_storage
+            .get_private_account_commitment(&account_id)
+            .unwrap();
+        assert!(verify_commitment_is_in_state(new_commitment1, &seq_client).await);
+
+        let account = wallet_storage.get_account_private(&account_id).unwrap();
+
+        let expected_program_owner = Program::authenticated_transfer_program().id();
+        let expected_balance = 0;
+
+        assert_eq!(account.program_owner, expected_program_owner);
+        assert_eq!(account.balance, expected_balance);
+        assert!(account.data.is_empty());
     }
 
     #[nssa_integration_test]

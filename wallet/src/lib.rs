@@ -14,7 +14,9 @@ use key_protocol::key_management::key_tree::{chain_index::ChainIndex, traits::Ke
 use log::info;
 use nssa::{
     Account, AccountId, PrivacyPreservingTransaction,
-    privacy_preserving_transaction::message::EncryptedAccountData, program::Program,
+    privacy_preserving_transaction::{
+        circuit::ProgramWithDependencies, message::EncryptedAccountData,
+    },
 };
 use nssa_core::{Commitment, MembershipProof, SharedSecretKey, program::InstructionData};
 pub use privacy_preserving_tx::PrivacyPreservingAccount;
@@ -310,7 +312,7 @@ impl WalletCore {
         &self,
         accounts: Vec<PrivacyPreservingAccount>,
         instruction_data: &InstructionData,
-        program: &Program,
+        program: &ProgramWithDependencies,
     ) -> Result<(SendTxResponse, Vec<SharedSecretKey>), ExecutionFailureKind> {
         self.send_privacy_preserving_tx_with_pre_check(accounts, instruction_data, program, |_| {
             Ok(())
@@ -322,7 +324,7 @@ impl WalletCore {
         &self,
         accounts: Vec<PrivacyPreservingAccount>,
         instruction_data: &InstructionData,
-        program: &Program,
+        program: &ProgramWithDependencies,
         tx_pre_check: impl FnOnce(&[&Account]) -> Result<(), ExecutionFailureKind>,
     ) -> Result<(SendTxResponse, Vec<SharedSecretKey>), ExecutionFailureKind> {
         let acc_manager = privacy_preserving_tx::AccountManager::new(self, accounts).await?;
@@ -346,7 +348,8 @@ impl WalletCore {
                 .map(|keys| (keys.npk.clone(), keys.ssk))
                 .collect::<Vec<_>>(),
             &acc_manager.private_account_auth(),
-            &program.to_owned().into(),
+            &acc_manager.private_account_membership_proofs(),
+            &program.to_owned(),
         )
         .unwrap();
 
@@ -366,7 +369,7 @@ impl WalletCore {
             nssa::privacy_preserving_transaction::witness_set::WitnessSet::for_message(
                 &message,
                 proof,
-                &acc_manager.witness_signing_keys(),
+                &acc_manager.public_account_auth(),
             );
         let tx = PrivacyPreservingTransaction::new(message, witness_set);
 
