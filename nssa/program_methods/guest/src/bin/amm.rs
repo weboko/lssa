@@ -771,7 +771,8 @@ fn swap_logic(
     vault_deposit: AccountWithMetadata,
     vault_withdraw: AccountWithMetadata,
     user_withdraw: AccountWithMetadata,
-    balances: &[u128],
+    deposit_amount: u128,
+    min_amount_out: u128,
     reserve_amounts: &[u128],
     pool_id: AccountId,
 ) -> (Vec<ChainedCall>, u128, u128) {
