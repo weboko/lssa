@@ -232,7 +232,8 @@ struct TokenMetadata {
     definition_id: AccountId,
     uri: [u8; 200],
     creators: [u8; 250],
-    primary_sale_date: u64, //BlockId
+    /// Block id
+    primary_sale_date: u64,
 }
 
 impl TokenMetadata {
