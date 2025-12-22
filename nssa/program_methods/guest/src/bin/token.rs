@@ -153,18 +153,10 @@ impl TokenDefinition {
                 metadata_id: metadata_id.clone(),
             });
 
-            if account_type == //NFTs must have supply 1
-                TOKEN_STANDARD_NONFUNGIBLE
-                && total_supply != 1
-            {
-                None
-            } else if account_type == //Fungible Tokens do not have metadata.
-                TOKEN_STANDARD_FUNGIBLE_TOKEN
-                && metadata_id != AccountId::new([0; 32])
-            {
-                None
-            } else {
-                this
+            match account_type {
+                TOKEN_STANDARD_NONFUNGIBLE if total_supply != 1
+                | TOKEN_STANDARD_FUNGIBLE_TOKEN if metadata_id != AccountId::new([0; 32]) =>  None
+                _ => this
             }
         }
     }
