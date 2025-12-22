@@ -71,9 +71,11 @@ struct PoolDefinition {
     liquidity_pool_supply: u128,
     reserve_a: u128,
     reserve_b: u128,
-    fees: u128, // fees are currently not used
-    active: bool, // a pool becomes inactive (active = false)
-                // once all of its liquidity has been removed (e.g., reserves are emptied and liquidity_pool_supply = 0)
+    /// Fees are currently not used
+    fees: u128,
+    /// A pool becomes inactive (active = false)
+    /// once all of its liquidity has been removed (e.g., reserves are emptied and liquidity_pool_supply = 0)
+    active: bool,
 }
 
 impl PoolDefinition {
