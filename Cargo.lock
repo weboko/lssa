@@ -3026,6 +3026,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "nssa",
+ "nssa_core",
  "tokio",
  "wallet",
 ]
@@ -4755,6 +4756,7 @@ dependencies = [
  "nssa",
  "nssa_core",
  "rand 0.8.5",
+ "risc0-zkvm",
  "serde",
  "serde_json",
  "sha2",
