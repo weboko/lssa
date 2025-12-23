@@ -1,0 +1,11 @@
+[package]
+name = "program_deployment"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nssa.workspace = true
+wallet.workspace = true
+
+tokio = { workspace = true, features = ["macros"] }
+clap.workspace = true
