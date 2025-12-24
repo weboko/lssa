@@ -2281,12 +2281,10 @@ pub mod tests {
         ));
     }
 
-    //TODO: repeated code needs to be cleaned up
-    //from token.rs (also repeated in amm.rs)
-    const TOKEN_DEFINITION_TYPE: u8 = 0;
+    // TODO: repeated code needs to be cleaned up
+    // from token.rs (also repeated in amm.rs)
     const TOKEN_DEFINITION_DATA_SIZE: usize = 23;
 
-    const TOKEN_HOLDING_TYPE: u8 = 1;
     const TOKEN_HOLDING_DATA_SIZE: usize = 49;
 
     struct TokenDefinition {
@@ -2314,29 +2312,6 @@ pub mod tests {
     }
 
     impl TokenHolding {
-        fn new(definition_id: &AccountId) -> Self {
-            Self {
-                account_type: TOKEN_HOLDING_TYPE,
-                definition_id: *definition_id,
-                balance: 0,
-            }
-        }
-
-        fn parse(data: &[u8]) -> Option<Self> {
-            if data.len() != TOKEN_HOLDING_DATA_SIZE || data[0] != TOKEN_HOLDING_TYPE {
-                None
-            } else {
-                let account_type = data[0];
-                let definition_id = AccountId::new(data[1..33].try_into().unwrap());
-                let balance = u128::from_le_bytes(data[33..].try_into().unwrap());
-                Some(Self {
-                    definition_id,
-                    balance,
-                    account_type,
-                })
-            }
-        }
-
         fn into_data(self) -> Data {
             let mut bytes = [0; TOKEN_HOLDING_DATA_SIZE];
             bytes[0] = self.account_type;
@@ -2349,7 +2324,7 @@ pub mod tests {
         }
     }
 
-    //TODO repeated code should ultimately be removed;
+    // TODO repeated code should ultimately be removed;
     fn compute_pool_pda(
         amm_program_id: ProgramId,
         definition_token_a_id: AccountId,
@@ -2477,52 +2452,6 @@ pub mod tests {
                 .to_vec()
                 .try_into()
                 .expect("225 bytes should fit into Data")
-        }
-
-        fn parse(data: &[u8]) -> Option<Self> {
-            if data.len() != POOL_DEFINITION_DATA_SIZE {
-                None
-            } else {
-                let definition_token_a_id = AccountId::new(data[0..32].try_into().expect("Parse data: The AMM program must be provided a valid AccountId for Token A definition"));
-                let definition_token_b_id = AccountId::new(data[32..64].try_into().expect("Parse data: The AMM program must be provided a valid AccountId for Vault B definition"));
-                let vault_a_id = AccountId::new(data[64..96].try_into().expect(
-                    "Parse data: The AMM program must be provided a valid AccountId for Vault A",
-                ));
-                let vault_b_id = AccountId::new(data[96..128].try_into().expect(
-                    "Parse data: The AMM program must be provided a valid AccountId for Vault B",
-                ));
-                let liquidity_pool_id = AccountId::new(data[128..160].try_into().expect("Parse data: The AMM program must be provided a valid AccountId for Token liquidity pool definition"));
-                let liquidity_pool_supply = u128::from_le_bytes(data[160..176].try_into().expect(
-                    "Parse data: The AMM program must be provided a valid u128 for liquidity cap",
-                ));
-                let reserve_a = u128::from_le_bytes(data[176..192].try_into().expect("Parse data: The AMM program must be provided a valid u128 for reserve A balance"));
-                let reserve_b = u128::from_le_bytes(data[192..208].try_into().expect("Parse data: The AMM program must be provided a valid u128 for reserve B balance"));
-                let fees =
-                    u128::from_le_bytes(data[208..224].try_into().expect(
-                        "Parse data: The AMM program must be provided a valid u128 for fees",
-                    ));
-
-                let active = match data[224] {
-                    0 => false,
-                    1 => true,
-                    _ => panic!(
-                        "Parse data: The AMM program must be provided a valid bool for active"
-                    ),
-                };
-
-                Some(Self {
-                    definition_token_a_id,
-                    definition_token_b_id,
-                    vault_a_id,
-                    vault_b_id,
-                    liquidity_pool_id,
-                    liquidity_pool_supply,
-                    reserve_a,
-                    reserve_b,
-                    fees,
-                    active,
-                })
-            }
         }
     }
 
@@ -2720,6 +2649,7 @@ pub mod tests {
         fn token_a_definition_id() -> AccountId {
             AccountId::new([3; 32])
         }
+
         fn token_b_definition_id() -> AccountId {
             AccountId::new([4; 32])
         }

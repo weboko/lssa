@@ -7,56 +7,59 @@ use nssa_core::{
 };
 
 // The AMM program has five functions (four directly accessible via instructions):
-// 1. New AMM definition.
-//    Arguments to this function are:
-//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, user_holding_b, user_holding_lp].
-//        For new AMM Pool: amm_pool, vault_holding_a, vault_holding_b, pool_lp and user_holding_lp are default accounts.
-//        amm_pool is a default account that will initiate the amm definition account values
-//        vault_holding_a is a token holding account for token a
-//        vault_holding_b is a token holding account for token b
-//        pool_lp is a token holding account for the pool's lp token
-//        user_holding_a is a token holding account for token a
-//        user_holding_b is a token holding account for token b
-//        user_holding_lp is a token holding account for lp token
-//      * PDA remark: Accounts amm_pool, vault_holding_a, vault_holding_b and pool_lp are PDA.
-//        The AccountId for these accounts must be computed using:
-//              amm_pool AccountId <- compute_pool_pda
-//              vault_holding_a, vault_holding_b <- compute_vault_pda
-//              pool_lp <-compute_liquidity_token_pda
+// 1. New AMM definition. Arguments to this function are:
+//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a,
+//        user_holding_b, user_holding_lp]. For new AMM Pool: amm_pool, vault_holding_a,
+//        vault_holding_b, pool_lp and user_holding_lp are default accounts. amm_pool is a default
+//        account that will initiate the amm definition account values vault_holding_a is a token
+//        holding account for token a vault_holding_b is a token holding account for token b pool_lp
+//        is a token holding account for the pool's lp token user_holding_a is a token holding
+//        account for token a user_holding_b is a token holding account for token b user_holding_lp
+//        is a token holding account for lp token
+//      * PDA remark: Accounts amm_pool, vault_holding_a, vault_holding_b and pool_lp are PDA. The
+//        AccountId for these accounts must be computed using: amm_pool AccountId <-
+//        compute_pool_pda vault_holding_a, vault_holding_b <- compute_vault_pda pool_lp
+//        <-compute_liquidity_token_pda
 //      * Requires authorization: user_holding_a, user_holding_b
-//      * An instruction data of 65-bytes, indicating the initial amm reserves' balances and token_program_id with
-//        the following layout:
-//        [0x00 || array of balances (little-endian 16 bytes) || AMM_PROGRAM_ID)]
-//      * Internally, calls compute_liquidity_token_pda_seed, compute_vault_pda_seed to authorize transfers.
-//      * Internally, calls compute_pool_da, compute_vault_pda and compute_vault_pda to check various AccountIds are correct.
-// 2. Swap assets
-//    Arguments to this function are:
-//      * Five accounts: [amm_pool, vault_holding_a, vault_holding_b, user_holding_a, user_holding_b].
-//      * Requires authorization: user holding account associated to TOKEN_DEFINITION_ID (either user_holding_a or user_holding_b)
-//      * An instruction data byte string of length 65, indicating which token type to swap, quantity of tokens put into the swap
-//        (of type TOKEN_DEFINITION_ID) and min_amount_out.
+//      * An instruction data of 65-bytes, indicating the initial amm reserves' balances and
+//        token_program_id with the following layout: [0x00 || array of balances (little-endian 16
+//        bytes) || AMM_PROGRAM_ID)]
+//      * Internally, calls compute_liquidity_token_pda_seed, compute_vault_pda_seed to authorize
+//        transfers.
+//      * Internally, calls compute_pool_da, compute_vault_pda and compute_vault_pda to check
+//        various AccountIds are correct.
+// 2. Swap assets Arguments to this function are:
+//      * Five accounts: [amm_pool, vault_holding_a, vault_holding_b, user_holding_a,
+//        user_holding_b].
+//      * Requires authorization: user holding account associated to TOKEN_DEFINITION_ID (either
+//        user_holding_a or user_holding_b)
+//      * An instruction data byte string of length 65, indicating which token type to swap,
+//        quantity of tokens put into the swap (of type TOKEN_DEFINITION_ID) and min_amount_out.
 //        [0x01 || amount (little-endian 16 bytes) || TOKEN_DEFINITION_ID].
 //      * Internally, calls swap logic.
 //              * Four accounts: [user_deposit, vault_deposit, vault_withdraw, user_withdraw].
-//                user_deposit and vault_deposit define deposit transaction.
-//                vault_withdraw and user_withdraw define withdraw transaction.
+//                user_deposit and vault_deposit define deposit transaction. vault_withdraw and
+//                user_withdraw define withdraw transaction.
 //              * deposit_amount is the amount for user_deposit -> vault_deposit transfer.
 //              * reserve_amounts is the pool's reserves; used to compute the withdraw amount.
 //              * Outputs the token transfers as a Vec<ChainedCall> and the withdraw amount.
-// 3. Add liquidity
-//    Arguments to this function are:
-//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, user_holding_a, user_holding_lp].
+// 3. Add liquidity Arguments to this function are:
+//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a,
+//        user_holding_a, user_holding_lp].
 //      * Requires authorization: user_holding_a, user_holding_b
-//      * An instruction data byte string of length 49, amounts for minimum amount of liquidity from add (min_amount_lp),
-//      * max amount added for each token (max_amount_a and max_amount_b); indicate
-//        [0x02 || array of of balances (little-endian 16 bytes)].
+//      * An instruction data byte string of length 49, amounts for minimum amount of liquidity from
+//        add (min_amount_lp),
+//      * max amount added for each token (max_amount_a and max_amount_b); indicate [0x02 || array
+//        of of balances (little-endian 16 bytes)].
 //      * Internally, calls compute_liquidity_token_pda_seed to compute liquidity pool PDA seed.
 // 4. Remove liquidity
-//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a, user_holding_a, user_holding_lp].
+//      * Seven accounts: [amm_pool, vault_holding_a, vault_holding_b, pool_lp, user_holding_a,
+//        user_holding_a, user_holding_lp].
 //      * Requires authorization: user_holding_lp
-//      * An instruction data byte string of length 49, amounts for minimum amount of liquidity to redeem (balance_lp),
-//      * minimum balance of each token to remove (min_amount_a and min_amount_b); indicate
-//        [0x03 || array of balances (little-endian 16 bytes)].
+//      * An instruction data byte string of length 49, amounts for minimum amount of liquidity to
+//        redeem (balance_lp),
+//      * minimum balance of each token to remove (min_amount_a and min_amount_b); indicate [0x03 ||
+//        array of balances (little-endian 16 bytes)].
 //      * Internally, calls compute_vault_pda_seed to compute vault_a and vault_b's PDA seed.
 
 const POOL_DEFINITION_DATA_SIZE: usize = 225;
@@ -74,7 +77,8 @@ struct PoolDefinition {
     /// Fees are currently not used
     fees: u128,
     /// A pool becomes inactive (active = false)
-    /// once all of its liquidity has been removed (e.g., reserves are emptied and liquidity_pool_supply = 0)
+    /// once all of its liquidity has been removed (e.g., reserves are emptied and
+    /// liquidity_pool_supply = 0)
     active: bool,
 }
 
@@ -148,66 +152,19 @@ impl PoolDefinition {
     }
 }
 
-//TODO: remove repeated code for Token_Definition and TokenHoldling
-const TOKEN_DEFINITION_TYPE: u8 = 0;
-const TOKEN_DEFINITION_DATA_SIZE: usize = 23;
+// TODO: remove repeated code for Token_Definition and TokenHoldling
 
 const TOKEN_HOLDING_TYPE: u8 = 1;
 const TOKEN_HOLDING_DATA_SIZE: usize = 49;
 
-struct TokenDefinition {
-    account_type: u8,
-    name: [u8; 6],
-    total_supply: u128,
-}
-
 struct TokenHolding {
+    #[cfg_attr(not(test), expect(dead_code, reason = "TODO: fix later"))]
     account_type: u8,
     definition_id: AccountId,
     balance: u128,
 }
 
-impl TokenDefinition {
-    fn into_data(self) -> Data {
-        let mut bytes = [0; TOKEN_DEFINITION_DATA_SIZE];
-        bytes[0] = self.account_type;
-        bytes[1..7].copy_from_slice(&self.name);
-        bytes[7..].copy_from_slice(&self.total_supply.to_le_bytes());
-        bytes
-            .to_vec()
-            .try_into()
-            .expect("23 bytes should fit into Data")
-    }
-
-    fn parse(data: &[u8]) -> Option<Self> {
-        if data.len() != TOKEN_DEFINITION_DATA_SIZE || data[0] != TOKEN_DEFINITION_TYPE {
-            None
-        } else {
-            let account_type = data[0];
-            let name = data[1..7].try_into().unwrap();
-            let total_supply = u128::from_le_bytes(
-                data[7..]
-                    .try_into()
-                    .expect("Total supply must be 16 bytes little-endian"),
-            );
-            Some(Self {
-                account_type,
-                name,
-                total_supply,
-            })
-        }
-    }
-}
-
 impl TokenHolding {
-    fn new(definition_id: &AccountId) -> Self {
-        Self {
-            account_type: TOKEN_HOLDING_TYPE,
-            definition_id: *definition_id,
-            balance: 0,
-        }
-    }
-
     fn parse(data: &[u8]) -> Option<Self> {
         if data.len() != TOKEN_HOLDING_DATA_SIZE || data[0] != TOKEN_HOLDING_TYPE {
             None
@@ -231,6 +188,7 @@ impl TokenHolding {
         }
     }
 
+    #[cfg(test)]
     fn into_data(self) -> Data {
         let mut bytes = [0; TOKEN_HOLDING_DATA_SIZE];
         bytes[0] = self.account_type;
@@ -393,9 +351,7 @@ fn compute_pool_pda_seed(
         .cmp(definition_token_b_id.value())
     {
         std::cmp::Ordering::Less => (definition_token_b_id, definition_token_a_id),
-        std::cmp::Ordering::Greater => {
-            (definition_token_a_id, definition_token_b_id)
-        }
+        std::cmp::Ordering::Greater => (definition_token_a_id, definition_token_b_id),
         std::cmp::Ordering::Equal => panic!("Definitions match"),
     };
 
@@ -487,9 +443,9 @@ fn new_definition(
     balance_in: &[u128],
     amm_program_id: ProgramId,
 ) -> (Vec<AccountPostState>, Vec<ChainedCall>) {
-    //Pool accounts: pool itself, and its 2 vaults and LP token
-    //2 accounts for funding tokens
-    //initial funder's LP account
+    // Pool accounts: pool itself, and its 2 vaults and LP token
+    // 2 accounts for funding tokens
+    // initial funder's LP account
     if pre_states.len() != 7 {
         panic!("Invalid number of input accounts")
     }
@@ -534,34 +490,20 @@ fn new_definition(
     }
 
     if pool.account_id
-        != compute_pool_pda(
-            amm_program_id,
-            definition_token_a_id,
-            definition_token_b_id,
-        )
+        != compute_pool_pda(amm_program_id, definition_token_a_id, definition_token_b_id)
     {
         panic!("Pool Definition Account ID does not match PDA");
     }
 
     if vault_a.account_id
-        != compute_vault_pda(
-            amm_program_id,
-            pool.account_id,
-            definition_token_a_id,
-        )
+        != compute_vault_pda(amm_program_id, pool.account_id, definition_token_a_id)
         || vault_b.account_id
-            != compute_vault_pda(
-                amm_program_id,
-                pool.account_id,
-                definition_token_b_id,
-            )
+            != compute_vault_pda(amm_program_id, pool.account_id, definition_token_b_id)
     {
         panic!("Vault ID does not match PDA");
     }
 
-    if pool_lp.account_id
-        != compute_liquidity_token_pda(amm_program_id, pool.account_id)
-    {
+    if pool_lp.account_id != compute_liquidity_token_pda(amm_program_id, pool.account_id) {
         panic!("Liquidity pool Token Definition Account ID does not match PDA");
     }
 
@@ -590,7 +532,7 @@ fn new_definition(
         liquidity_pool_supply: amount_a,
         reserve_a: amount_a,
         reserve_b: amount_b,
-        fees: 0u128, //TODO: we assume all fees are 0 for now.
+        fees: 0u128, // TODO: we assume all fees are 0 for now.
         active: true,
     };
 
@@ -603,7 +545,7 @@ fn new_definition(
 
     let mut chained_calls = Vec::<ChainedCall>::new();
 
-    //Chain call for Token A (user_holding_a -> Vault_A)
+    // Chain call for Token A (user_holding_a -> Vault_A)
     let call_token_a = initialize_token_transfer_chained_call(
         TOKEN_PROGRAM_TRANSFER,
         user_holding_a.clone(),
@@ -611,7 +553,7 @@ fn new_definition(
         amount_a,
         Vec::<PdaSeed>::new(),
     );
-    //Chain call for Token B (user_holding_b -> Vault_B)
+    // Chain call for Token B (user_holding_b -> Vault_B)
     let call_token_b = initialize_token_transfer_chained_call(
         TOKEN_PROGRAM_TRANSFER,
         user_holding_b.clone(),
@@ -620,7 +562,7 @@ fn new_definition(
         Vec::<PdaSeed>::new(),
     );
 
-    //Chain call for liquidity token (TokenLP definition -> User LP Holding)
+    // Chain call for liquidity token (TokenLP definition -> User LP Holding)
     let mut instruction_data = [0; 23];
     instruction_data[0] = if pool.account == Account::default() {
         TOKEN_PROGRAM_NEW
@@ -770,6 +712,7 @@ fn swap(
     (post_states, chained_calls)
 }
 
+#[expect(clippy::too_many_arguments, reason = "TODO: Fix later")]
 fn swap_logic(
     user_deposit: AccountWithMetadata,
     vault_deposit: AccountWithMetadata,
@@ -789,7 +732,7 @@ fn swap_logic(
     let withdraw_amount = (reserve_withdraw_vault_amount * deposit_amount)
         / (reserve_deposit_vault_amount + deposit_amount);
 
-    //Slippage check
+    // Slippage check
     if min_amount_out > withdraw_amount {
         panic!("Withdraw amount is less than minimal amount out");
     }
@@ -1085,7 +1028,7 @@ fn remove_liquidity(
 
     let mut chained_calls = Vec::new();
 
-    //Chaincall for Token A withdraw
+    // Chaincall for Token A withdraw
     let call_token_a = initialize_token_transfer_chained_call(
         TOKEN_PROGRAM_TRANSFER,
         running_vault_a,
@@ -1096,7 +1039,7 @@ fn remove_liquidity(
             pool_def_data.definition_token_a_id,
         )],
     );
-    //Chaincall for Token B withdraw
+    // Chaincall for Token B withdraw
     let call_token_b = initialize_token_transfer_chained_call(
         TOKEN_PROGRAM_TRANSFER,
         running_vault_b,
@@ -1107,7 +1050,7 @@ fn remove_liquidity(
             pool_def_data.definition_token_b_id,
         )],
     );
-    //Chaincall for LP adjustment
+    // Chaincall for LP adjustment
     let mut pool_definition_lp_auth = pool_definition_lp.clone();
     pool_definition_lp_auth.is_authorized = true;
     let call_token_lp = initialize_token_transfer_chained_call(
@@ -1138,22 +1081,38 @@ fn remove_liquidity(
 #[cfg(test)]
 mod tests {
     use nssa_core::{
-        program::ProgramId,
-        {
-            account::{Account, AccountId, AccountWithMetadata},
-            program::ChainedCall,
-            program::PdaSeed,
-        },
+        account::{Account, AccountId, AccountWithMetadata, Data},
+        program::{ChainedCall, PdaSeed, ProgramId},
     };
 
     use crate::{
-        PoolDefinition, TokenDefinition, TokenHolding, add_liquidity, compute_liquidity_token_pda,
-        compute_liquidity_token_pda_seed, compute_pool_pda, compute_pool_pda_seed,
-        compute_vault_pda, compute_vault_pda_seed, new_definition, remove_liquidity, swap,
+        PoolDefinition, TokenHolding, add_liquidity, compute_liquidity_token_pda,
+        compute_liquidity_token_pda_seed, compute_pool_pda, compute_vault_pda,
+        compute_vault_pda_seed, new_definition, remove_liquidity, swap,
     };
 
     const TOKEN_PROGRAM_ID: ProgramId = [15; 8];
     const AMM_PROGRAM_ID: ProgramId = [42; 8];
+    const TOKEN_DEFINITION_DATA_SIZE: usize = 23;
+
+    struct TokenDefinition {
+        account_type: u8,
+        name: [u8; 6],
+        total_supply: u128,
+    }
+
+    impl TokenDefinition {
+        fn into_data(self) -> Data {
+            let mut bytes = [0; TOKEN_DEFINITION_DATA_SIZE];
+            bytes[0] = self.account_type;
+            bytes[1..7].copy_from_slice(&self.name);
+            bytes[7..].copy_from_slice(&self.total_supply.to_le_bytes());
+            bytes
+                .to_vec()
+                .try_into()
+                .expect("23 bytes should fit into Data")
+        }
+    }
 
     struct BalanceForTests;
 
@@ -1226,10 +1185,6 @@ mod tests {
             200
         }
 
-        fn add_max_amount_b_high() -> u128 {
-            20_000
-        }
-
         fn add_max_amount_a_low() -> u128 {
             10
         }
@@ -1290,60 +1245,6 @@ mod tests {
     struct ChainedCallForTests;
 
     impl ChainedCallForTests {
-        fn cc_token_a_initialization() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
-            instruction[0] = 1;
-            instruction[1..17]
-                .copy_from_slice(&BalanceForTests::user_token_a_balance().to_le_bytes());
-            let instruction_data = risc0_zkvm::serde::to_vec(&instruction)
-                .expect("AMM Program expects valid transaction instruction data");
-            ChainedCall {
-                program_id: TOKEN_PROGRAM_ID,
-                instruction_data,
-                pre_states: vec![
-                    AccountForTests::user_holding_a(),
-                    AccountForTests::vault_a_uninit(),
-                ],
-                pda_seeds: Vec::<PdaSeed>::new(),
-            }
-        }
-
-        fn cc_token_b_initialization() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
-            instruction[0] = 1;
-            instruction[1..17]
-                .copy_from_slice(&BalanceForTests::user_token_b_balance().to_le_bytes());
-            let instruction_data = risc0_zkvm::serde::to_vec(&instruction)
-                .expect("AMM Program expects valid transaction instruction data");
-            ChainedCall {
-                program_id: TOKEN_PROGRAM_ID,
-                instruction_data,
-                pre_states: vec![
-                    AccountForTests::user_holding_b(),
-                    AccountForTests::vault_b_uninit(),
-                ],
-                pda_seeds: Vec::<PdaSeed>::new(),
-            }
-        }
-
-        fn cc_pool_lp_initialization() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
-            instruction[0] = 1;
-            instruction[1..17]
-                .copy_from_slice(&BalanceForTests::user_token_a_balance().to_le_bytes());
-            let instruction_data = risc0_zkvm::serde::to_vec(&instruction)
-                .expect("AMM Program expects valid transaction instruction data");
-            ChainedCall {
-                program_id: TOKEN_PROGRAM_ID,
-                instruction_data,
-                pre_states: vec![
-                    AccountForTests::pool_lp_uninit(),
-                    AccountForTests::user_holding_lp_uninit(),
-                ],
-                pda_seeds: Vec::<PdaSeed>::new(),
-            }
-        }
-
         fn cc_swap_token_a_test_1() -> ChainedCall {
             let mut instruction_data: [u8; 23] = [0; 23];
             instruction_data[0] = 1;
@@ -1690,40 +1591,6 @@ mod tests {
             }
         }
 
-        fn vault_a_uninit() -> AccountWithMetadata {
-            AccountWithMetadata {
-                account: Account {
-                    program_owner: TOKEN_PROGRAM_ID,
-                    balance: 0u128,
-                    data: TokenHolding::into_data(TokenHolding {
-                        account_type: 1u8,
-                        definition_id: IdForTests::token_a_definition_id(),
-                        balance: 0,
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: true,
-                account_id: IdForTests::vault_a_id(),
-            }
-        }
-
-        fn vault_b_uninit() -> AccountWithMetadata {
-            AccountWithMetadata {
-                account: Account {
-                    program_owner: TOKEN_PROGRAM_ID,
-                    balance: 0u128,
-                    data: TokenHolding::into_data(TokenHolding {
-                        account_type: 1u8,
-                        definition_id: IdForTests::token_b_definition_id(),
-                        balance: 0,
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: true,
-                account_id: IdForTests::vault_b_id(),
-            }
-        }
-
         fn vault_a_init() -> AccountWithMetadata {
             AccountWithMetadata {
                 account: Account {
@@ -1857,57 +1724,6 @@ mod tests {
                 },
                 is_authorized: true,
                 account_id: IdForTests::vault_b_id(),
-            }
-        }
-
-        fn vault_a_wrong_id() -> AccountWithMetadata {
-            AccountWithMetadata {
-                account: Account {
-                    program_owner: TOKEN_PROGRAM_ID,
-                    balance: 0u128,
-                    data: TokenHolding::into_data(TokenHolding {
-                        account_type: 1u8,
-                        definition_id: IdForTests::token_a_definition_id(),
-                        balance: BalanceForTests::vault_a_reserve_init(),
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: true,
-                account_id: IdForTests::vault_b_id(),
-            }
-        }
-
-        fn vault_b_wrong_id() -> AccountWithMetadata {
-            AccountWithMetadata {
-                account: Account {
-                    program_owner: TOKEN_PROGRAM_ID,
-                    balance: 0u128,
-                    data: TokenHolding::into_data(TokenHolding {
-                        account_type: 1u8,
-                        definition_id: IdForTests::token_b_definition_id(),
-                        balance: BalanceForTests::vault_b_reserve_init(),
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: true,
-                account_id: IdForTests::vault_a_id(),
-            }
-        }
-
-        fn pool_lp_uninit() -> AccountWithMetadata {
-            AccountWithMetadata {
-                account: Account {
-                    program_owner: TOKEN_PROGRAM_ID,
-                    balance: 0u128,
-                    data: TokenDefinition::into_data(TokenDefinition {
-                        account_type: 0u8,
-                        name: [1; 6],
-                        total_supply: 0u128,
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: true,
-                account_id: IdForTests::token_lp_definition_id(),
             }
         }
 
@@ -2103,30 +1919,6 @@ mod tests {
                     nonce: 0,
                 },
                 is_authorized: true,
-                account_id: IdForTests::pool_definition_id(),
-            }
-        }
-
-        fn pool_definition_unauth() -> AccountWithMetadata {
-            AccountWithMetadata {
-                account: Account {
-                    program_owner: ProgramId::default(),
-                    balance: 0u128,
-                    data: PoolDefinition::into_data(PoolDefinition {
-                        definition_token_a_id: IdForTests::token_a_definition_id(),
-                        definition_token_b_id: IdForTests::token_b_definition_id(),
-                        vault_a_id: IdForTests::vault_a_id(),
-                        vault_b_id: IdForTests::vault_b_id(),
-                        liquidity_pool_id: IdForTests::token_lp_definition_id(),
-                        liquidity_pool_supply: BalanceForTests::vault_a_reserve_init(),
-                        reserve_a: BalanceForTests::vault_a_reserve_init(),
-                        reserve_b: BalanceForTests::vault_b_reserve_init(),
-                        fees: 0u128,
-                        active: true,
-                    }),
-                    nonce: 0,
-                },
-                is_authorized: false,
                 account_id: IdForTests::pool_definition_id(),
             }
         }
@@ -2360,7 +2152,8 @@ mod tests {
 
     #[test]
     fn test_pool_pda_produces_unique_id_for_token_pair() {
-        //compute_pool_pda(amm_program_id: ProgramId, definition_token_a_id: AccountId, definition_token_b_id: AccountId)
+        // compute_pool_pda(amm_program_id: ProgramId, definition_token_a_id: AccountId,
+        // definition_token_b_id: AccountId)
         assert!(
             compute_pool_pda(
                 AMM_PROGRAM_ID,
@@ -2407,7 +2200,7 @@ mod tests {
 
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]
-    fn test_call_new_definition__with_invalid_number_of_accounts_3() {
+    fn test_call_new_definition_with_invalid_number_of_accounts_3() {
         let pre_states = vec![
             AccountForTests::pool_definition_init(),
             AccountForTests::vault_a_init(),
@@ -2425,7 +2218,7 @@ mod tests {
 
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]
-    fn test_call_new_definition__with_invalid_number_of_accounts_4() {
+    fn test_call_new_definition_with_invalid_number_of_accounts_4() {
         let pre_states = vec![
             AccountForTests::pool_definition_init(),
             AccountForTests::vault_a_init(),
@@ -2444,7 +2237,7 @@ mod tests {
 
     #[should_panic(expected = "Invalid number of input accounts")]
     #[test]
-    fn test_call_new_definition__with_invalid_number_of_accounts_5() {
+    fn test_call_new_definition_with_invalid_number_of_accounts_5() {
         let pre_states = vec![
             AccountForTests::pool_definition_init(),
             AccountForTests::vault_a_init(),
@@ -2877,7 +2670,8 @@ mod tests {
             AccountForTests::pool_lp_init(),
             AccountForTests::user_holding_a(),
             AccountForTests::user_holding_b(),
-            AccountForTests::user_holding_a(), //different token account than lp to create desired error
+            AccountForTests::user_holding_a(), /* different token account than lp to create
+                                                * desired error */
         ];
         let _post_states = remove_liquidity(
             &pre_states,

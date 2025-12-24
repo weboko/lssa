@@ -45,7 +45,16 @@ impl AccountWithMetadata {
 }
 
 #[derive(
-    Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize,
+    Copy,
+    Clone,
+    Default,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Hash,
+    BorshSerialize,
+    BorshDeserialize,
 )]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialOrd, Ord))]
 pub struct AccountId {
@@ -184,7 +193,7 @@ mod tests {
     #[test]
     fn default_account_id() {
         let default_account_id = AccountId::default();
-        let expected_account_id = AccountId::new([0;32]);
+        let expected_account_id = AccountId::new([0; 32]);
         assert!(default_account_id == expected_account_id);
     }
 }
