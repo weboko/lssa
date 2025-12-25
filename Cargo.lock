@@ -2657,6 +2657,7 @@ name = "nssa"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "bytemuck",
  "hex",
  "hex-literal 1.1.0",
  "log",
@@ -3025,6 +3026,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "nssa",
+ "nssa_core",
  "tokio",
  "wallet",
 ]
