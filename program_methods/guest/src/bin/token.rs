@@ -458,7 +458,7 @@ fn new_definition_with_metadata(
         definition_id: definition_target_account.account_id,
         uri,
         creators,
-        primary_sale_date: 0u64, // TODO: future works to implement this
+        primary_sale_date: 0u64, // TODO #261: future works to implement this
     };
 
     let mut definition_target_account_post = definition_target_account.account.clone();

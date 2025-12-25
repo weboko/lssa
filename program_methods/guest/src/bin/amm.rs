@@ -424,7 +424,7 @@ fn initialize_token_transfer_chained_call(
     amount_to_move: u128,
     pda_seed: Vec<PdaSeed>,
 ) -> ChainedCall {
-    let mut instruction_data = [0; 23];
+    let mut instruction_data = vec![0u8; 23];
     instruction_data[0] = token_program_command;
     instruction_data[1..17].copy_from_slice(&amount_to_move.to_le_bytes());
     let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data)
@@ -563,7 +563,7 @@ fn new_definition(
     );
 
     // Chain call for liquidity token (TokenLP definition -> User LP Holding)
-    let mut instruction_data = [0; 23];
+    let mut instruction_data = vec![0u8; 23];
     instruction_data[0] = if pool.account == Account::default() {
         TOKEN_PROGRAM_NEW
     } else {
@@ -1093,24 +1093,28 @@ mod tests {
 
     const TOKEN_PROGRAM_ID: ProgramId = [15; 8];
     const AMM_PROGRAM_ID: ProgramId = [42; 8];
-    const TOKEN_DEFINITION_DATA_SIZE: usize = 23;
+    const TOKEN_DEFINITION_DATA_SIZE: usize = 55;
 
     struct TokenDefinition {
         account_type: u8,
         name: [u8; 6],
         total_supply: u128,
+        metadata_id: AccountId,
     }
 
     impl TokenDefinition {
         fn into_data(self) -> Data {
-            let mut bytes = [0; TOKEN_DEFINITION_DATA_SIZE];
-            bytes[0] = self.account_type;
-            bytes[1..7].copy_from_slice(&self.name);
-            bytes[7..].copy_from_slice(&self.total_supply.to_le_bytes());
-            bytes
-                .to_vec()
-                .try_into()
-                .expect("23 bytes should fit into Data")
+            let mut bytes = Vec::<u8>::new();
+            bytes.extend_from_slice(&[self.account_type]);
+            bytes.extend_from_slice(&self.name);
+            bytes.extend_from_slice(&self.total_supply.to_le_bytes());
+            bytes.extend_from_slice(&self.metadata_id.to_bytes());
+
+            if bytes.len() != TOKEN_DEFINITION_DATA_SIZE {
+                panic!("Invalid Token Definition data");
+            }
+
+            Data::try_from(bytes).expect("Token definition data size must fit into data")
         }
     }
 
@@ -1246,7 +1250,7 @@ mod tests {
 
     impl ChainedCallForTests {
         fn cc_swap_token_a_test_1() -> ChainedCall {
-            let mut instruction_data: [u8; 23] = [0; 23];
+            let mut instruction_data = vec![0; 23];
             instruction_data[0] = 1;
             instruction_data[1..17]
                 .copy_from_slice(&BalanceForTests::add_max_amount_a().to_le_bytes());
@@ -1269,7 +1273,7 @@ mod tests {
             let mut vault_b_auth = AccountForTests::vault_b_init();
             vault_b_auth.is_authorized = true;
 
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 1;
             instruction[1..17].copy_from_slice(&swap_amount.to_le_bytes());
             let instruction_data = risc0_zkvm::serde::to_vec(&instruction)
@@ -1291,7 +1295,7 @@ mod tests {
             let mut vault_a_auth = AccountForTests::vault_a_init();
             vault_a_auth.is_authorized = true;
 
-            let mut instruction_data: [u8; 23] = [0; 23];
+            let mut instruction_data = vec![0; 23];
             instruction_data[0] = 1;
             instruction_data[1..17].copy_from_slice(&swap_amount.to_le_bytes());
             let instruction_data = risc0_zkvm::serde::to_vec(&instruction_data)
@@ -1308,7 +1312,7 @@ mod tests {
         }
 
         fn cc_swap_token_b_test_2() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 1;
             instruction[1..17].copy_from_slice(&BalanceForTests::add_max_amount_b().to_le_bytes());
             let instruction_data = risc0_zkvm::serde::to_vec(&instruction)
@@ -1325,7 +1329,7 @@ mod tests {
         }
 
         fn cc_add_token_a() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0u8; 23];
             instruction[0] = 1;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::add_successful_amount_a().to_le_bytes());
@@ -1343,7 +1347,7 @@ mod tests {
         }
 
         fn cc_add_token_b() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0u8; 23];
             instruction[0] = 1;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::add_successful_amount_b().to_le_bytes());
@@ -1364,7 +1368,7 @@ mod tests {
             let mut pool_lp_auth = AccountForTests::pool_lp_init();
             pool_lp_auth.is_authorized = true;
 
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0u8; 23];
             instruction[0] = 4;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::add_successful_amount_a().to_le_bytes());
@@ -1384,7 +1388,7 @@ mod tests {
             let mut vault_a_auth = AccountForTests::vault_a_init();
             vault_a_auth.is_authorized = true;
 
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 1;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::remove_actual_a_successful().to_le_bytes());
@@ -1405,7 +1409,7 @@ mod tests {
             let mut vault_b_auth = AccountForTests::vault_b_init();
             vault_b_auth.is_authorized = true;
 
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 1;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::remove_min_amount_b_low().to_le_bytes());
@@ -1426,7 +1430,7 @@ mod tests {
             let mut pool_lp_auth = AccountForTests::pool_lp_init();
             pool_lp_auth.is_authorized = true;
 
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 3;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::remove_actual_a_successful().to_le_bytes());
@@ -1446,7 +1450,7 @@ mod tests {
         }
 
         fn cc_new_definition_token_a() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 1;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::add_successful_amount_a().to_le_bytes());
@@ -1464,7 +1468,7 @@ mod tests {
         }
 
         fn cc_new_definition_token_b() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 1;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::add_successful_amount_b().to_le_bytes());
@@ -1482,7 +1486,7 @@ mod tests {
         }
 
         fn cc_new_definition_token_lp() -> ChainedCall {
-            let mut instruction: [u8; 23] = [0; 23];
+            let mut instruction = vec![0; 23];
             instruction[0] = 1;
             instruction[1..17]
                 .copy_from_slice(&BalanceForTests::add_successful_amount_a().to_le_bytes());
@@ -1736,6 +1740,7 @@ mod tests {
                         account_type: 0u8,
                         name: [1; 6],
                         total_supply: BalanceForTests::vault_a_reserve_init(),
+                        metadata_id: AccountId::new([0; 32]),
                     }),
                     nonce: 0,
                 },
@@ -1753,6 +1758,7 @@ mod tests {
                         account_type: 0u8,
                         name: [1; 6],
                         total_supply: BalanceForTests::vault_a_reserve_init(),
+                        metadata_id: AccountId::new([0; 32]),
                     }),
                     nonce: 0,
                 },

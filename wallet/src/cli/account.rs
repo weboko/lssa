@@ -4,6 +4,7 @@ use clap::Subcommand;
 use itertools::Itertools as _;
 use key_protocol::key_management::key_tree::chain_index::ChainIndex;
 use nssa::{Account, AccountId, program::Program};
+use nssa_core::account::Data;
 use serde::Serialize;
 
 use crate::{
@@ -12,17 +13,20 @@ use crate::{
     helperfunctions::{AccountPrivacyKind, HumanReadableAccount, parse_addr_with_privacy_prefix},
 };
 
-const TOKEN_DEFINITION_TYPE: u8 = 0;
-const TOKEN_DEFINITION_DATA_SIZE: usize = 23;
+const TOKEN_DEFINITION_DATA_SIZE: usize = 55;
 
 const TOKEN_HOLDING_TYPE: u8 = 1;
 const TOKEN_HOLDING_DATA_SIZE: usize = 49;
+const TOKEN_STANDARD_FUNGIBLE_TOKEN: u8 = 0;
+const TOKEN_STANDARD_NONFUNGIBLE: u8 = 2;
 
 struct TokenDefinition {
     #[allow(unused)]
     account_type: u8,
     name: [u8; 6],
     total_supply: u128,
+    #[allow(unused)]
+    metadata_id: AccountId,
 }
 
 struct TokenHolding {
@@ -33,19 +37,37 @@ struct TokenHolding {
 }
 
 impl TokenDefinition {
-    fn parse(data: &[u8]) -> Option<Self> {
-        if data.len() != TOKEN_DEFINITION_DATA_SIZE || data[0] != TOKEN_DEFINITION_TYPE {
+    fn parse(data: &Data) -> Option<Self> {
+        let data = Vec::<u8>::from(data.clone());
+
+        if data.len() != TOKEN_DEFINITION_DATA_SIZE {
             None
         } else {
             let account_type = data[0];
-            let name = data[1..7].try_into().unwrap();
-            let total_supply = u128::from_le_bytes(data[7..].try_into().unwrap());
+            let name = data[1..7].try_into().expect("Name must be a 6 bytes");
+            let total_supply = u128::from_le_bytes(
+                data[7..23]
+                    .try_into()
+                    .expect("Total supply must be 16 bytes little-endian"),
+            );
+            let metadata_id = AccountId::new(
+                data[23..TOKEN_DEFINITION_DATA_SIZE]
+                    .try_into()
+                    .expect("Token Program expects valid Account Id for Metadata"),
+            );
 
-            Some(Self {
+            let this = Some(Self {
                 account_type,
                 name,
                 total_supply,
-            })
+                metadata_id,
+            });
+
+            match account_type {
+                TOKEN_STANDARD_NONFUNGIBLE if total_supply != 1 => None,
+                TOKEN_STANDARD_FUNGIBLE_TOKEN if metadata_id != AccountId::new([0; 32]) => None,
+                _ => this,
+            }
         }
     }
 }
@@ -344,6 +366,8 @@ impl WalletSubcommand for AccountSubcommand {
 
 #[cfg(test)]
 mod tests {
+    use nssa::AccountId;
+
     use crate::cli::account::{TokedDefinitionAccountView, TokenDefinition};
 
     #[test]
@@ -352,6 +376,7 @@ mod tests {
             account_type: 1,
             name: [137, 12, 14, 3, 5, 4],
             total_supply: 100,
+            metadata_id: AccountId::new([0; 32]),
         };
 
         let token_def_view: TokedDefinitionAccountView = token_def.into();
@@ -365,6 +390,7 @@ mod tests {
             account_type: 1,
             name: [240, 159, 146, 150, 66, 66],
             total_supply: 100,
+            metadata_id: AccountId::new([0; 32]),
         };
 
         let token_def_view: TokedDefinitionAccountView = token_def.into();
@@ -378,6 +404,7 @@ mod tests {
             account_type: 1,
             name: [78, 65, 77, 69, 0, 0],
             total_supply: 100,
+            metadata_id: AccountId::new([0; 32]),
         };
 
         let token_def_view: TokedDefinitionAccountView = token_def.into();
