@@ -347,11 +347,14 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         assert_eq!(definition_acc.program_owner, Program::token().id());
         // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) || metadata id (32
+        // bytes)]
         assert_eq!(
             definition_acc.data.as_ref(),
             &[
-                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
             ]
         );
 
@@ -506,11 +509,14 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         assert_eq!(definition_acc.program_owner, Program::token().id());
         // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) || metadata id (32
+        // bytes)]
         assert_eq!(
             definition_acc.data.as_ref(),
             &[
-                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
             ]
         );
 
@@ -663,8 +669,8 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
             .account;
 
         assert_eq!(supply_acc.program_owner, Program::token().id());
-        // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // The data of a token holding account has the following layout:
+        // [ 0x01 || definition id (32 bytes) || balance (little endian 16 bytes) ]
         assert_eq!(
             supply_acc.data.as_ref(),
             &[
@@ -754,17 +760,20 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         assert_eq!(definition_acc.program_owner, Program::token().id());
         // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) || metadata id (32
+        // bytes)]
         assert_eq!(
             definition_acc.data.as_ref(),
             &[
-                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
             ]
         );
 
         assert_eq!(supply_acc.program_owner, Program::token().id());
-        // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // The data of a token holding account has the following layout:
+        // [ 0x01 || definition id (32 bytes) || balance (little endian 16 bytes) ]
         assert_eq!(
             supply_acc.data.as_ref(),
             &[
@@ -844,11 +853,14 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         assert_eq!(definition_acc.program_owner, Program::token().id());
         // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) || metadata id (32
+        // bytes)]
         assert_eq!(
             definition_acc.data.as_ref(),
             &[
-                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
             ]
         );
 
@@ -980,11 +992,14 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         assert_eq!(definition_acc.program_owner, Program::token().id());
         // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) || metadata id (32
+        // bytes)]
         assert_eq!(
             definition_acc.data.as_ref(),
             &[
-                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
             ]
         );
 
@@ -1116,11 +1131,14 @@ pub fn prepare_function_map() -> HashMap<String, TestFunction> {
 
         assert_eq!(definition_acc.program_owner, Program::token().id());
         // The data of a token definition account has the following layout:
-        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) ]
+        // [ 0x00 || name (6 bytes) || total supply (little endian 16 bytes) || metadata id (32
+        // bytes)]
         assert_eq!(
             definition_acc.data.as_ref(),
             &[
-                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                0, 65, 32, 78, 65, 77, 69, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0
             ]
         );
 

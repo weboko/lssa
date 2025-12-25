@@ -2283,7 +2283,7 @@ pub mod tests {
 
     // TODO: repeated code needs to be cleaned up
     // from token.rs (also repeated in amm.rs)
-    const TOKEN_DEFINITION_DATA_SIZE: usize = 23;
+    const TOKEN_DEFINITION_DATA_SIZE: usize = 55;
 
     const TOKEN_HOLDING_DATA_SIZE: usize = 49;
 
@@ -2291,6 +2291,7 @@ pub mod tests {
         account_type: u8,
         name: [u8; 6],
         total_supply: u128,
+        metadata_id: AccountId,
     }
 
     struct TokenHolding {
@@ -2300,14 +2301,17 @@ pub mod tests {
     }
     impl TokenDefinition {
         fn into_data(self) -> Data {
-            let mut bytes = [0; TOKEN_DEFINITION_DATA_SIZE];
-            bytes[0] = self.account_type;
-            bytes[1..7].copy_from_slice(&self.name);
-            bytes[7..].copy_from_slice(&self.total_supply.to_le_bytes());
-            bytes
-                .to_vec()
-                .try_into()
-                .expect("23 bytes should fit into Data")
+            let mut bytes = Vec::<u8>::new();
+            bytes.extend_from_slice(&[self.account_type]);
+            bytes.extend_from_slice(&self.name);
+            bytes.extend_from_slice(&self.total_supply.to_le_bytes());
+            bytes.extend_from_slice(&self.metadata_id.to_bytes());
+
+            if bytes.len() != TOKEN_DEFINITION_DATA_SIZE {
+                panic!("Invalid Token Definition data");
+            }
+
+            Data::try_from(bytes).expect("Token definition data size must fit into data")
         }
     }
 
@@ -2746,6 +2750,7 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: BalanceForTests::token_a_supply(),
+                    metadata_id: AccountId::new([0; 32]),
                 }),
                 nonce: 0,
             }
@@ -2759,6 +2764,7 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: BalanceForTests::token_b_supply(),
+                    metadata_id: AccountId::new([0; 32]),
                 }),
                 nonce: 0,
             }
@@ -2772,6 +2778,7 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: BalanceForTests::token_lp_supply(),
+                    metadata_id: AccountId::new([0; 32]),
                 }),
                 nonce: 0,
             }
@@ -3053,6 +3060,7 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: BalanceForTests::token_lp_supply_add(),
+                    metadata_id: AccountId::new([0; 32]),
                 }),
                 nonce: 0,
             }
@@ -3151,6 +3159,7 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: BalanceForTests::token_lp_supply_remove(),
+                    metadata_id: AccountId::new([0; 32]),
                 }),
                 nonce: 0,
             }
@@ -3164,6 +3173,7 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: 0,
+                    metadata_id: AccountId::new([0; 32]),
                 }),
                 nonce: 0,
             }
@@ -3262,6 +3272,7 @@ pub mod tests {
                     account_type: 0u8,
                     name: [1u8; 6],
                     total_supply: BalanceForTests::vault_a_balance_init(),
+                    metadata_id: AccountId::new([0; 32]),
                 }),
                 nonce: 0,
             }
@@ -3667,6 +3678,7 @@ pub mod tests {
 
     #[test]
     fn test_simple_amm_add() {
+        env_logger::init();
         let mut state = state_for_amm_tests();
 
         let mut instruction: Vec<u8> = Vec::new();
@@ -4072,7 +4084,7 @@ pub mod tests {
         // definition and supply accounts
         let total_supply: u128 = 10_000_000;
         // instruction: [0x00 || total_supply (little-endian 16 bytes) || name (6 bytes)]
-        let mut instruction: [u8; 23] = [0; 23];
+        let mut instruction = vec![0; 23];
         instruction[1..17].copy_from_slice(&total_supply.to_le_bytes());
         instruction[17..].copy_from_slice(b"PINATA");
         let message = public_transaction::Message::try_new(
@@ -4087,7 +4099,7 @@ pub mod tests {
         state.transition_from_public_transaction(&tx).unwrap();
 
         // Execution of the token program transfer just to initialize the winner token account
-        let mut instruction: [u8; 23] = [0; 23];
+        let mut instruction = vec![0; 23];
         instruction[0] = 2;
         let message = public_transaction::Message::try_new(
             token.id(),
