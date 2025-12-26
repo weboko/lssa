@@ -289,6 +289,8 @@ impl WalletSubcommand for AccountSubcommand {
 
 #[cfg(test)]
 mod tests {
+    use nssa::AccountId;
+
     use crate::cli::account::{TokedDefinitionAccountView, TokenDefinition};
 
     #[test]
@@ -297,6 +299,7 @@ mod tests {
             account_type: 1,
             name: [137, 12, 14, 3, 5, 4],
             total_supply: 100,
+            metadata_id: AccountId::new([0; 32]),
         };
 
         let token_def_view: TokedDefinitionAccountView = token_def.into();
@@ -310,6 +313,7 @@ mod tests {
             account_type: 1,
             name: [240, 159, 146, 150, 66, 66],
             total_supply: 100,
+            metadata_id: AccountId::new([0; 32]),
         };
 
         let token_def_view: TokedDefinitionAccountView = token_def.into();
@@ -323,6 +327,7 @@ mod tests {
             account_type: 1,
             name: [78, 65, 77, 69, 0, 0],
             total_supply: 100,
+            metadata_id: AccountId::new([0; 32]),
         };
 
         let token_def_view: TokedDefinitionAccountView = token_def.into();

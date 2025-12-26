@@ -15,7 +15,7 @@ pub type Nonce = u128;
 
 /// Account to be used both in public and private contexts
 #[derive(
-    Serialize, Deserialize, Clone, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize,
+    Clone, Default, Eq, PartialEq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
 )]
 #[cfg_attr(any(feature = "host", test), derive(Debug))]
 pub struct Account {
@@ -25,7 +25,7 @@ pub struct Account {
     pub nonce: Nonce,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(any(feature = "host", test), derive(Debug))]
 pub struct AccountWithMetadata {
     pub account: Account,
@@ -45,6 +45,7 @@ impl AccountWithMetadata {
 }
 
 #[derive(
+    Default,
     Copy,
     Clone,
     Serialize,
@@ -54,7 +55,6 @@ impl AccountWithMetadata {
     Hash,
     BorshSerialize,
     BorshDeserialize,
-    Default,
 )]
 #[cfg_attr(any(feature = "host", test), derive(Debug, PartialOrd, Ord))]
 pub struct AccountId {
