@@ -2657,6 +2657,8 @@ name = "nssa"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "bytemuck",
+ "env_logger",
  "hex",
  "hex-literal 1.1.0",
  "log",
