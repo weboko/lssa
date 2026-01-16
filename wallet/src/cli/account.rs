@@ -231,24 +231,8 @@ impl WalletSubcommand for AccountSubcommand {
                         .ok_or(anyhow::anyhow!("Private account not found in storage"))?,
                 };
 
-                if account == Account::default() {
-                    println!("Account is Uninitialized");
-
-                    return Ok(SubcommandReturnValue::Empty);
-                }
-
-                if raw {
-                    let account_hr: HumanReadableAccount = account.clone().into();
-                    println!("{}", serde_json::to_string(&account_hr).unwrap());
-
-                    return Ok(SubcommandReturnValue::Empty);
-                }
-
-                let (description, json_view) = format_account_details(&account);
-                println!("{description}");
-                println!("{json_view}");
-
-                if keys {
+                // Helper closure to display keys for the account
+                let display_keys = |wallet_core: &WalletCore| -> Result<()> {
                     match addr_kind {
                         AccountPrivacyKind::Public => {
                             let private_key = wallet_core
@@ -274,6 +258,32 @@ impl WalletSubcommand for AccountSubcommand {
                             );
                         }
                     }
+                    Ok(())
+                };
+
+                if account == Account::default() {
+                    println!("Account is Uninitialized");
+
+                    if keys {
+                        display_keys(wallet_core)?;
+                    }
+
+                    return Ok(SubcommandReturnValue::Empty);
+                }
+
+                if raw {
+                    let account_hr: HumanReadableAccount = account.clone().into();
+                    println!("{}", serde_json::to_string(&account_hr).unwrap());
+
+                    return Ok(SubcommandReturnValue::Empty);
+                }
+
+                let (description, json_view) = format_account_details(&account);
+                println!("{description}");
+                println!("{json_view}");
+
+                if keys {
+                    display_keys(wallet_core)?;
                 }
 
                 Ok(SubcommandReturnValue::Empty)
